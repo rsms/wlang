@@ -1,0 +1,29 @@
+ninja_required_version = 1.3
+
+builddir = build
+
+cflags = $
+  -std=c11 $
+  -fcolor-diagnostics
+
+cflags_dev = $cflags -O0 -g -DDEBUG
+cflags_opt = $cflags -Oz -DNDEBUG
+
+lflags =
+
+lflags_dev = $lflags -g -O0 -fno-lto
+lflags_opt = $lflags -O3 -flto -Wl,--lto-O3
+
+rule compile_obj
+  command = clang -MMD -MF $out.d $cflags -c -o $out $in
+  depfile = $out.d
+
+rule link
+  command = clang $lflags -o $out $in
+
+CONFIG_REPLACE_BUILDS
+
+build debug:   phony | $builddir/wp.g
+build release: phony | $builddir/wp
+
+default debug
