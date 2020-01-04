@@ -39,3 +39,7 @@ inline static void ArrayPush(Array* a, void* v) {
   }
   a->v[a->len++] = v;
 }
+
+inline static void* ArrayPop(Array* a) {
+  return a->len > 0 ? a->v[--a->len] : NULL;
+}

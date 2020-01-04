@@ -1,8 +1,14 @@
 #include "wp.h"
 #include "parseint.h"
-#include "array.h"
 
-typedef enum Precedence { // taken from skew
+// enable debug messages for pushScope() and popScope()
+// #define DEBUG_SCOPE_PUSH_POP
+
+// enable debug messages for defsym()
+// #define DEBUG_DEFSYM
+
+
+typedef enum Precedence {
   PREC_LOWEST,
   PREC_ASSIGN,
   PREC_COMMA,
@@ -85,13 +91,19 @@ static void syntaxerrp(P* p, SrcPos pos, const char* format, ...) {
     sdsfree(stmp);
   }
 
-  auto s = SrcPosMsg(sdsempty(), pos, msg);
-  sdsfree(msg);
+  // auto s = SrcPosMsg(sdsempty(), pos, msg);
 
-  fwrite(s, sdslen(s), 1, stderr);
-  if (s != msg) {
-    sdsfree(s);
+  if (p->s.errh) {
+    // p->s.errh(p->s.src, pos, s, p->s.userdata);
+    p->s.errh(p->s.src, pos, msg, p->s.userdata);
+  // } else {
+  //   fwrite(s, sdslen(s), 1, stderr);
   }
+
+  // if (s != msg) {
+  //   sdsfree(s);
+  // }
+  sdsfree(msg);
 }
 
 
@@ -169,16 +181,9 @@ inline static Node* PNewNode(P* p, NodeKind kind) {
   return n;
 }
 
-inline static void freeNode(Node* n) {
+inline static void NodeFree(Node* n) {
   // just leak for now.
   // TODO: freelist
-}
-
-// shallow copy
-inline static Node* cloneNode(Node* n) {
-  auto n2 = (Node*)malloc(sizeof(Node));
-  *n2 = *n;
-  return n2;
 }
 
 // operations on node u.list (singly-linked list)
@@ -211,20 +216,63 @@ static Node* exprList(P* p, int precedence);
 static Node* exprOrList(P* p, int precedence);
 
 // Fun = "fun" Ident Params? Type? Block?
-static Node* pfun(P* p);
+static Node* pfun(P* p, bool nameOptional);
 
-// parseIdent etc
-// generate node-specific parse functions for expression nodes (e.g. parseIdent)
-#define I_ENUM(name) \
-static Node* parse##name(P* p, int precedence) {                           \
-  auto n = expr(p, precedence);                                      \
-  if (n->kind != N##name) {                                                \
-    syntaxerr((p), "expecting %s", NodeKindName(N##name));                 \
-  }                                                                        \
-  return n;                                                                \
+
+// initial hash table bucket sizes
+static const u32 SCOPE_SIZE_PARAMS = 8;
+static const u32 SCOPE_SIZE_BLOCK  = 16;
+static const u32 SCOPE_SIZE_FILE   = 64;
+
+// pushScope adds a new scope to the stack. Returns the new scope.
+static Scope* pushScope(P* p, u32 nbuckets) {
+  auto s = ScopeNew(nbuckets);
+  s->parent = p->scope;
+  p->scope = s;
+  #ifdef DEBUG_SCOPE_PUSH_POP
+  dlog("push scope #%p", s);
+  #endif
+  return s;
 }
-DEF_NODE_KINDS_EXPR(I_ENUM)
-#undef I_ENUM
+
+// popScope removes & returns the topmost scope
+static Scope* popScope(P* p) {
+  auto s = p->scope;
+  p->scope = s->parent;
+
+  #ifdef DEBUG_SCOPE_PUSH_POP
+  dlog("pop scope #%p", s);
+  if (s->bindings.len == 0 && s->childcount == 0) {
+    dlog("  unused scope (free)");
+  } else {
+    dlog("  used scope (keep)");
+  }
+  #endif
+
+  if (s->bindings.len == 0 && s->childcount == 0) {
+    // the scope is unused and has no dependants; free it and return null
+    ScopeFree(s);
+    return NULL;
+  }
+  if (p->scope) {
+    p->scope->childcount++;
+  }
+  return s;
+}
+
+
+static Node* defsym(P* p, Sym s, Node* n) {
+  Node* existing = SymMapSet(&p->scope->bindings, s, n);
+  #ifdef DEBUG_DEFSYM
+  if (existing) {
+    dlog("defsym %s => %s (replacing %s)", s, NodeKindName(n->kind), NodeKindName(existing->kind));
+  } else {
+    dlog("defsym %s => %s", s, NodeKindName(n->kind));
+  }
+  #endif
+  return existing;
+}
+
 
 // If the current token is t, advances scanner and returns true.
 inline static bool got(P* p, Tok t) {
@@ -265,13 +313,17 @@ static Node* exprListTrailingComma(P* p, int precedence, Tok stoptok) {
 //!PrefixParselet TIdent
 static Node* PIdent(P* p) {
   auto n = PNewNode(p, NIdent);
-  n->u.name = p->s.name;
+  n->u.ref.name = p->s.name;
   next(p);
   return n;
 }
 
-static Node* ident(P* p) {
-  want(p, TIdent);
+static Node* pident(P* p) {
+  if (p->s.tok != TIdent) {
+    syntaxerr(p, "expecting identifier");
+    next(p);
+    return bad(p);
+  }
   return PIdent(p);
 }
 
@@ -279,31 +331,108 @@ static Node* ident(P* p) {
 static Node* PAssign(P* p, const Parselet* e, Node* left) {
   auto n = PNewNode(p, NAssign);
   n->u.op.op = p->s.tok;
-  n->u.op.left = left;
   next(p);
-  n->u.op.right = exprOrList(p, e->prec);
+  auto right = exprOrList(p, e->prec);
+  n->u.op.left = left;
+  n->u.op.right = right;
 
-  // TODO: maybe move this to bind/resolve pass?
-  // check that count(left) == count(right)
-  auto right  = n->u.op.right;
-  auto nleft  = left->kind  != NList ? 1 : nlistCount(left);
-  auto nright = right->kind != NList ? 1 : nlistCount(right);
-  if (nleft != nright) {
-    syntaxerrp(p, n->pos, "assignment mismatch: %u targets but %u values", nleft, nright);
+  // defsym
+  if (left->kind == NList) {
+    if (right->kind != NList) {
+      syntaxerrp(p, left->pos, "assignment mismatch: %u targets but 1 value", nlistCount(left));
+    } else {
+      auto l = left->u.list.head;
+      auto r = right->u.list.head;
+      while (1) {
+        if (l->kind == NIdent) {
+          defsym(p, l->u.ref.name, r);
+        }
+        l = l->link_next;
+        r = r->link_next;
+        if (!l || !r) {
+          if (l || r) {
+            syntaxerrp(p, left->pos, "assignment mismatch: %u targets but %u values",
+              nlistCount(left), nlistCount(right));
+          }
+          break;
+        }
+      }
+    }
+  } else if (right->kind == NList) {
+    syntaxerrp(p, left->pos, "assignment mismatch: 1 target but %u values", nlistCount(right));
+  } else if (left->kind == NIdent) {
+    defsym(p, left->u.ref.name, right);
   }
 
   return n;
 }
 
-// maybeType = Type?
+// ptype = Type
 //
-static Node* maybeType(P* p) {
+static Node* ptype(P* p) {
   if (p->s.tok == TIdent) {
-    return parseIdent(p, PREC_MEMBER);
+    return PIdent(p);
   } else if (p->s.tok == TFun) {
-    return pfun(p);
+    return pfun(p, /*nameOptional*/true);
   }
-  return null;
+  syntaxerr(p, "expecting type");
+  return bad(p);
+}
+
+
+// helper for PVar to parse a multi-name definition
+static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
+  auto names = PNewNode(p, NList);
+  names->pos = ident0->pos;
+  nlistPush(names, ident0);
+  do {
+    nlistPush(names, pident(p));
+  } while (got(p, TComma));
+
+  Node* type = p->s.tok != TEq ? ptype(p) : NULL;
+  bool hasValues = got(p, TEq);
+
+  if (!hasValues && nkind == NConst) {
+    // no values. e.g. "var x, y, z int"
+    syntaxerr(p, "expecting =expression");
+  }
+
+  // parse values
+  auto n = names->u.list.head;
+  u32 valcount = 0;
+  while (n) {
+    Node* value;
+    if (hasValues) {
+      value = expr(p, PREC_MEMBER);
+      valcount++;
+      if (n->link_next && !got(p, ',')) {
+        hasValues = false;
+        syntaxerr(p, "assignment mismatch: %u targets but %u values",
+          nlistCount(names), valcount);
+      }
+    } else {
+      value = PNewNode(p, NZeroInit);
+      value->type = type;
+    }
+    auto namekind = n->kind;
+    n->kind = nkind; // repurpose node as NVar|NConst node
+    if (namekind == NIdent) {
+      auto name = n->u.ref.name; // copy since u.ref.name and u.field.name might overlap in memory
+      n->u.field.name = name;
+      defsym(p, name, n);
+    }
+    n->u.field.init = value;
+    n = n->link_next;
+  }
+
+  if (got(p, ',')) {
+    auto extra = exprList(p, PREC_MEMBER);
+    auto namecount = nlistCount(names);
+    syntaxerrp(p, extra->pos, "assignment mismatch: %u targets but %u values",
+      namecount, namecount + nlistCount(extra));
+  }
+
+  return names;
 }
 
 
@@ -314,18 +443,40 @@ static Node* maybeType(P* p) {
 //
 //!PrefixParselet TConst TVar
 static Node* PVar(P* p) {
-  auto n = PNewNode(p, p->s.tok == TConst ? NConst : NVar);
-  next(p);
-  n->u.op.left = exprList(p, PREC_MEMBER);
-  n->type = maybeType(p);
+  auto nkind = p->s.tok == TConst ? NConst : NVar;
+  next(p); // consume "var" or "const"
+
+  auto name = pident(p);
+  if (got(p, TComma)) {
+    return pVarMulti(p, nkind, name);
+  }
+
+  Node* type = p->s.tok != TEq ? ptype(p) : NULL;
+
+  Node* value = NULL;
   if (got(p, TEq)) {
-    n->u.op.right = exprList(p, PREC_MEMBER);
-  } else if (!n->type) {
-    syntaxerr(p, "expecting type");
-    next(p);
+    value = expr(p, PREC_MEMBER);
+    if (type == NULL) {
+      type = value->type;
+    }
+  } else {
+    if (nkind == NConst) {
+      syntaxerr(p, "expecting =expression");
+    }
+    value = PNewNode(p, NZeroInit);
+    value->type = type;
+  }
+  auto n = PNewNode(p, nkind);
+  n->pos = name->pos;
+  n->type = type;
+  n->u.field.init = value;
+  if (name->kind == NIdent) {
+    n->u.field.name = name->u.ref.name;
+    defsym(p, name->u.ref.name, n);
   }
   return n;
 }
+
 
 //!PrefixParselet TComment
 static Node* PComment(P* p) {
@@ -361,6 +512,9 @@ static Node* PCall(P* p, const Parselet* e, Node* receiver) {
 static Node* PBlock(P* p) {
   auto n = PNewNode(p, NBlock);
   next(p); // consume "{"
+
+  pushScope(p, SCOPE_SIZE_BLOCK);
+
   while (p->s.tok != TNil && p->s.tok != '}') {
     nlistPush(n, exprOrList(p, PREC_LOWEST));
     if (!got(p, ';')) {
@@ -371,6 +525,9 @@ static Node* PBlock(P* p) {
     syntaxerr(p, "expecting ; or }");
     next(p);
   }
+
+  n->u.list.scope = popScope(p);
+
   return n;
 }
 
@@ -508,6 +665,11 @@ static Node* params(P* p) {
       // e.g. "(x, y int, z)"
       syntaxerr(p, "expecting type");
     }
+    auto field = n->u.list.head;
+    while (field) {
+      defsym(p, field->u.field.name, field);
+      field = field->link_next;
+    }
   } else {
     // type-only form; e.g. "(T, T, Y)"
     // make ident of each field->u.field.name where field->type == NULL
@@ -515,7 +677,7 @@ static Node* params(P* p) {
     while (field) {
       if (!field->type) {
         field->type = PNewNode(p, NIdent);
-        field->type->u.name = field->u.field.name;
+        field->type->u.ref.name = field->u.field.name;
         field->u.field.name = sym__;
       }
       field = field->link_next;
@@ -527,6 +689,7 @@ static Node* params(P* p) {
   return n;
 }
 
+
 // Fun = "fun" Ident? params? Type? Block?
 //
 // e.g.
@@ -534,22 +697,31 @@ static Node* params(P* p) {
 //   fun foo { 5 }
 //   fun foo -> int 5
 //
-static Node* pfun(P* p) {
+static Node* pfun(P* p, bool nameOptional) {
   auto n = PNewNode(p, NFun);
   next(p);
   if (p->s.tok == TIdent) {
-    n->u.fun.name = p->s.name;
+    auto name = p->s.name;
+    n->u.fun.name = name;
+    defsym(p, name, n);
+    next(p);
+  } else if (!nameOptional) {
+    syntaxerr(p, "expecting name");
     next(p);
   }
+  pushScope(p, SCOPE_SIZE_PARAMS);
   if (p->s.tok == '(') {
     n->u.fun.params = params(p);
   }
   if (p->s.tok != '{' && p->s.tok != ';') {
     n->type = exprOrList(p, PREC_LOWEST);
   }
+  p->fnest++;
   if (p->s.tok == '{') {
     n->u.fun.body = PBlock(p);
   }
+  p->fnest--;
+  n->u.fun.scope = popScope(p);
   return n;
 }
 
@@ -562,11 +734,7 @@ static Node* pfun(P* p) {
 //
 //!PrefixParselet TFun
 static Node* PFun(P* p) {
-  auto n = pfun(p);
-  if (n->u.fun.name == null) {
-    syntaxerrp(p, n->pos, "expecting name");
-  }
-  return n;
+  return pfun(p, /* nameOptional */ false);
 }
 
 
@@ -575,10 +743,11 @@ static Node* PFun(P* p) {
 // ============================================================================================
 
 
-void PInit(P* p, Source* src) {
+void PInit(P* p, Source* src, ErrorHandler* errh, void* userdata) {
   // initialize scanner
-  SInit(&p->s, src, SCAN_COMMENTS);
+  SInit(&p->s, src, SCAN_COMMENTS, errh, userdata);
   p->fnest = 0;
+  p->scope = NULL;
   next(p); // read first token
 }
 
@@ -686,20 +855,26 @@ static Node* exprList(P* p, int precedence) {
 }
 
 
-void PParseFile(P* p) {
+Node* PParseFile(P* p) {
+  auto file = PNewNode(p, NFile);
+  pushScope(p, SCOPE_SIZE_FILE);
+
   while (p->s.tok != TNil) {
     Node* n = exprOrList(p, PREC_LOWEST);
+    nlistPush(file, n);
 
     // // print associated comments
     // auto c = p->s.comments;
     // while (c) { printf("#%.*s\n", (int)c->len, c->ptr); c = c->next; }
     // p->s.comments = p->s.comments_tail = NULL;
+    // TODO: Add "comments" to Node struct and if caller requests inclusion of comments,
+    // assign thse comments to the node. This should be done in PNewNode and not here.
 
-    // print AST representation
-    auto s = NodeRepr(n, sdsempty());
-    s = sdscatlen(s, "\n", 1);
-    fwrite(s, sdslen(s), 1, stdout);
-    sdsfree(s);
+    // // print AST representation
+    // auto s = NodeRepr(n, sdsempty());
+    // s = sdscatlen(s, "\n", 1);
+    // fwrite(s, sdslen(s), 1, stdout);
+    // sdsfree(s);
 
     // check that we either got a semicolon or EOF
     if (p->s.tok != TNil && !got(p, TSemi)) {
@@ -708,6 +883,9 @@ void PParseFile(P* p) {
       advance(p, followlist);
     }
   }
+
+  file->u.list.scope = popScope(p);
+  return file;
 }
 
 
@@ -727,7 +905,7 @@ void PParseFile(P* p) {
 //     n->u.list.tail = right->u.list.head;
 //     right->u.list.head = null;
 //     right->u.list.tail = null;
-//     freeNode(right);
+//     NodeFree(right);
 //   } else {
 //     nlistPush(n, right);
 //   }

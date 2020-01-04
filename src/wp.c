@@ -1,5 +1,15 @@
 #include "wp.h"
 
+static void errorHandler(Source* src, SrcPos pos, CStr msg, void* userdata) {
+  u32* errcount = (u32*)userdata;
+  (*errcount)++;
+
+  auto s = SrcPosMsg(sdsempty(), pos, msg);
+  s[sdslen(s)-1] = '\n'; // repurpose NUL
+  fwrite(s, sdslen(s), 1, stderr);
+  sdsfree(s);
+}
+
 void parsefile(Str filename) {
 
   // load file contents
@@ -12,27 +22,20 @@ void parsefile(Str filename) {
   Source src;
   SourceInit(&src, filename, buf, len);
 
-  P p;
-  PInit(&p, &src);
-  PParseFile(&p);
+  u32 errcount = 0;
+  P p; PInit(&p, &src, errorHandler, &errcount);
 
-  // ssize_t n;
-  // u8 buf[BUFSIZ];
-  // int out = 1; // stdout
-  // while ((n = read(fd, buf, BUFSIZ)) > 0) {
-  //   ScannerScan(s, buf, n);
-  //   while (n > 0) {
-  //     auto m = write(out, buf, n);
-  //     if (m < 0) {
-  //       die("write error: %s", strerror(errno));
-  //       exit(1);
-  //     }
-  //     n -= m;
-  //   }
-  // }
-  // if (n < 0) {
-  //   die("read error: %s", strerror(errno));
-  // }
+  auto file = PParseFile(&p);
+
+  // print AST representation
+  auto s = NodeRepr(file, sdsempty());
+  s = sdscatlen(s, "\n", 1);
+  fwrite(s, sdslen(s), 1, stdout);
+  sdsfree(s);
+
+  if (errcount == 0) {
+    Resolve(file, &src, errorHandler, &errcount);
+  }
 
   free(buf);
   SourceFree(&src);

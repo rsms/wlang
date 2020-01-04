@@ -99,7 +99,7 @@ Str SrcPosFmt(Str s, SrcPos pos) {
 }
 
 
-Str SrcPosMsg(Str s, SrcPos pos, Str message) {
+Str SrcPosMsg(Str s, SrcPos pos, CStr message) {
   auto l = SrcPosLineCol(pos);
   s = sdscatfmt(s, "%s:%u:%u: %S\n",
     pos.src ? pos.src->name : sdsnew("<input>"), l.line + 1, l.col + 1,

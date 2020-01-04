@@ -158,7 +158,7 @@ typedef struct { u32 line; u32 col; } LineCol;
 
 void SourceInit(Source*, Str name, const u8* buf, size_t len);
 void SourceFree(Source*);
-Str SrcPosMsg(Str s, SrcPos, Str message);
+Str SrcPosMsg(Str s, SrcPos, CStr message);
 Str SrcPosFmt(Str s, SrcPos pos); // "<file>:<line>:<col>"
 LineCol SrcPosLineCol(SrcPos);
 
@@ -171,6 +171,10 @@ static const Rune RuneSelf = 0x80;
 static const u32 UTF8Max = 4; // Maximum number of bytes of a UTF8-encoded char.
 
 Rune utf8decode(const u8* buf, size_t len, u32* out_width);
+
+// -----------------------------------------
+
+typedef void(ErrorHandler)(Source*, SrcPos, CStr msg, void* userdata);
 
 // -----------------------------------------
 // scanner
@@ -211,9 +215,12 @@ typedef struct S {
 
   u32       lineno;     // source position line
   const u8* linestart;  // source position line start pointer (for column)
+
+  ErrorHandler* errh;
+  void*         userdata;
 } S;
 
-void SInit(S*, Source*, ScanFlags);
+void SInit(S*, Source*, ScanFlags, ErrorHandler*, void* userdata);
 Tok  SNext(S*);
 
 // source position of current token
@@ -230,15 +237,20 @@ inline static SrcPos SSrcPos(S* s) {
 // -----------------------------------------------------------
 // ast
 #include "ast.h"
+#include "array.h"
 
 // parser
 typedef struct P {
-  S   s;      // scanner
-  u32 fnest;  // function nesting level (for error handling)
+  S      s;      // scanner
+  u32    fnest;  // function nesting level (for error handling)
+  Scope* scope; // current scope
 } P;
 
-void PInit(P*, Source*);
-void PParseFile(P*);
+void PInit(P*, Source*, ErrorHandler*, void* userdata);
+Node* PParseFile(P*);
 
 // util
 u8* readfile(const char* filename, size_t* bufsize_out);
+
+// Resolve
+void Resolve(Node*, Source*, ErrorHandler*, void* userdata);

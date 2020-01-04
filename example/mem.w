@@ -1,13 +1,32 @@
 # comment
 
-# r, g, b = 255, 128, (g = 5)
 
+# const lol int = 5
 # var foo Foo
-# var red, green int = 4
-# var r, g, b = 255, 128, 4
+# var red, green int = 4, 5
+# var x int = 8
+# var A, B, C int
+# var a, b int = 1, 2
+# var r, g, b = 255, 128, 5
+# r, g, b = 255, 128, (g = 5)
 
 # fun lol(int, int32, Foo) int64
 # var f fun(int, int32) int64
+
+const start = 5
+
+fun main {
+  # var x = 1
+  factorial(start)
+}
+
+fun factorial(n int) int {
+  if n == 0 {
+    1
+  } else {
+    n * factorial(n - 1)
+  }
+}
 
 # fun multiply(x, y int, z int32) int {
 #   if x > y {
@@ -19,17 +38,7 @@
 #   }
 # }
 
-fun factorial(n int) int {
-  if n == 0 {
-    1
-  } else {
-    n * factorial(n - 1)
-  }
-}
 
-fun main {
-  factorial(5)
-}
 
 # z = { x = 6; 5 * x }
 

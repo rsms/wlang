@@ -27,14 +27,29 @@ static Str reprEmpty(Str s, int ind) {
 }
 
 
+static Scope* getScope(const Node* n) {
+  switch (n->kind) {
+    case NBlock:
+    case NList:
+    case NFile:
+      return n->u.list.scope;
+    case NFun:
+      return n->u.fun.scope;
+    default:
+      return NULL;
+  }
+}
+
+
 static Str NodeReprInd(const Node* n, Str s, int ind) {
   assert(n);
   s = indent(s, ind);
   s = sdscatfmt(s, "(%s ", NodeKindNames[n->kind]);
+  // s = sdscatfmt(s, "(#%u ", n->kind);
 
   if (n->type) {
     if (n->type->kind == NIdent) {
-      s = sdscatfmt(s, "<%S> ", n->type->u.name);
+      s = sdscatfmt(s, "<%S> ", n->type->u.ref.name);
     } else {
       s = sdscatlen(s, "<", 1);
       s = NodeReprInd(n->type, s, 0);
@@ -42,11 +57,17 @@ static Str NodeReprInd(const Node* n, Str s, int ind) {
     }
   }
 
+  auto scope = getScope(n);
+  if (scope) {
+    s = sdscatprintf(s, "[scope %p] ", scope);
+  }
+
   switch (n->kind) {
 
   // does not use u
   case NBad:
   case NNone:
+  case NZeroInit:
     sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
     break;
 
@@ -60,18 +81,20 @@ static Str NodeReprInd(const Node* n, Str s, int ind) {
     s = sdscatfmt(s, "%U", n->u.integer);
     break;
 
-  // uses u.name
+  // uses u.ref
   case NIdent:
-    assert(n->u.name);
-    s = sdscatsds(s, n->u.name);
+    assert(n->u.ref.name);
+    s = sdscatsds(s, n->u.ref.name);
+    // TODO: cycle guard; target may be cyclic
+    // if (n->u.ref.target) {
+    //   s = NodeReprInd(n->u.ref.target, s, ind + 2);
+    // }
     break;
 
   // uses u.op
   case NOp:
   case NPrefixOp:
-  case NVar:
   case NAssign:
-  case NConst:
   case NReturn:
     if (n->u.op.op != TNil) {
       s = sdscat(s, TokName(n->u.op.op));
@@ -86,7 +109,9 @@ static Str NodeReprInd(const Node* n, Str s, int ind) {
   // uses u.list
   case NBlock:
   case NList:
+  case NFile:
   {
+    sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
     auto n2 = n->u.list.head;
     while (n2) {
       s = NodeReprInd(n2, s, ind + 2);
@@ -96,7 +121,10 @@ static Str NodeReprInd(const Node* n, Str s, int ind) {
   }
 
   // uses u.field
-  case NField: {
+  case NVar:
+  case NConst:
+  case NField:
+  {
     auto f = &n->u.field;
     if (f->name) {
       s = sdscatsds(s, f->name);
@@ -104,9 +132,7 @@ static Str NodeReprInd(const Node* n, Str s, int ind) {
       s = sdscatlen(s, "_", 1);
     }
     if (f->init) {
-      s = sdscatlen(s, " (init", 7);
       s = NodeReprInd(f->init, s, ind + 2);
-      s = sdscatlen(s, ")", 1);
     }
     break;
   }
@@ -162,3 +188,33 @@ const char* NodeKindName(NodeKind t) {
   return NodeKindNames[t];
 }
 
+
+Scope* ScopeNew(u32 nbuckets) {
+  // TODO: slab alloc together with AST nodes for cache efficiency
+  auto s = (Scope*)malloc(sizeof(Scope));
+  s->parent = NULL;
+  s->childcount = 0;
+  SymMapInit(&s->bindings, nbuckets);
+  return s;
+}
+
+void ScopeFree(Scope* s) {
+  SymMapFree(&s->bindings);
+  free(s);
+}
+
+
+// #define DEBUG_LOOKUP
+
+Node* ScopeLookup(Scope* scope, Sym s) {
+  Node* n = NULL;
+  while (scope && n == NULL) {
+    // dlog("[lookup] %s in scope %p(len=%u)", s, scope, scope->bindings.len);
+    n = SymMapGet(&scope->bindings, s);
+    scope = scope->parent;
+  }
+  #ifdef DEBUG_LOOKUP
+  dlog("lookup %s => %s", s, n == NULL ? "null" : NodeKindName(n->kind));
+  #endif
+  return n;
+}

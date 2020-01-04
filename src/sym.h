@@ -39,6 +39,38 @@ inline static Tok symLangTok(Sym s) {
   return kwindex == 0 ? TIdent : kwindex + TKeywordsStart;
 }
 
+// SymMap maps Sym to a pointer-sized value. It's a hash map.
+struct SymMapBucket; // opaque
+typedef struct {
+  struct SymMapBucket* buckets;
+  u32 cap;  // number of buckets
+  u32 len;  // number of key-value entries
+} SymMap;
+
+// SymMapInit initializes a map structure. initbuckets is the number of initial buckets.
+void SymMapInit(SymMap*, u32 initbuckets);
+
+// SymMapFree frees buckets data.
+void SymMapFree(SymMap*);
+
+// SymMapGet searches for key. Returns value, or NULL if not found.
+void* SymMapGet(const SymMap*, Sym key);
+
+// SymMapSet inserts key=value into m. Returns the replaced value or NULL if not found.
+void* SymMapSet(SymMap*, Sym key, void* value);
+
+// SymMapDel removes value for key. Returns the removed value or NULL if not found.
+void* SymMapDel(SymMap*, Sym key);
+
+// SymMapClear removes all entries. In contrast to SymMapFree, map remains valid.
+void SymMapClear(SymMap*);
+
+// Iterator function type. Set stop=true to stop iteration.
+typedef void(SymMapIterator)(Sym key, void* value, bool* stop, void* userdata);
+
+// SymMapIter iterates over entries of the map.
+void SymMapIter(const SymMap*, SymMapIterator*, void* userdata);
+
 // predefined symbols
 const Sym sym_break;
 const Sym sym_case;

@@ -21,7 +21,7 @@ const char* TokName(Tok t) {
     #undef I_ENUM
 
     case TKeywordsStart: return "TKeywordsStart";
-    #define I_ENUM(str, name) case name: return #str;
+    #define I_ENUM(str, name) case name: return "keyword." #str;
     TOKEN_KEYWORDS(I_ENUM)
     #undef I_ENUM
     case TKeywordsEnd: return "TKeywordsEnd";
@@ -67,7 +67,7 @@ static u8 charflags[256] = {
 };
 
 
-void SInit(S* s, Source* src, ScanFlags flags) {
+void SInit(S* s, Source* src, ScanFlags flags, ErrorHandler* errh, void* userdata) {
   memset(s, 0, sizeof(S));
 
   s->src   = src;
@@ -82,6 +82,9 @@ void SInit(S* s, Source* src, ScanFlags flags) {
 
   s->lineno = 0;
   s->linestart = s->inp;
+
+  s->errh = errh;
+  s->userdata = userdata;
 }
 
 
@@ -95,8 +98,13 @@ static void serr(S* s, const char* format, ...) {
   msg = sdscatvprintf(msg, format, ap);
   va_end(ap);
 
-  msg[sdslen(msg)] = '\n'; // replace NUL with ln
-  fwrite(msg, sdslen(msg)+1, 1, stderr);
+  if (s->errh) {
+    s->errh(s->src, pos, msg, s->userdata);
+  } else {
+    msg[sdslen(msg)] = '\n'; // replace NUL with ln
+    fwrite(msg, sdslen(msg)+1, 1, stderr);
+  }
+
   sdsfree(msg);
 }
 

@@ -6,6 +6,7 @@ sources=( \
   src/ast.c \
   src/parse.c \
   src/parseint.c \
+  src/resolve.c \
   src/scan.c \
   src/sds.c \
   src/source.c \
