@@ -1,0 +1,10 @@
+.DS_Store
+*.o
+*.a
+*.d
+*.gz
+/*.sublime-*
+/_local
+/build
+/build.ninja
+* copy

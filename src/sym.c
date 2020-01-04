@@ -4,6 +4,7 @@
 //
 #include "wp.h"
 #include "sym.h"
+#include "hash.h"
 
 #define RBKEY Sym
 #include "rbtree.c"
@@ -120,19 +121,6 @@ static const char* const debugKeywordsCheck =
 
 // -----------------------------------------------------------------------------------------
 
-// symhashdata returns an unsigned integer hash of an array of bytes.
-// The FNV1a algorithm is fast and has good distribution for common short names.
-// This makes is suitable for source text string hashing and is used by Sym.
-u32 symhashdata(const u8* buf, size_t len) {
-  const u32 prime = 0x01000193; // (16777619)
-  u32 hash = 0x811C9DC5; // seed (2166136261)
-  const u8* end = buf + len;
-  while (buf < end) {
-    hash = (*buf++ ^ hash) * prime;
-  }
-  return hash;
-}
-
 
 // dumpSymTree functionn
 #ifdef DEBUG
@@ -230,7 +218,7 @@ Sym symget(const u8* data, size_t _len, u32 hash) {
 
 
 Sym symgeth(const u8* data, size_t len) {
-  return symget(data, len, symhashdata(data, len));
+  return symget(data, len, hashFNV1a(data, len));
 }
 
 
@@ -277,7 +265,7 @@ __attribute__((constructor)) static void gen_constants() {
   printf("//-- BEGIN gen_constants() at %s:%d\n\n", __FILE__, __LINE__);
 
   #define SYM_DEF(str, tok)                                               \
-    Sym sym_##str = newsym(symhashdata((const u8*)(#str), strlen(#str)),  \
+    Sym sym_##str = newsym(hashFNV1a((const u8*)(#str), strlen(#str)),  \
     (const u8*)(#str), (u32)strlen(#str), SDS_TYPE_16);
   TOKEN_KEYWORDS(SYM_DEF)
   #undef SYM_DEF
@@ -373,13 +361,13 @@ __attribute__((constructor)) static void gen_constants() {
   printf("//-- BEGIN gen_constants() at %s:%d\n\n", __FILE__, __LINE__);
 
   #define SYM_DEF(str, tok)                                               \
-    Sym sym_##str = newsym(symhashdata((const u8*)(#str), strlen(#str)),  \
+    Sym sym_##str = newsym(hashFNV1a((const u8*)(#str), strlen(#str)),  \
     (const u8*)(#str), (u32)strlen(#str), SDS_TYPE_16);
   TOKEN_KEYWORDS(SYM_DEF)
   #undef SYM_DEF
 
   #define SYM_DEF(name)                                                     \
-    Sym sym_##name = newsym(symhashdata((const u8*)(#name), strlen(#name)), \
+    Sym sym_##name = newsym(hashFNV1a((const u8*)(#name), strlen(#name)), \
     (const u8*)(#name), (u32)strlen(#name), SDS_TYPE_16);
   PREDEFINED_IDENTS(SYM_DEF)
   #undef SYM_DEF
@@ -528,165 +516,19 @@ __attribute__((constructor)) static void debug_check() {
 
 // -----------------------------------------------------------------------------------------------
 
-
-typedef struct {
-  Sym   key;
-  void* value;
-} mapEntry;
-
-static const u32 mapBucketSize = 8; // entries in a bucket
-
-struct SymMapBucket {
-  mapEntry entries[mapBucketSize];
-};
-
-void SymMapInit(SymMap* m, u32 initbuckets) {
-  m->cap = initbuckets;
-  m->len = 0;
-  m->buckets = (struct SymMapBucket*)calloc(m->cap, sizeof(struct SymMapBucket));
-}
-
-void SymMapFree(SymMap* m) {
-  free(m->buckets);
-  #if DEBUG
-  m->buckets = NULL;
-  m->len = 0;
-  m->cap = 0;
-  #endif
-}
-
-static void mapGrow(SymMap* m) {
-  u32 cap = m->cap * 2;
-  rehash: {
-    auto buckets = (struct SymMapBucket*)calloc(cap, sizeof(struct SymMapBucket));
-    for (u32 bi = 0; bi < m->cap; bi++) {
-      auto b = &m->buckets[bi];
-      for (u32 i = 0; i < mapBucketSize; i++) {
-        auto e = &b->entries[i];
-        if (e->key == NULL) {
-          break;
-        }
-        // TODO: compact deleted entries. If e->value==NULL then the entry is unused.
-        u32 index = symhash(e->key) % cap;
-        auto b2 = &buckets[index];
-        bool fit = false;
-        for (u32 i2 = 0; i2 < mapBucketSize; i2++) {
-          auto e2 = &b2->entries[i2];
-          if (e2->key == NULL) {
-            *e2 = *e;
-            fit = true;
-            break;
-          }
-        }
-        if (!fit) {
-          free(buckets);
-          cap = cap * 2;
-          goto rehash;
-        }
-      }
-    }
-    free(m->buckets);
-    m->buckets = buckets;
-    m->cap = cap;
-  }
-}
+// SymMap implementation
+#define HASHMAP_NAME     SymMap
+#define HASHMAP_KEY      Sym
+#define HASHMAP_KEY_HASH symhash
+#define HASHMAP_VALUE    void*
+#include "hashmap.c"
+#undef HASHMAP_NAME
+#undef HASHMAP_KEY
+#undef HASHMAP_KEY_HASH
+#undef HASHMAP_VALUE
 
 
-// SymMapSet inserts key=value into m.
-// Returns replaced value or NULL if key did not exist in map.
-void* SymMapSet(SymMap* m, Sym key, void* value) {
-  assert(value != NULL);
-  while (1) { // grow loop
-    u32 index = symhash(key) % m->cap;
-    auto b = &m->buckets[index];
-    // dlog("bucket(key=\"%s\") #%u  b=%p e=%p", key, index, b, &b->entries[0]);
-    for (u32 i = 0; i < mapBucketSize; i++) {
-      auto e = &b->entries[i];
-      if (e->value == NULL) {
-        // free slot
-        e->key = key;
-        e->value = value;
-        m->len++;
-        return NULL;
-      }
-      if (e->key == key) {
-        // key already in map -- replace value
-        auto oldval = e->value;
-        e->value = value;
-        return oldval;
-      }
-      // dlog("collision key=\"%s\" <> e->key=\"%s\"", key, e->key);
-    }
-    // overloaded -- grow buckets
-    // dlog("grow & rehash");
-    mapGrow(m);
-  }
-}
-
-
-void* SymMapDel(SymMap* m, Sym key) {
-  u32 index = symhash(key) % m->cap;
-  auto b = &m->buckets[index];
-  for (u32 i = 0; i < mapBucketSize; i++) {
-    auto e = &b->entries[i];
-    if (e->key == key) {
-      if (!e->value) {
-        break;
-      }
-      // mark as deleted
-      auto value = e->value;
-      e->value = NULL;
-      m->len--;
-      return value;
-    }
-  }
-  return NULL;
-}
-
-
-void* SymMapGet(const SymMap* m, Sym key) {
-  u32 index = symhash(key) % m->cap;
-  auto b = &m->buckets[index];
-  for (u32 i = 0; i < mapBucketSize; i++) {
-    auto e = &b->entries[i];
-    if (e->key == key) {
-      return e->value;
-    }
-    if (e->key == NULL) {
-      break;
-    }
-  }
-  return NULL;
-}
-
-
-void SymMapClear(SymMap* m) {
-  memset(m->buckets, 0, sizeof(struct SymMapBucket) * m->cap);
-  m->len = 0;
-}
-
-
-void SymMapIter(const SymMap* m, SymMapIterator* it, void* userdata) {
-  bool stop = false;
-  for (u32 bi = 0; bi < m->cap; bi++) {
-    auto b = &m->buckets[bi];
-    for (u32 i = 0; i < mapBucketSize; i++) {
-      auto e = &b->entries[i];
-      if (e->key == NULL) {
-        break;
-      }
-      if (e->value != NULL) {
-        it(e->key, e->value, &stop, userdata);
-        if (stop) {
-          return;
-        }
-      }
-    }
-  }
-}
-
-
-#if 0
+#if 1
 static void testMapIterator(Sym key, void* value, bool* stop, void* userdata) {
   // dlog("\"%s\" => %zu", key, (size_t)value);
   size_t* n = (size_t*)userdata;
@@ -702,11 +544,11 @@ __attribute__((constructor)) static void test_SymMap() {
   void* oldval;
 
   oldval = SymMapSet(&m, SYM("hello"), (void*)1);
-  dlog("SymMapSet(hello) => %zu", (size_t)oldval);
+  // dlog("SymMapSet(hello) => %zu", (size_t)oldval);
   assert(m.len == 1);
 
   oldval = SymMapSet(&m, SYM("hello"), (void*)2);
-  dlog("SymMapSet(hello) => %zu", (size_t)oldval);
+  // dlog("SymMapSet(hello) => %zu", (size_t)oldval);
   assert(m.len == 1);
 
   assert(SymMapDel(&m, SYM("hello")) == (void*)2);
@@ -898,6 +740,7 @@ __attribute__((constructor)) static void test_SymMap() {
   assert(SymMapGet(&m, SYM("int"))         == 0);
 
   SymMapFree(&m);
+  dlog("SymMap test OK");
 }
 #endif
 

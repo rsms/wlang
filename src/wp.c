@@ -10,6 +10,15 @@ static void errorHandler(Source* src, SrcPos pos, CStr msg, void* userdata) {
   sdsfree(s);
 }
 
+
+static void printAst(const Node* n) {
+  auto s = NodeRepr(n, sdsempty());
+  s = sdscatlen(s, "\n", 1);
+  fwrite(s, sdslen(s), 1, stdout);
+  sdsfree(s);
+}
+
+
 void parsefile(Str filename) {
 
   // load file contents
@@ -26,15 +35,11 @@ void parsefile(Str filename) {
   P p; PInit(&p, &src, errorHandler, &errcount);
 
   auto file = PParseFile(&p);
-
-  // print AST representation
-  auto s = NodeRepr(file, sdsempty());
-  s = sdscatlen(s, "\n", 1);
-  fwrite(s, sdslen(s), 1, stdout);
-  sdsfree(s);
+  printAst(file);
 
   if (errcount == 0) {
     Resolve(file, &src, errorHandler, &errcount);
+    printAst(file);
   }
 
   free(buf);

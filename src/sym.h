@@ -11,9 +11,6 @@ Sym symget(const u8* data, size_t len, u32 hash);
 // Hashes data and then calls symget
 Sym symgeth(const u8* data, size_t len);
 
-// symhashdata computes a hash for data, suitable for passing to symget.
-u32 symhashdata(const u8* buf, size_t len);
-
 // Compare two Sym's string values.
 inline static int symcmp(Sym a, Sym b) { return a == b ? 0 : strcmp(a, b); }
 
@@ -39,16 +36,17 @@ inline static Tok symLangTok(Sym s) {
   return kwindex == 0 ? TIdent : kwindex + TKeywordsStart;
 }
 
-// SymMap maps Sym to a pointer-sized value. It's a hash map.
-struct SymMapBucket; // opaque
-typedef struct {
-  struct SymMapBucket* buckets;
-  u32 cap;  // number of buckets
-  u32 len;  // number of key-value entries
-} SymMap;
+// SymMap maps Sym to void*
+#define HASHMAP_NAME     SymMap
+#define HASHMAP_KEY      Sym
+#define HASHMAP_VALUE    void*
+#include "hashmap.h"
+#undef HASHMAP_NAME
+#undef HASHMAP_KEY
+#undef HASHMAP_VALUE
 
 // SymMapInit initializes a map structure. initbuckets is the number of initial buckets.
-void SymMapInit(SymMap*, u32 initbuckets);
+void SymMapInit(SymMap*, size_t initbuckets);
 
 // SymMapFree frees buckets data.
 void SymMapFree(SymMap*);
@@ -70,6 +68,7 @@ typedef void(SymMapIterator)(Sym key, void* value, bool* stop, void* userdata);
 
 // SymMapIter iterates over entries of the map.
 void SymMapIter(const SymMap*, SymMapIterator*, void* userdata);
+
 
 // predefined symbols
 const Sym sym_break;

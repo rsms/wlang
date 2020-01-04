@@ -17,7 +17,6 @@ static void _resolve(Node* n, Scope* scope, ResolveCtx* ctx) {
   case NIdent: {
     if (n->u.ref.target == NULL) {
       n->u.ref.target = ScopeLookup(scope, n->u.ref.name);
-      // TODO: add target field to ident node kind and associate
       if (n->u.ref.target == NULL && ctx->errh) {
         auto msg = sdscatfmt(sdsempty(), "undefined symbol %S", n->u.ref.name);
         ctx->errh(ctx->src, n->pos, msg, ctx->userdata);

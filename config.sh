@@ -4,8 +4,10 @@ cd "$(dirname "$0")"
 sources=( \
   src/array.c \
   src/ast.c \
+  src/hash.c \
   src/parse.c \
   src/parseint.c \
+  src/ptrmap.c \
   src/resolve.c \
   src/scan.c \
   src/sds.c \

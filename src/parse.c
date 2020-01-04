@@ -218,15 +218,9 @@ static Node* exprOrList(P* p, int precedence);
 // Fun = "fun" Ident Params? Type? Block?
 static Node* pfun(P* p, bool nameOptional);
 
-
-// initial hash table bucket sizes
-static const u32 SCOPE_SIZE_PARAMS = 8;
-static const u32 SCOPE_SIZE_BLOCK  = 16;
-static const u32 SCOPE_SIZE_FILE   = 64;
-
 // pushScope adds a new scope to the stack. Returns the new scope.
-static Scope* pushScope(P* p, u32 nbuckets) {
-  auto s = ScopeNew(nbuckets);
+static Scope* pushScope(P* p) {
+  auto s = ScopeNew();
   s->parent = p->scope;
   p->scope = s;
   #ifdef DEBUG_SCOPE_PUSH_POP
@@ -513,7 +507,7 @@ static Node* PBlock(P* p) {
   auto n = PNewNode(p, NBlock);
   next(p); // consume "{"
 
-  pushScope(p, SCOPE_SIZE_BLOCK);
+  pushScope(p);
 
   while (p->s.tok != TNil && p->s.tok != '}') {
     nlistPush(n, exprOrList(p, PREC_LOWEST));
@@ -709,7 +703,7 @@ static Node* pfun(P* p, bool nameOptional) {
     syntaxerr(p, "expecting name");
     next(p);
   }
-  pushScope(p, SCOPE_SIZE_PARAMS);
+  pushScope(p);
   if (p->s.tok == '(') {
     n->u.fun.params = params(p);
   }
@@ -857,7 +851,7 @@ static Node* exprList(P* p, int precedence) {
 
 Node* PParseFile(P* p) {
   auto file = PNewNode(p, NFile);
-  pushScope(p, SCOPE_SIZE_FILE);
+  pushScope(p);
 
   while (p->s.tok != TNil) {
     Node* n = exprOrList(p, PREC_LOWEST);

@@ -1,4 +1,5 @@
 #include "wp.h"
+#include "ptrmap.h"
 
 static const char* const NodeKindNames[] = {
   #define I_ENUM(name) #name,
@@ -9,6 +10,12 @@ static const char* const NodeKindNames[] = {
   DEF_NODE_KINDS(I_ENUM)
   #undef  I_ENUM
 };
+
+
+typedef struct {
+  int    ind;  // indentation level
+  PtrMap seen; // cycle guard
+} ReprCtx;
 
 
 static Str indent(Str s, int ind) {
@@ -41,18 +48,29 @@ static Scope* getScope(const Node* n) {
 }
 
 
-static Str NodeReprInd(const Node* n, Str s, int ind) {
+static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   assert(n);
-  s = indent(s, ind);
+
+  // cycle guard
+  if (PtrMapSet(&ctx->seen, (void*)n, (void*)1) != NULL) {
+    PtrMapDel(&ctx->seen, (void*)n);
+    // s = indent(s, ctx->ind);
+    s = sdscat(s, " [cyclic]");
+    return s;
+  }
+
+  s = indent(s, ctx->ind);
   s = sdscatfmt(s, "(%s ", NodeKindNames[n->kind]);
   // s = sdscatfmt(s, "(#%u ", n->kind);
+
+  ctx->ind += 2;
 
   if (n->type) {
     if (n->type->kind == NIdent) {
       s = sdscatfmt(s, "<%S> ", n->type->u.ref.name);
     } else {
       s = sdscatlen(s, "<", 1);
-      s = NodeReprInd(n->type, s, 0);
+      s = nodeRepr(n->type, s, ctx);
       s = sdscatlen(s, "> ", 2);
     }
   }
@@ -85,10 +103,9 @@ static Str NodeReprInd(const Node* n, Str s, int ind) {
   case NIdent:
     assert(n->u.ref.name);
     s = sdscatsds(s, n->u.ref.name);
-    // TODO: cycle guard; target may be cyclic
-    // if (n->u.ref.target) {
-    //   s = NodeReprInd(n->u.ref.target, s, ind + 2);
-    // }
+    if (n->u.ref.target) {
+      s = nodeRepr(n->u.ref.target, s, ctx);
+    }
     break;
 
   // uses u.op
@@ -100,9 +117,9 @@ static Str NodeReprInd(const Node* n, Str s, int ind) {
       s = sdscat(s, TokName(n->u.op.op));
       s = sdscatlen(s, " ", 1);
     }
-    s = NodeReprInd(n->u.op.left, s, ind + 2);
+    s = nodeRepr(n->u.op.left, s, ctx);
     if (n->u.op.right) {
-      s = NodeReprInd(n->u.op.right, s, ind + 2);
+      s = nodeRepr(n->u.op.right, s, ctx);
     }
     break;
 
@@ -114,7 +131,7 @@ static Str NodeReprInd(const Node* n, Str s, int ind) {
     sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
     auto n2 = n->u.list.head;
     while (n2) {
-      s = NodeReprInd(n2, s, ind + 2);
+      s = nodeRepr(n2, s, ctx);
       n2 = n2->link_next;
     }
     break;
@@ -132,7 +149,7 @@ static Str NodeReprInd(const Node* n, Str s, int ind) {
       s = sdscatlen(s, "_", 1);
     }
     if (f->init) {
-      s = NodeReprInd(f->init, s, ind + 2);
+      s = nodeRepr(f->init, s, ctx);
     }
     break;
   }
@@ -146,41 +163,47 @@ static Str NodeReprInd(const Node* n, Str s, int ind) {
       s = sdscatlen(s, "_", 1);
     }
     if (f->params) {
-      s = NodeReprInd(f->params, s, ind + 2);
+      s = nodeRepr(f->params, s, ctx);
     } else {
-      s = reprEmpty(s, ind + 2);
+      s = reprEmpty(s, ctx->ind + 2);
     }
     if (f->body) {
-      s = NodeReprInd(f->body, s, ind + 2);
+      s = nodeRepr(f->body, s, ctx);
     }
     break;
   }
 
   // uses u.call
   case NCall:
-    s = NodeReprInd(n->u.call.receiver, s, ind + 2);
-    s = NodeReprInd(n->u.call.args, s, ind + 2);
+    s = nodeRepr(n->u.call.receiver, s, ctx);
+    s = nodeRepr(n->u.call.args, s, ctx);
     break;
 
   // uses u.cond
   case NIf:
-    s = NodeReprInd(n->u.cond.cond, s, ind + 2);
-    s = NodeReprInd(n->u.cond.thenb, s, ind + 2);
+    s = nodeRepr(n->u.cond.cond, s, ctx);
+    s = nodeRepr(n->u.cond.thenb, s, ctx);
     if (n->u.cond.elseb) {
-      s = NodeReprInd(n->u.cond.elseb, s, ind + 2);
+      s = nodeRepr(n->u.cond.elseb, s, ctx);
     }
     break;
 
   // Note: No default case, so that the compiler warns us about missing cases.
 
   }
+
+  ctx->ind -= 2;
+  PtrMapDel(&ctx->seen, (void*)n);
+
   s = sdscatlen(s, ")", 1);
   return s;
 }
 
 
 Str NodeRepr(const Node* n, Str s) {
-  return NodeReprInd(n, s, 0);
+  ReprCtx ctx = { 0 };
+  PtrMapInit(&ctx.seen, 32);
+  return nodeRepr(n, s, &ctx);
 }
 
 
@@ -189,12 +212,12 @@ const char* NodeKindName(NodeKind t) {
 }
 
 
-Scope* ScopeNew(u32 nbuckets) {
+Scope* ScopeNew() {
   // TODO: slab alloc together with AST nodes for cache efficiency
   auto s = (Scope*)malloc(sizeof(Scope));
   s->parent = NULL;
   s->childcount = 0;
-  SymMapInit(&s->bindings, nbuckets);
+  SymMapInit(&s->bindings, 8);
   return s;
 }
 
