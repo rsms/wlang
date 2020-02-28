@@ -12,6 +12,22 @@ static const char* const NodeKindNames[] = {
 };
 
 
+// NBad node
+static const Node _NodeBad = {NULL,NBad,{0,0},NULL};
+const Node* NodeBad = &_NodeBad;
+
+
+Node* NodeAlloc(NodeKind kind) {
+  auto n = (Node*)calloc(1, sizeof(Node));
+  n->kind = kind;
+  if (kind == NBlock || kind == NList || kind == NFile) {
+    n->u.array.a.v = n->u.array.astorage;
+    n->u.array.a.cap = countof(n->u.array.astorage);
+  }
+  return n;
+}
+
+
 typedef struct {
   int    ind;  // indentation level
   PtrMap seen; // cycle guard
@@ -28,8 +44,8 @@ static Str indent(Str s, int ind) {
 }
 
 
-static Str reprEmpty(Str s, int ind) {
-  s = indent(s, ind);
+static Str reprEmpty(Str s, ReprCtx* ctx) {
+  s = indent(s, ctx->ind);
   return sdscatlen(s, "()", 2);
 }
 
@@ -39,7 +55,7 @@ static Scope* getScope(const Node* n) {
     case NBlock:
     case NList:
     case NFile:
-      return n->u.list.scope;
+      return n->u.array.scope;
     case NFun:
       return n->u.fun.scope;
     default:
@@ -51,26 +67,42 @@ static Scope* getScope(const Node* n) {
 static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   assert(n);
 
+  // dlog("nodeRepr %s", NodeKindNames[n->kind]);
+  // if (n->kind == NIdent) {
+  //   dlog("  addr:   %p", n);
+  //   dlog("  name:   %s", n->u.ref.name);
+  //   if (n->u.ref.target == NULL) {
+  //     dlog("  target: <null>");
+  //   } else {
+  //     dlog("  target:");
+  //     dlog("    addr:   %p", n->u.ref.target);
+  //     dlog("    kind:   %s", NodeKindNames[n->u.ref.target->kind]);
+  //   }
+  // }
+
   // cycle guard
   if (PtrMapSet(&ctx->seen, (void*)n, (void*)1) != NULL) {
     PtrMapDel(&ctx->seen, (void*)n);
-    // s = indent(s, ctx->ind);
-    s = sdscat(s, " [cyclic]");
+    s = sdscatfmt(s, " [cyclic %s]", NodeKindNames[n->kind]);
     return s;
   }
 
   s = indent(s, ctx->ind);
   s = sdscatfmt(s, "(%s ", NodeKindNames[n->kind]);
-  // s = sdscatfmt(s, "(#%u ", n->kind);
 
   ctx->ind += 2;
 
   if (n->type) {
-    if (n->type->kind == NIdent) {
-      s = sdscatfmt(s, "<%S> ", n->type->u.ref.name);
+    auto t = n->type;
+    if (t->kind == NType) {
+      s = sdscatfmt(s, "<%S> ", t->u.ref.name);
+    } else if (t->kind == NIdent) {
+      s = sdscatfmt(s, "<~%S> ", t->u.ref.name);
+    } else if (t->kind == NBad) {
+      s = sdscat(s, "<BAD> ");
     } else {
       s = sdscatlen(s, "<", 1);
-      s = nodeRepr(n->type, s, ctx);
+      s = nodeRepr(t, s, ctx);
       s = sdscatlen(s, "> ", 2);
     }
   }
@@ -89,14 +121,26 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
     break;
 
-  // uses u.str
-  case NComment:
-    s = sdscatrepr(s, (const char*)n->u.str.ptr, n->u.str.len);
-    break;
-
   // uses u.integer
   case NInt:
     s = sdscatfmt(s, "%U", n->u.integer);
+    break;
+  case NBool:
+    if (n->u.integer == 0) {
+      s = sdscat(s, "false");
+    } else {
+      s = sdscat(s, "true");
+    }
+    break;
+
+  // uses u.real
+  case NFloat:
+    s = sdscatprintf(s, "%f", n->u.real);
+    break;
+
+  // uses u.str
+  case NComment:
+    s = sdscatrepr(s, (const char*)n->u.str.ptr, n->u.str.len);
     break;
 
   // uses u.ref
@@ -104,8 +148,12 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     assert(n->u.ref.name);
     s = sdscatsds(s, n->u.ref.name);
     if (n->u.ref.target) {
-      s = nodeRepr(n->u.ref.target, s, ctx);
+      s = sdscatfmt(s, " @%s", NodeKindNames[n->u.ref.target->kind]);
+      // s = nodeRepr(n->u.ref.target, s, ctx);
     }
+    break;
+  case NType:
+    s = sdscatfmt(s, "<%S>", n->u.ref.name);
     break;
 
   // uses u.op
@@ -123,16 +171,15 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     }
     break;
 
-  // uses u.list
+  // uses u.array
   case NBlock:
   case NList:
   case NFile:
   {
     sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
-    auto n2 = n->u.list.head;
-    while (n2) {
-      s = nodeRepr(n2, s, ctx);
-      n2 = n2->link_next;
+    auto a = &n->u.array.a;
+    for (u32 i = 0; i < a->len; i++) {
+      s = nodeRepr(a->v[i], s, ctx);
     }
     break;
   }
@@ -165,7 +212,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     if (f->params) {
       s = nodeRepr(f->params, s, ctx);
     } else {
-      s = reprEmpty(s, ctx->ind + 2);
+      s = reprEmpty(s, ctx);
     }
     if (f->body) {
       s = nodeRepr(f->body, s, ctx);
@@ -212,14 +259,18 @@ const char* NodeKindName(NodeKind t) {
 }
 
 
-Scope* ScopeNew() {
+Scope* ScopeNew(const Scope* parent) {
   // TODO: slab alloc together with AST nodes for cache efficiency
   auto s = (Scope*)malloc(sizeof(Scope));
-  s->parent = NULL;
+  s->parent = parent;
   s->childcount = 0;
   SymMapInit(&s->bindings, 8);
   return s;
 }
+
+
+static const Scope* globalScope = NULL;
+
 
 void ScopeFree(Scope* s) {
   SymMapFree(&s->bindings);
@@ -227,10 +278,31 @@ void ScopeFree(Scope* s) {
 }
 
 
-// #define DEBUG_LOOKUP
+const Scope* GetGlobalScope() {
+  if (globalScope == NULL) {
+    auto s = ScopeNew(NULL);
 
-Node* ScopeLookup(Scope* scope, Sym s) {
-  Node* n = NULL;
+    #define X(name) SymMapSet(&s->bindings, sym_##name, (void*)Type_##name);
+    TYPE_SYMS(X)
+    #undef X
+
+    #define X(name, _typ, _val) SymMapSet(&s->bindings, sym_##name, (void*)Const_##name);
+    PREDEFINED_CONSTANTS(X)
+    #undef X
+
+    globalScope = s;
+  }
+  return globalScope;
+}
+
+
+const Node* ScopeAssoc(Scope* s, Sym key, const Node* value) {
+  return SymMapSet(&s->bindings, key, value);
+}
+
+
+const Node* ScopeLookup(const Scope* scope, Sym s) {
+  const Node* n = NULL;
   while (scope && n == NULL) {
     // dlog("[lookup] %s in scope %p(len=%u)", s, scope, scope->bindings.len);
     n = SymMapGet(&scope->bindings, s);

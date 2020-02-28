@@ -5,25 +5,25 @@ typedef struct {
   void** v;
   u32    len;
   u32    cap;
-  bool   onstack;  // true if v is space on stack
+  bool   onheap;  // false if v is space on stack
 } Array;
 
 #define Array_INIT { 0, 0, 0 }
 
 #define Array_STACK_INIT(cap) (({ \
   void* __ArrayStackStorage__##__LINE__[cap]; \
-  Array a = { __ArrayStackStorage__##__LINE__, 0, (cap), true }; \
+  Array a = { __ArrayStackStorage__##__LINE__, 0, (cap), false }; \
   a; \
 }))
 
 static void ArrayInit(Array* a) {
   a->v = NULL;
   a->cap = a->len = 0;
-  a->onstack = false;
+  a->onheap = true;
 }
 
 static void ArrayFree(Array* a) {
-  if (!a->onstack) {
+  if (a->onheap) {
     free(a->v);
     a->v = NULL;
     a->cap = 0;

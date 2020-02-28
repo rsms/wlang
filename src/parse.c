@@ -60,7 +60,11 @@ static void syntaxerrp(P* p, SrcPos pos, const char* format, ...) {
 
   va_list ap;
   va_start(ap, format);
-  auto msg = sdscatvprintf(sdsempty(), format, ap);
+  auto msg = sdsempty();
+  if (strlen(format) > 0) {
+    msg = sdscatvprintf(msg, format, ap);
+    assert(sdslen(msg) > 0); // format may contain %S which is not supported by sdscatvprintf
+  }
   va_end(ap);
 
   const char* tokname;
@@ -91,18 +95,10 @@ static void syntaxerrp(P* p, SrcPos pos, const char* format, ...) {
     sdsfree(stmp);
   }
 
-  // auto s = SrcPosMsg(sdsempty(), pos, msg);
-
   if (p->s.errh) {
-    // p->s.errh(p->s.src, pos, s, p->s.userdata);
     p->s.errh(p->s.src, pos, msg, p->s.userdata);
-  // } else {
-  //   fwrite(s, sdslen(s), 1, stderr);
   }
 
-  // if (s != msg) {
-  //   sdsfree(s);
-  // }
   sdsfree(msg);
 }
 
@@ -173,38 +169,32 @@ static void advance(P* p, const Tok* followlist) {
 
 // allocate a new ast node
 inline static Node* PNewNode(P* p, NodeKind kind) {
-  auto n = (Node*)calloc(1, sizeof(Node));
-  n->kind = kind;
+  auto n = NodeAlloc(kind);
   n->pos.src = p->s.src;
   n->pos.offs = p->s.tokstart - p->s.src->buf;
   n->pos.span = p->s.tokend - p->s.tokstart;  assert(p->s.tokend >= p->s.tokstart);
   return n;
 }
 
-inline static void NodeFree(Node* n) {
-  // just leak for now.
-  // TODO: freelist
-}
+// // operations on node u.list (singly-linked list)
+// inline static void nlistPush(Node* list, Node* elem) {
+//   if (!list->u.list.head) {
+//     list->u.list.head = elem;
+//   } else {
+//     list->u.list.tail->link_next = elem;
+//   }
+//   list->u.list.tail = elem;
+// }
 
-// operations on node u.list (singly-linked list)
-inline static void nlistPush(Node* list, Node* elem) {
-  if (!list->u.list.head) {
-    list->u.list.head = elem;
-  } else {
-    list->u.list.tail->link_next = elem;
-  }
-  list->u.list.tail = elem;
-}
-
-static u32 nlistCount(Node* n) {
-  auto n2 = n->u.list.head;
-  u32 count = 0;
-  while (n2) {
-    count++;
-    n2 = n2->link_next;
-  }
-  return count;
-}
+// static u32 nlistCount(Node* n) {
+//   auto n2 = n->u.list.head;
+//   u32 count = 0;
+//   while (n2) {
+//     count++;
+//     n2 = n2->link_next;
+//   }
+//   return count;
+// }
 
 // precedence should match the calling parselet's own precedence
 static Node* expr(P* p, int precedence);
@@ -220,8 +210,7 @@ static Node* pfun(P* p, bool nameOptional);
 
 // pushScope adds a new scope to the stack. Returns the new scope.
 static Scope* pushScope(P* p) {
-  auto s = ScopeNew();
-  s->parent = p->scope;
+  auto s = ScopeNew(p->scope);
   p->scope = s;
   #ifdef DEBUG_SCOPE_PUSH_POP
   dlog("push scope #%p", s);
@@ -232,7 +221,9 @@ static Scope* pushScope(P* p) {
 // popScope removes & returns the topmost scope
 static Scope* popScope(P* p) {
   auto s = p->scope;
-  p->scope = s->parent;
+  p->scope = (Scope*)s->parent; // note: discard const qual
+  assert(p->scope != NULL);
+  assert(p->scope != GetGlobalScope());
 
   #ifdef DEBUG_SCOPE_PUSH_POP
   dlog("pop scope #%p", s);
@@ -255,8 +246,8 @@ static Scope* popScope(P* p) {
 }
 
 
-static Node* defsym(P* p, Sym s, Node* n) {
-  Node* existing = SymMapSet(&p->scope->bindings, s, n);
+static const Node* defsym(P* p, Sym s, Node* n) {
+  const Node* existing = ScopeAssoc(p->scope, s, n);
   #ifdef DEBUG_DEFSYM
   if (existing) {
     dlog("defsym %s => %s (replacing %s)", s, NodeKindName(n->kind), NodeKindName(existing->kind));
@@ -295,7 +286,7 @@ static Node* bad(P* p) {
 static Node* exprListTrailingComma(P* p, int precedence, Tok stoptok) {
   auto list = PNewNode(p, NList);
   do {
-    nlistPush(list, expr(p, precedence));
+    ArrayPush(&list->u.array.a, expr(p, precedence));
   } while (got(p, TComma) && p->s.tok != stoptok);
   return list;
 }
@@ -333,27 +324,26 @@ static Node* PAssign(P* p, const Parselet* e, Node* left) {
   // defsym
   if (left->kind == NList) {
     if (right->kind != NList) {
-      syntaxerrp(p, left->pos, "assignment mismatch: %u targets but 1 value", nlistCount(left));
+      syntaxerrp(p, left->pos, "assignment mismatch: %u targets but 1 value", left->u.array.a.len);
     } else {
-      auto l = left->u.list.head;
-      auto r = right->u.list.head;
-      while (1) {
-        if (l->kind == NIdent) {
-          defsym(p, l->u.ref.name, r);
-        }
-        l = l->link_next;
-        r = r->link_next;
-        if (!l || !r) {
-          if (l || r) {
-            syntaxerrp(p, left->pos, "assignment mismatch: %u targets but %u values",
-              nlistCount(left), nlistCount(right));
+      auto nleft  = left->u.array.a.len;
+      auto nright = right->u.array.a.len;
+      if (nleft != nright) {
+        syntaxerrp(p, left->pos, "assignment mismatch: %u targets but %u values", nleft, nright);
+      } else {
+        for (u32 i = 0; i < nleft; i++) {
+          auto l = (Node*)left->u.array.a.v[i];
+          auto r = (Node*)right->u.array.a.v[i];
+          if (l->kind == NIdent) {
+            defsym(p, l->u.ref.name, r);
+          } else {
+            dlog("TODO PAssign l->kind != NIdent");
           }
-          break;
         }
       }
     }
   } else if (right->kind == NList) {
-    syntaxerrp(p, left->pos, "assignment mismatch: 1 target but %u values", nlistCount(right));
+    syntaxerrp(p, left->pos, "assignment mismatch: 1 target but %u values", right->u.array.a.len);
   } else if (left->kind == NIdent) {
     defsym(p, left->u.ref.name, right);
   }
@@ -378,9 +368,10 @@ static Node* ptype(P* p) {
 static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
   auto names = PNewNode(p, NList);
   names->pos = ident0->pos;
-  nlistPush(names, ident0);
+
+  ArrayPush(&names->u.array.a, ident0);
   do {
-    nlistPush(names, pident(p));
+    ArrayPush(&names->u.array.a, pident(p));
   } while (got(p, TComma));
 
   Node* type = p->s.tok != TEq ? ptype(p) : NULL;
@@ -392,17 +383,19 @@ static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
   }
 
   // parse values
-  auto n = names->u.list.head;
+
+  auto namesv = (Node**)names->u.array.a.v;
+  auto nameslen = names->u.array.a.len;
   u32 valcount = 0;
-  while (n) {
+  for (u32 i = 0; i < nameslen; i++) {
+    auto n = namesv[i];
     Node* value;
     if (hasValues) {
       value = expr(p, PREC_MEMBER);
       valcount++;
       if (n->link_next && !got(p, ',')) {
         hasValues = false;
-        syntaxerr(p, "assignment mismatch: %u targets but %u values",
-          nlistCount(names), valcount);
+        syntaxerr(p, "assignment mismatch: %u targets but %u values", nameslen, valcount);
       }
     } else {
       value = PNewNode(p, NZeroInit);
@@ -416,14 +409,12 @@ static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
       defsym(p, name, n);
     }
     n->u.field.init = value;
-    n = n->link_next;
   }
 
   if (got(p, ',')) {
     auto extra = exprList(p, PREC_MEMBER);
-    auto namecount = nlistCount(names);
     syntaxerrp(p, extra->pos, "assignment mismatch: %u targets but %u values",
-      namecount, namecount + nlistCount(extra));
+      nameslen, nameslen + extra->u.array.a.len);
   }
 
   return names;
@@ -445,7 +436,7 @@ static Node* PVar(P* p) {
     return pVarMulti(p, nkind, name);
   }
 
-  Node* type = p->s.tok != TEq ? ptype(p) : NULL;
+  const Node* type = p->s.tok != TEq ? ptype(p) : NULL;
 
   Node* value = NULL;
   if (got(p, TEq)) {
@@ -510,7 +501,8 @@ static Node* PBlock(P* p) {
   pushScope(p);
 
   while (p->s.tok != TNil && p->s.tok != '}') {
-    nlistPush(n, exprOrList(p, PREC_LOWEST));
+    // nlistPush(n, exprOrList(p, PREC_LOWEST));
+    ArrayPush(&n->u.array.a, exprOrList(p, PREC_LOWEST));
     if (!got(p, ';')) {
       break;
     }
@@ -520,7 +512,8 @@ static Node* PBlock(P* p) {
     next(p);
   }
 
-  n->u.list.scope = popScope(p);
+  // n->u.list.scope = popScope(p);
+  n->u.array.scope = popScope(p);
 
   return n;
 }
@@ -569,6 +562,7 @@ static Node* PIntLit(P* p) {
     syntaxerrp(p, n->pos, "invalid integer literal");
   }
   next(p);
+  n->type = Type_int;
   return n;
 }
 
@@ -642,7 +636,7 @@ static Node* params(P* p) {
       // definitely just type, e.g. "fun(int)int"
       field->type = expr(p, PREC_LOWEST);
     }
-    nlistPush(n, field);
+    ArrayPush(&n->u.array.a, field);
     if (!got(p, TComma)) {
       if (p->s.tok != TRParen) {
         syntaxerr(p, "expecting comma or )");
@@ -659,22 +653,21 @@ static Node* params(P* p) {
       // e.g. "(x, y int, z)"
       syntaxerr(p, "expecting type");
     }
-    auto field = n->u.list.head;
-    while (field) {
+    for (u32 i = 0; i < n->u.array.a.len; i++) {
+      auto field = (Node*)n->u.array.a.v[i];
       defsym(p, field->u.field.name, field);
-      field = field->link_next;
     }
   } else {
     // type-only form; e.g. "(T, T, Y)"
     // make ident of each field->u.field.name where field->type == NULL
-    auto field = n->u.list.head;
-    while (field) {
+    for (u32 i = 0; i < n->u.array.a.len; i++) {
+      auto field = (Node*)n->u.array.a.v[i];
       if (!field->type) {
-        field->type = PNewNode(p, NIdent);
-        field->type->u.ref.name = field->u.field.name;
+        auto t = PNewNode(p, NIdent);
+        t->u.ref.name = field->u.field.name;
+        field->type = t;
         field->u.field.name = sym__;
       }
-      field = field->link_next;
     }
   }
 
@@ -689,11 +682,11 @@ static Node* params(P* p) {
 // e.g.
 //   fun foo (x, y int) int { x * y }
 //   fun foo { 5 }
-//   fun foo -> int 5
 //
 static Node* pfun(P* p, bool nameOptional) {
   auto n = PNewNode(p, NFun);
   next(p);
+  // name
   if (p->s.tok == TIdent) {
     auto name = p->s.name;
     n->u.fun.name = name;
@@ -703,13 +696,16 @@ static Node* pfun(P* p, bool nameOptional) {
     syntaxerr(p, "expecting name");
     next(p);
   }
+  // parameters
   pushScope(p);
   if (p->s.tok == '(') {
     n->u.fun.params = params(p);
   }
+  // result type(s)
   if (p->s.tok != '{' && p->s.tok != ';') {
     n->type = exprOrList(p, PREC_LOWEST);
   }
+  // body
   p->fnest++;
   if (p->s.tok == '{') {
     n->u.fun.body = PBlock(p);
@@ -736,14 +732,6 @@ static Node* PFun(P* p) {
 // ============================================================================================
 // ============================================================================================
 
-
-void PInit(P* p, Source* src, ErrorHandler* errh, void* userdata) {
-  // initialize scanner
-  SInit(&p->s, src, SCAN_COMMENTS, errh, userdata);
-  p->fnest = 0;
-  p->scope = NULL;
-  next(p); // read first token
-}
 
 //PARSELET_MAP_BEGIN
 // automatically generated by misc/gen_parselet_map.py; do not edit
@@ -828,9 +816,9 @@ static Node* exprOrList(P* p, int precedence) {
   // them into an List.
   if (got(p, TComma)) {
     auto g = PNewNode(p, NList);
-    nlistPush(g, left);
+    ArrayPush(&g->u.array.a, left);
     do {
-      nlistPush(g, prefixExpr(p));
+      ArrayPush(&g->u.array.a, prefixExpr(p));
     } while (got(p, TComma));
     left = g;
   }
@@ -843,26 +831,41 @@ static Node* exprOrList(P* p, int precedence) {
 static Node* exprList(P* p, int precedence) {
   auto list = PNewNode(p, NList);
   do {
-    nlistPush(list, expr(p, precedence));
+    ArrayPush(&list->u.array.a, expr(p, precedence));
   } while (got(p, TComma));
   return list;
 }
 
 
-Node* PParseFile(P* p) {
+Node* Parse(
+  P*            p,
+  Source*       src,
+  ScanFlags     sflags,
+  ErrorHandler* errh,
+  Scope*        pkgscope,
+  void*         userdata
+) {
+  // initialize scanner
+  SInit(&p->s, src, sflags, errh, userdata);
+  p->fnest = 0;
+  p->scope = pkgscope;
+  next(p); // read first token
+
+  // TODO: ParseFlags where one option is PARSE_IMPORTS to parse only imports and then stop.
+
   auto file = PNewNode(p, NFile);
   pushScope(p);
 
   while (p->s.tok != TNil) {
     Node* n = exprOrList(p, PREC_LOWEST);
-    nlistPush(file, n);
+    ArrayPush(&file->u.array.a, n);
 
     // // print associated comments
     // auto c = p->s.comments;
     // while (c) { printf("#%.*s\n", (int)c->len, c->ptr); c = c->next; }
     // p->s.comments = p->s.comments_tail = NULL;
-    // TODO: Add "comments" to Node struct and if caller requests inclusion of comments,
-    // assign thse comments to the node. This should be done in PNewNode and not here.
+    // // TODO: Add "comments" to Node struct and if caller requests inclusion of comments,
+    // // assign these comments to the node. This should be done in PNewNode and not here.
 
     // // print AST representation
     // auto s = NodeRepr(n, sdsempty());
@@ -878,7 +881,7 @@ Node* PParseFile(P* p) {
     }
   }
 
-  file->u.list.scope = popScope(p);
+  file->u.array.scope = popScope(p);
   return file;
 }
 

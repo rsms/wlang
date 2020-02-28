@@ -87,6 +87,8 @@ typedef double                 f64;
      __typeof__ (b) _b = (b); \
      _a < _b ? _a : _b; })
 
+#define countof(x) \
+  ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
 #define die(format, ...) do { \
   logerr(format, ##__VA_ARGS__); \
@@ -245,12 +247,11 @@ typedef struct P {
   u32    fnest;  // function nesting level (for error handling)
   Scope* scope; // current scope
 } P;
+Node* Parse(P*, Source*, ScanFlags, ErrorHandler*, Scope* pkgscope, void* userdata);
 
-void PInit(P*, Source*, ErrorHandler*, void* userdata);
-Node* PParseFile(P*);
+// Symbol resolver
+Node* Resolve(Node*, Source*, ErrorHandler*, void* userdata);
+
 
 // util
 u8* readfile(const char* filename, size_t* bufsize_out);
-
-// Resolve
-void Resolve(Node*, Source*, ErrorHandler*, void* userdata);

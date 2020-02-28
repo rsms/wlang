@@ -1,17 +1,21 @@
 #pragma once
+#include "array.h"
 
 // Primary node kinds which are either expressions or start of expressions
 #define DEF_NODE_KINDS_EXPR(_) \
   _(None) \
   _(Bad) /* substitute "filler node" for invalid syntax */ \
+  _(Type) /* Built-in basic type, e.g. int, bool */ \
   _(File) \
   _(Comment) \
   _(Ident) \
   _(Op) \
   _(PrefixOp) \
+  _(Bool) /* boolean literal */ \
+  _(Int) /* integer literal */ \
+  _(Float) /* floating-point literal */ \
   _(Const) \
   _(Var) \
-  _(Int) \
   _(Assign) \
   _(Fun) \
   _(Field) \
@@ -40,25 +44,28 @@ typedef struct Node Node;
 
 
 // Scope represents a lexical namespace
+typedef struct Scope Scope;
 typedef struct Scope {
-  u32           childcount; // number of scopes referencing this scope as parent
-  struct Scope* parent;
-  SymMap        bindings;
+  u32          childcount; // number of scopes referencing this scope as parent
+  const Scope* parent;
+  SymMap       bindings;
 } Scope;
 
-Scope* ScopeNew();
+Scope* ScopeNew(const Scope* parent);
 void ScopeFree(Scope*);
-Node* ScopeLookup(Scope*, Sym);
+const Node* ScopeAssoc(Scope*, Sym, const Node* value);
+const Node* ScopeLookup(const Scope*, Sym);
+const Scope* GetGlobalScope();
 
 
 typedef struct Node {
-  Node*     link_next; // link to next item when part of a list
-  NodeKind  kind;      // kind of node (e.g. NIdent)
-  SrcPos    pos;       // source origin & position
-  Node*     type;      // value type. null if unknown.
+  Node*       link_next; // link to next item when part of a list
+  NodeKind    kind;      // kind of node (e.g. NIdent)
+  SrcPos      pos;       // source origin & position
+  const Node* type;      // value type. null if unknown.
   // u.
   union {
-    u64    integer;  // Int
+    u64    integer;  // Bool, Int
     double real;     // Float
     struct { // Comment, String
       const u8* ptr;
@@ -66,7 +73,7 @@ typedef struct Node {
     } str;
     struct { // Ident
       Sym   name;
-      Node* target;
+      const Node* target;
     } ref;
     struct { // Op, PrefixOp, Return
       Node* left;
@@ -74,10 +81,10 @@ typedef struct Node {
       Tok   op;
     } op;
     struct { // List, Block, File
-      Node*  head;  // null for empty list
-      Node*  tail;  // null for empty list
-      Scope* scope; // non-null if kind==Block|File
-    } list;
+      Array  a;           // null for empty list
+      void*  astorage[2]; // initial storage of a (TODO: tune this constant)
+      Scope* scope;       // non-null if kind==Block|File
+    } array;
     struct { // Fun
       Node*  params; // note: result type in Node.type
       Sym    name;   // null for fun-type and lambda
@@ -100,5 +107,9 @@ typedef struct Node {
   } u;
 } Node;
 
+Node* NodeAlloc(NodeKind);
+inline static void NodeFree(Node* _) {} // just leak for now
 const char* NodeKindName(NodeKind);
 Str NodeRepr(const Node* n, Str s);
+
+const Node* NodeBad;  // kind==NBad

@@ -4,7 +4,6 @@ cd "$(dirname "$0")"
 OPT_HELP=false
 OPT_CONFIG=false
 OPT_G=false
-OPT_DEV=false
 USAGE_EXIT_CODE=0
 
 # parse args
@@ -22,11 +21,6 @@ while [[ $# -gt 0 ]]; do
     OPT_G=true
     shift
     ;;
-  -dev|--dev)
-    OPT_G=true
-    OPT_DEV=true
-    shift
-    ;;
   *)
     echo "$0: Unknown option $1" >&2
     OPT_HELP=true
@@ -41,7 +35,6 @@ if $OPT_HELP; then
   echo "  -h, -help  Show help on stdout."
   echo "  -config    Configure build even if config.sh <> build.ninja is up to date."
   echo "  -g         Build debug build instead of release build."
-  echo "  -dev       Build & run debug build. Implies -g"
   exit $USAGE_EXIT_CODE
 fi
 
@@ -53,10 +46,6 @@ python3 misc/gen_parselet_map.py
 
 if $OPT_G; then
   ninja debug
-  if $OPT_DEV; then
-    lldb -bo r ./build/wp.g example/mem.w
-    time ./build/wp.g example/mem.w >/dev/null 2>&1
-  fi
 else
   ninja release
 fi

@@ -19,7 +19,7 @@ static void printAst(const Node* n) {
 }
 
 
-void parsefile(Str filename) {
+void parsefile(Str filename, Scope* pkgscope) {
 
   // load file contents
   size_t len;
@@ -31,14 +31,19 @@ void parsefile(Str filename) {
   Source src;
   SourceInit(&src, filename, buf, len);
 
-  u32 errcount = 0;
-  P p; PInit(&p, &src, errorHandler, &errcount);
+  // shared parser
+  static P parser;
 
-  auto file = PParseFile(&p);
-  printAst(file);
+  u32 errcount = 0;
+  auto file = Parse(&parser, &src, SCAN_COMMENTS, errorHandler, pkgscope, &errcount);
+  // printAst(file);
 
   if (errcount == 0) {
     Resolve(file, &src, errorHandler, &errcount);
+    if (errcount == 0) {
+      printAst(file);
+    }
+  } else {
     printAst(file);
   }
 
@@ -61,7 +66,9 @@ int main(int argc, char **argv) {
   //   exit(1);
   // }
 
-  parsefile(sdsnew(argv[1]));
+
+  auto pkgscope = ScopeNew(GetGlobalScope());
+  parsefile(sdsnew(argv[1]), pkgscope);
 
   return 0;
 }

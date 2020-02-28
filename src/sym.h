@@ -1,9 +1,13 @@
 #pragma once
 #include "token.h"
+#include "types.h"
 
 // Sym is an type of sds string with an additional header containing
 // a precomputed FNV1a hash. Sym is immutable.
 typedef const char* Sym;
+
+// Predefinition of Node
+typedef struct Node Node;
 
 // Get a symbol (retrieves or interns)
 Sym symget(const u8* data, size_t len, u32 hash);
@@ -36,10 +40,10 @@ inline static Tok symLangTok(Sym s) {
   return kwindex == 0 ? TIdent : kwindex + TKeywordsStart;
 }
 
-// SymMap maps Sym to void*
+// SymMap maps Sym to const Node*
 #define HASHMAP_NAME     SymMap
 #define HASHMAP_KEY      Sym
-#define HASHMAP_VALUE    void*
+#define HASHMAP_VALUE    const Node*
 #include "hashmap.h"
 #undef HASHMAP_NAME
 #undef HASHMAP_KEY
@@ -52,49 +56,56 @@ void SymMapInit(SymMap*, size_t initbuckets);
 void SymMapFree(SymMap*);
 
 // SymMapGet searches for key. Returns value, or NULL if not found.
-void* SymMapGet(const SymMap*, Sym key);
+const Node* SymMapGet(const SymMap*, Sym key);
 
 // SymMapSet inserts key=value into m. Returns the replaced value or NULL if not found.
-void* SymMapSet(SymMap*, Sym key, void* value);
+const Node* SymMapSet(SymMap*, Sym key, const Node* value);
 
 // SymMapDel removes value for key. Returns the removed value or NULL if not found.
-void* SymMapDel(SymMap*, Sym key);
+const Node* SymMapDel(SymMap*, Sym key);
 
 // SymMapClear removes all entries. In contrast to SymMapFree, map remains valid.
 void SymMapClear(SymMap*);
 
 // Iterator function type. Set stop=true to stop iteration.
-typedef void(SymMapIterator)(Sym key, void* value, bool* stop, void* userdata);
+typedef void(SymMapIterator)(Sym key, const Node* value, bool* stop, void* userdata);
 
 // SymMapIter iterates over entries of the map.
 void SymMapIter(const SymMap*, SymMapIterator*, void* userdata);
 
 
-// predefined symbols
-const Sym sym_break;
-const Sym sym_case;
-const Sym sym_const;
-const Sym sym_continue;
-const Sym sym_default;
-const Sym sym_defer;
-const Sym sym_else;
-const Sym sym_enum;
-const Sym sym_fallthrough;
-const Sym sym_for;
-const Sym sym_fun;
-const Sym sym_go;
-const Sym sym_if;
-const Sym sym_import;
-const Sym sym_in;
-const Sym sym_interface;
-const Sym sym_is;
-const Sym sym_return;
-const Sym sym_select;
-const Sym sym_struct;
-const Sym sym_switch;
-const Sym sym_symbol;
-const Sym sym_type;
-const Sym sym_var;
-const Sym sym_while;
-const Sym sym__;
-const Sym sym_int;
+// symbols for language keywords (defined in token.h)
+#define SYM_DEF(str, _) const Sym sym_##str;
+TOKEN_KEYWORDS(SYM_DEF)
+#undef SYM_DEF
+
+
+// symbols and AST nodes for predefined types (defined in types.h)
+#define SYM_DEF(name) \
+  const Sym   sym_##name; \
+  const Node* Type_##name;
+TYPE_SYMS(SYM_DEF)
+#undef SYM_DEF
+// type nodes
+
+
+// symbols and AST nodes for predefined constants
+#define PREDEFINED_CONSTANTS(_) \
+  _( true,  bool, 1 ) \
+  _( false, bool, 0 ) \
+/*END PREDEFINED_CONSTANTS*/
+#define SYM_DEF(name, _type, _val) \
+  const Sym   sym_##name; \
+  const Node* Const_##name;
+PREDEFINED_CONSTANTS(SYM_DEF)
+#undef SYM_DEF
+
+
+// symbols for predefined common identifiers
+// predefined common identifiers (excluding types)
+#define PREDEFINED_IDENTS(ID) \
+  ID( _ ) \
+/*END PREDEFINED_IDENTS*/
+#define SYM_DEF(name) const Sym sym_##name;
+PREDEFINED_IDENTS(SYM_DEF)
+#undef SYM_DEF
