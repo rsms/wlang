@@ -1,20 +1,45 @@
-const start = 5
-const one = 1
+# const start = 5
 
-var foo int
-const no = false
-const t = int
-
-fun main {
-  var x = true
-  factorial(start)
-}
+# fun main {
+#   factorial(start)
+# }
 
 # Factorial function
-fun factorial(n int) t {
-  const zero = 0
-  if n == zero {
-    one
+fun factorial(n int) int {
+  if n == 0 {
+    1
+  } else {
+    n * factorial(n - 1)
+  }
+}
+
+fun factorial1(n int) int {
+  if n == 0 {
+    1
+  } else {
+    n * factorial(n - 1)
+  }
+}
+
+fun factorial2(n int) int {
+  if n == 0 {
+    1
+  } else {
+    n * factorial(n - 1)
+  }
+}
+
+fun factorial3(n int) int {
+  if n == 0 {
+    1
+  } else {
+    n * factorial(n - 1)
+  }
+}
+
+fun factorial4(n int) int {
+  if n == 0 {
+    1
   } else {
     n * factorial(n - 1)
   }

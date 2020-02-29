@@ -3,23 +3,24 @@
 
 
 typedef struct {
-  Source*       src;
-  ErrorHandler* errh;
-  void*         userdata;
-  uint          fnest;  // level of function nesting. 0 at file level
-} ResolveCtx;
+  CCtx* cc;
+  uint  fnest;  // level of function nesting. 0 at file level
+} ResCtx;
 
 
-static Node* _resolve(Node* n, Scope* scope, ResolveCtx* ctx);
+static Node* resolve(Node* n, Scope* scope, ResCtx* ctx);
 
 
-Node* Resolve(Node* n, Source* src, ErrorHandler* errh, void* userdata) {
-  ResolveCtx ctx = { src, errh, userdata, 0 };
-  return _resolve(n, NULL, &ctx);
+Node* ResolveSym(CCtx* cc, Node* n, Scope* scope) {
+  ResCtx ctx = { cc, 0 };
+  return resolve(n, scope, &ctx);
 }
 
 
-static void resolveErrorf(ResolveCtx* ctx, SrcPos pos, const char* format, ...) {
+static void resolveErrorf(ResCtx* ctx, SrcPos pos, const char* format, ...) {
+  if (ctx->cc->errh == NULL) {
+    return;
+  }
   va_list ap;
   va_start(ap, format);
   auto msg = sdsempty();
@@ -28,14 +29,14 @@ static void resolveErrorf(ResolveCtx* ctx, SrcPos pos, const char* format, ...) 
     assert(sdslen(msg) > 0); // format may contain %S which is not supported by sdscatvprintf
   }
   va_end(ap);
-  ctx->errh(ctx->src, pos, msg, ctx->userdata);
+  ctx->cc->errh(&ctx->cc->src, pos, msg, ctx->cc->userdata);
   sdsfree(msg);
 }
 
 
-static inline Node* resolveConst(Node* n, Scope* scope, ResolveCtx* ctx) {
+static inline Node* resolveConst(Node* n, Scope* scope, ResCtx* ctx) {
   assert(n->u.field.init != NULL);
-  auto value = _resolve(n->u.field.init, scope, ctx);
+  auto value = resolve(n->u.field.init, scope, ctx);
   // short-circuit constants inside functions
   if (value != n) {
     if (ctx->fnest > 0) {
@@ -47,16 +48,14 @@ static inline Node* resolveConst(Node* n, Scope* scope, ResolveCtx* ctx) {
 }
 
 
-static const Node* resolveIdent(const Node* n, Scope* scope, ResolveCtx* ctx) {
+static const Node* resolveIdent(const Node* n, Scope* scope, ResCtx* ctx) {
   while (1) {
     const Node* target = n->u.ref.target;
     // dlog("resolveIdent %s", n->u.ref.name);
     if (target == NULL) {
       target = ScopeLookup(scope, n->u.ref.name);
       if (target == NULL) {
-        if (ctx->errh) {
-          resolveErrorf(ctx, n->pos, "undefined symbol %s", n->u.ref.name);
-        }
+        resolveErrorf(ctx, n->pos, "undefined symbol %s", n->u.ref.name);
         ((Node*)n)->u.ref.target = NodeBad;
         return n;
       }
@@ -76,14 +75,14 @@ static const Node* resolveIdent(const Node* n, Scope* scope, ResolveCtx* ctx) {
 }
 
 
-static Node* _resolve(Node* n, Scope* scope, ResolveCtx* ctx) {
-  // dlog("_resolve(%s, scope=%p)", NodeKindName(n->kind), scope);
+static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
+  // dlog("resolve(%s, scope=%p)", NodeKindName(n->kind), scope);
 
   if (n->type != NULL && n->type->kind != NType) {
     if (n->kind == NFun) {
       ctx->fnest++;
     }
-    n->type = _resolve((Node*)n->type, scope, ctx);
+    n->type = resolve((Node*)n->type, scope, ctx);
     if (n->kind == NFun) {
       ctx->fnest--;
     }
@@ -110,7 +109,7 @@ static Node* _resolve(Node* n, Scope* scope, ResolveCtx* ctx) {
     // Node* elemType = NULL; ...
     auto a = &n->u.array.a;
     for (u32 i = 0; i < a->len; i++) {
-      a->v[i] = _resolve(a->v[i], scope, ctx);
+      a->v[i] = resolve(a->v[i], scope, ctx);
     }
     break;
   }
@@ -118,15 +117,18 @@ static Node* _resolve(Node* n, Scope* scope, ResolveCtx* ctx) {
   // uses u.fun
   case NFun: {
     ctx->fnest++;
-    if (n->u.fun.params != NULL) {
-      _resolve(n->u.fun.params, scope, ctx);
+    if (n->u.fun.params) {
+      resolve(n->u.fun.params, scope, ctx);
+    }
+    if (n->u.fun.result) {
+      resolve(n->u.fun.result, scope, ctx);
     }
     auto body = n->u.fun.body;
     if (body) {
       if (n->u.fun.scope) {
         scope = n->u.fun.scope;
       }
-      _resolve(body, scope, ctx);
+      resolve(body, scope, ctx);
     }
     ctx->fnest--;
     break;
@@ -137,23 +139,23 @@ static Node* _resolve(Node* n, Scope* scope, ResolveCtx* ctx) {
   case NPrefixOp:
   case NAssign:
   case NReturn:
-    n->u.op.left = _resolve(n->u.op.left, scope, ctx);
+    n->u.op.left = resolve(n->u.op.left, scope, ctx);
     if (n->u.op.right) {
-      n->u.op.right = _resolve(n->u.op.right, scope, ctx);
+      n->u.op.right = resolve(n->u.op.right, scope, ctx);
     }
     break;
 
   // uses u.call
   case NCall:
-    n->u.call.args = _resolve(n->u.call.args, scope, ctx);
-    n->u.call.receiver = _resolve(n->u.call.receiver, scope, ctx);
+    n->u.call.args = resolve(n->u.call.args, scope, ctx);
+    n->u.call.receiver = resolve(n->u.call.receiver, scope, ctx);
     break;
 
   // uses u.field
   case NVar:
   case NField: {
     if (n->u.field.init) {
-      n->u.field.init = _resolve(n->u.field.init, scope, ctx);
+      n->u.field.init = resolve(n->u.field.init, scope, ctx);
     }
     break;
   }
@@ -162,21 +164,14 @@ static Node* _resolve(Node* n, Scope* scope, ResolveCtx* ctx) {
 
   // uses u.cond
   case NIf:
-    _resolve(n->u.cond.cond, scope, ctx);
-    _resolve(n->u.cond.thenb, scope, ctx);
+    resolve(n->u.cond.cond, scope, ctx);
+    resolve(n->u.cond.thenb, scope, ctx);
     if (n->u.cond.elseb) {
-      _resolve(n->u.cond.elseb, scope, ctx);
+      resolve(n->u.cond.elseb, scope, ctx);
     }
     break;
 
-  case NBool:
-  case NInt:
-  case NFloat:
-  case NZeroInit:
-  case NType:
-  case NComment:
-  case NBad:
-  case NNone:
+  default:
     break;
 
   } // switch n->kind

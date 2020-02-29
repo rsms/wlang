@@ -1,6 +1,26 @@
 #include "wp.h"
 
-u8* readfile(const char* filename, size_t* bufsize_out) {
+#include <unistd.h> // sysconf
+
+
+static size_t _mempagesize = 0;
+
+size_t os_mempagesize() {
+  if (_mempagesize == 0) {
+    auto z = sysconf(_SC_PAGESIZE);
+    if (z <= 0) {
+      _mempagesize = 1024 * 4; // usually 4kB
+    } else {
+      _mempagesize = (size_t)z;
+    }
+  }
+  return _mempagesize;
+}
+
+
+u8* os_readfile(const char* filename, size_t* bufsize_out) {
+  // TODO: use mmap
+
   int fd = open(filename, O_RDONLY);
   if (fd < 0) {
     return NULL;

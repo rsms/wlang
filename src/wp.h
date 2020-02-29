@@ -237,21 +237,45 @@ inline static SrcPos SSrcPos(S* s) {
 }
 
 // -----------------------------------------------------------
-// ast
+// parsing and compiling
 #include "ast.h"
 #include "array.h"
+
+// compilation context
+typedef struct {
+  ErrorHandler* errh;
+  void*         userdata; // passed to errh
+  Source        src;
+  NodeAllocator na;
+} CCtx;
+
+// initialize and/or recycle a CCtx
+void CCtxInit(
+  CCtx*,
+  ErrorHandler* errh,
+  void*         userdata,
+  Str           srcname,
+  const u8*     srcbuf,
+  size_t        srclen
+);
+void CCtxFree(CCtx*);
 
 // parser
 typedef struct P {
   S      s;      // scanner
   u32    fnest;  // function nesting level (for error handling)
-  Scope* scope; // current scope
+  Scope* scope;  // current scope
+  CCtx*  cc;     // compilation context
 } P;
-Node* Parse(P*, Source*, ScanFlags, ErrorHandler*, Scope* pkgscope, void* userdata);
+Node* Parse(P*, CCtx*, ScanFlags, Scope* pkgscope);
 
 // Symbol resolver
-Node* Resolve(Node*, Source*, ErrorHandler*, void* userdata);
+Node* ResolveSym(CCtx*, Node*, Scope*);
+
+// Type resolver
+void ResolveType(CCtx*, Node*);
 
 
-// util
-u8* readfile(const char* filename, size_t* bufsize_out);
+// os
+size_t os_mempagesize();  // always returns a suitable number
+u8* os_readfile(const char* filename, size_t* bufsize_out);

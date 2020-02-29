@@ -3,7 +3,6 @@
 static void errorHandler(Source* src, SrcPos pos, CStr msg, void* userdata) {
   u32* errcount = (u32*)userdata;
   (*errcount)++;
-
   auto s = SrcPosMsg(sdsempty(), pos, msg);
   s[sdslen(s)-1] = '\n'; // repurpose NUL
   fwrite(s, sdslen(s), 1, stderr);
@@ -23,32 +22,35 @@ void parsefile(Str filename, Scope* pkgscope) {
 
   // load file contents
   size_t len;
-  auto buf = readfile(filename, &len);
+  auto buf = os_readfile(filename, &len);
   if (!buf) {
     die("%s: %s", filename, strerror(errno));
   }
 
-  Source src;
-  SourceInit(&src, filename, buf, len);
-
-  // shared parser
-  static P parser;
-
+  // our userdata is number of errors encountered (incremented by errorHandler)
   u32 errcount = 0;
-  auto file = Parse(&parser, &src, SCAN_COMMENTS, errorHandler, pkgscope, &errcount);
+
+  // compilation context
+  static CCtx cc; // shared
+  CCtxInit(&cc, errorHandler, &errcount, filename, buf, len);
+
+  // parse input
+  static P parser; // shared parser
+  auto file = Parse(&parser, &cc, SCAN_COMMENTS, pkgscope);
   // printAst(file);
 
+  // resolve symbols and types
   if (errcount == 0) {
-    Resolve(file, &src, errorHandler, &errcount);
+    ResolveSym(&cc, file, pkgscope);
     if (errcount == 0) {
-      printAst(file);
+      ResolveType(&cc, file);
     }
-  } else {
-    printAst(file);
   }
 
-  free(buf);
-  SourceFree(&src);
+  // print AST
+  printAst(file);
+
+  CCtxFree(&cc);
 }
 
 
@@ -65,7 +67,6 @@ int main(int argc, char **argv) {
   //   fprintf(stderr, "error opening output %s: %s\n", argv[2], strerror(errno));
   //   exit(1);
   // }
-
 
   auto pkgscope = ScopeNew(GetGlobalScope());
   parsefile(sdsnew(argv[1]), pkgscope);

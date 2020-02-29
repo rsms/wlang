@@ -169,7 +169,8 @@ static void advance(P* p, const Tok* followlist) {
 
 // allocate a new ast node
 inline static Node* PNewNode(P* p, NodeKind kind) {
-  auto n = NodeAlloc(kind);
+  // auto n = NodeAlloc(kind);
+  auto n = NAlloc(&p->cc->na, kind);
   n->pos.src = p->s.src;
   n->pos.offs = p->s.tokstart - p->s.src->buf;
   n->pos.span = p->s.tokend - p->s.tokstart;  assert(p->s.tokend >= p->s.tokstart);
@@ -677,11 +678,18 @@ static Node* params(P* p) {
 }
 
 
-// Fun = "fun" Ident? params? Type? Block?
+// Fun     = FunDef | FunExpr
+// FunDef  = "fun" Ident? params? Type? Block?
+// FunExpr = "fun" Ident? params? Type? "->" Expr
 //
 // e.g.
+//   fun foo (x, y int) int
 //   fun foo (x, y int) int { x * y }
 //   fun foo { 5 }
+//   fun foo -> 5
+//   fun (x, y int) int { x * y }
+//   fun { 5 }
+//   fun -> 5
 //
 static Node* pfun(P* p, bool nameOptional) {
   auto n = PNewNode(p, NFun);
@@ -692,36 +700,32 @@ static Node* pfun(P* p, bool nameOptional) {
     n->u.fun.name = name;
     defsym(p, name, n);
     next(p);
-  } else if (!nameOptional) {
+  } /*else if (!nameOptional) {
     syntaxerr(p, "expecting name");
     next(p);
-  }
+  }*/
   // parameters
   pushScope(p);
   if (p->s.tok == '(') {
     n->u.fun.params = params(p);
   }
   // result type(s)
-  if (p->s.tok != '{' && p->s.tok != ';') {
-    n->type = exprOrList(p, PREC_LOWEST);
+  if (p->s.tok != '{' && p->s.tok != ';' && p->s.tok != TRArr) {
+    n->u.fun.result = exprOrList(p, PREC_LOWEST);
   }
   // body
   p->fnest++;
   if (p->s.tok == '{') {
     n->u.fun.body = PBlock(p);
+  } else if (got(p, TRArr)) {
+    n->u.fun.body = exprOrList(p, PREC_LOWEST);
   }
   p->fnest--;
   n->u.fun.scope = popScope(p);
   return n;
 }
 
-// Fun = "fun" Ident Params? Type? Block?
-//
-// e.g.
-//   fun foo (x, y int) int { x * y }
-//   fun foo { 5 }
-//   fun foo -> int 5
-//
+// See pfun for syntax
 //!PrefixParselet TFun
 static Node* PFun(P* p) {
   return pfun(p, /* nameOptional */ false);
@@ -837,21 +841,15 @@ static Node* exprList(P* p, int precedence) {
 }
 
 
-Node* Parse(
-  P*            p,
-  Source*       src,
-  ScanFlags     sflags,
-  ErrorHandler* errh,
-  Scope*        pkgscope,
-  void*         userdata
-) {
+Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
   // initialize scanner
-  SInit(&p->s, src, sflags, errh, userdata);
+  SInit(&p->s, &cc->src, sflags, cc->errh, cc->userdata);
   p->fnest = 0;
   p->scope = pkgscope;
+  p->cc = cc;
   next(p); // read first token
 
-  // TODO: ParseFlags where one option is PARSE_IMPORTS to parse only imports and then stop.
+  // TODO: ParseFlags, where one option is PARSE_IMPORTS to parse only imports and then stop.
 
   auto file = PNewNode(p, NFile);
   pushScope(p);

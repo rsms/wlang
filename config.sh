@@ -4,17 +4,20 @@ cd "$(dirname "$0")"
 sources=( \
   src/array.c \
   src/ast.c \
+  src/ast_alloc.c \
+  src/cctx.c \
   src/hash.c \
   src/parse.c \
   src/parseint.c \
   src/ptrmap.c \
-  src/resolve.c \
+  src/resolve_sym.c \
+  src/resolve_type.c \
   src/scan.c \
   src/sds.c \
   src/source.c \
   src/sym.c \
   src/unicode.c \
-  src/util.c \
+  src/os.c \
   src/wp.c \
 )
 # sources=src/*.c

@@ -1,15 +1,33 @@
 #include "wp.h"
 #include "ptrmap.h"
 
-static const char* const NodeKindNames[] = {
-  #define I_ENUM(name) #name,
-  DEF_NODE_KINDS_EXPR(I_ENUM)
-  #undef  I_ENUM
-
-  #define I_ENUM(name) #name,
+// Lookup table N<kind> => name
+static const char* const NodeKindNameTable[] = {
+  #define I_ENUM(name, _cls) #name,
   DEF_NODE_KINDS(I_ENUM)
   #undef  I_ENUM
 };
+
+// Lookup table N<kind> => NClass<class>
+const NodeClass NodeClassTable[] = {
+  #define I_ENUM(_name, cls) NodeClass##cls,
+  DEF_NODE_KINDS(I_ENUM)
+  #undef  I_ENUM
+};
+
+
+const char* NodeKindName(NodeKind t) {
+  return NodeKindNameTable[t];
+}
+
+const char* NodeClassName(NodeClass c) {
+  switch (c) {
+    case NodeClassInvalid: return "Invalid";
+    case NodeClassExpr: return "Expr";
+    case NodeClassType: return "Type";
+  }
+  return "NodeClass?";
+}
 
 
 // NBad node
@@ -67,7 +85,7 @@ static Scope* getScope(const Node* n) {
 static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   assert(n);
 
-  // dlog("nodeRepr %s", NodeKindNames[n->kind]);
+  // dlog("nodeRepr %s", NodeKindNameTable[n->kind]);
   // if (n->kind == NIdent) {
   //   dlog("  addr:   %p", n);
   //   dlog("  name:   %s", n->u.ref.name);
@@ -76,19 +94,19 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   //   } else {
   //     dlog("  target:");
   //     dlog("    addr:   %p", n->u.ref.target);
-  //     dlog("    kind:   %s", NodeKindNames[n->u.ref.target->kind]);
+  //     dlog("    kind:   %s", NodeKindNameTable[n->u.ref.target->kind]);
   //   }
   // }
 
   // cycle guard
   if (PtrMapSet(&ctx->seen, (void*)n, (void*)1) != NULL) {
     PtrMapDel(&ctx->seen, (void*)n);
-    s = sdscatfmt(s, " [cyclic %s]", NodeKindNames[n->kind]);
+    s = sdscatfmt(s, " [cyclic %s]", NodeKindNameTable[n->kind]);
     return s;
   }
 
   s = indent(s, ctx->ind);
-  s = sdscatfmt(s, "(%s ", NodeKindNames[n->kind]);
+  s = sdscatfmt(s, "(%s ", NodeKindNameTable[n->kind]);
 
   ctx->ind += 2;
 
@@ -107,10 +125,10 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     }
   }
 
-  auto scope = getScope(n);
-  if (scope) {
-    s = sdscatprintf(s, "[scope %p] ", scope);
-  }
+  // auto scope = getScope(n);
+  // if (scope) {
+  //   s = sdscatprintf(s, "[scope %p] ", scope);
+  // }
 
   switch (n->kind) {
 
@@ -148,12 +166,15 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     assert(n->u.ref.name);
     s = sdscatsds(s, n->u.ref.name);
     if (n->u.ref.target) {
-      s = sdscatfmt(s, " @%s", NodeKindNames[n->u.ref.target->kind]);
+      s = sdscatfmt(s, " @%s", NodeKindNameTable[n->u.ref.target->kind]);
       // s = nodeRepr(n->u.ref.target, s, ctx);
     }
     break;
   case NType:
     s = sdscatfmt(s, "<%S>", n->u.ref.name);
+    break;
+  case NFunType: // TODO
+    s = sdscat(s, "<TODO-ast.c-NFunType>");
     break;
 
   // uses u.op
@@ -204,19 +225,31 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   // uses u.fun
   case NFun: {
     auto f = &n->u.fun;
+
     if (f->name) {
       s = sdscatsds(s, f->name);
     } else {
       s = sdscatlen(s, "_", 1);
     }
+
+    s = sdscatprintf(s, " %p", n);
+
     if (f->params) {
       s = nodeRepr(f->params, s, ctx);
     } else {
       s = reprEmpty(s, ctx);
     }
+
+    if (f->result) {
+      s = nodeRepr(f->result, s, ctx);
+    } else {
+      s = reprEmpty(s, ctx);
+    }
+
     if (f->body) {
       s = nodeRepr(f->body, s, ctx);
     }
+
     break;
   }
 
@@ -235,6 +268,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     }
     break;
 
+  case _NodeKindMax: break;
   // Note: No default case, so that the compiler warns us about missing cases.
 
   }
@@ -251,11 +285,6 @@ Str NodeRepr(const Node* n, Str s) {
   ReprCtx ctx = { 0 };
   PtrMapInit(&ctx.seen, 32);
   return nodeRepr(n, s, &ctx);
-}
-
-
-const char* NodeKindName(NodeKind t) {
-  return NodeKindNames[t];
 }
 
 
