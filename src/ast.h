@@ -21,6 +21,7 @@ typedef enum {
   _(Ident,       Expr) \
   _(Op,          Expr) \
   _(PrefixOp,    Expr) \
+  _(Nil,         Expr) /* nil literal */ \
   _(Bool,        Expr) /* boolean literal */ \
   _(Int,         Expr) /* integer literal */ \
   _(Float,       Expr) /* floating-point literal */ \
@@ -47,10 +48,10 @@ typedef enum {
 // Lookup table N<kind> => NClass<class>
 const NodeClass NodeClassTable[_NodeKindMax];
 
-// Get name of node kind constant
+// NodeKindName returns the name of node kind constant
 const char* NodeKindName(NodeKind);
 
-// Get name of node class constant
+// NodeClassName returns the name of a node class constant
 const char* NodeClassName(NodeClass);
 
 
@@ -135,6 +136,12 @@ typedef struct Node {
 // Node* NodeAlloc(NodeKind); // one-off allocation using calloc()
 // inline static void NodeFree(Node* _) {}
 Str NodeRepr(const Node* n, Str s); // return human-readable printable text representation
+
+// NodeReprShort returns a short string representation of a node,
+// suitable for use in error messages.
+// Important: The returned string is invalidated on the next call to NodeReprShort,
+// so either copy it into an sds Str or make use of it right away.
+const char* NodeReprShort(const Node*);
 
 // NodeIsType returns true if n represents a type (i.e. NType, NFunType, etc.)
 static inline bool NodeIsType(const Node* n) {

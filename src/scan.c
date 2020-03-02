@@ -8,7 +8,7 @@
 
 const char* TokName(Tok t) {
   switch (t) {
-    case TNil: return "TNil";
+    case TNone: return "TNone";
 
     #define I_ENUM(name, str) case name: return str;
     TOKEN_TYPES_1_1(I_ENUM)
@@ -76,7 +76,7 @@ void SInit(S* s, Source* src, ScanFlags flags, ErrorHandler* errh, void* userdat
   s->inend = src->buf + src->len;
   s->flags = flags;
 
-  s->tok      = TNil;
+  s->tok      = TNone;
   s->tokstart = 0;
   s->tokend   = 0;
 
@@ -241,7 +241,7 @@ Tok SNext(S* s) {
       s->insertSemi = false;
       s->tok = TSemi;
     } else {
-      s->tok = TNil;
+      s->tok = TNone;
     }
     return s->tok;
   }
@@ -339,7 +339,7 @@ Tok SNext(S* s) {
     }
     // invariant: c < RuneSelf
     s->tokend = s->tokstart;
-    s->tok = TNil;
+    s->tok = TNone;
     if (c >= 0x20 && c < 0x7F) {
       serr(s, "invalid input character '%C' 0x%x", c, c);
     } else {

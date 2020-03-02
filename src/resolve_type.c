@@ -33,14 +33,21 @@ static void errorf(CCtx* cc, SrcPos pos, const char* format, ...) {
 
 static Node* resolveFunType(CCtx* cc, Node* n) {
   Node* ft = NewNode(&cc->mem, NFunType);
+  auto result = n->type;
+
+  // Important: To avoid an infinite loop when resolving a function which calls itself,
+  // we set the unfinished function type objects ahead of calling resolve.
+  n->type = ft;
 
   if (n->u.fun.params) {
     resolveType(cc, n->u.fun.params);
     ft->u.tfun.params = (Node*)n->u.fun.params->type;
   }
 
-  if (n->type) {
-    ft->u.tfun.result = (Node*)resolveType(cc, n->type);
+  if (result) {
+    ft->u.tfun.result = (Node*)resolveType(cc, result);
+  } else {
+    ft->u.tfun.result = Type_nil;
   }
 
   if (n->u.fun.body) {
@@ -76,20 +83,36 @@ static Node* resolveType(CCtx* cc, Node* n) {
     return n->type;
   }
 
-  //TODO NodeClassTable and NodeClassName for type
+  // Set type to nil here to break any self-referencing cycles.
+  // NFun is special-cased as it stores result type in n->type. Note that resolveFunType
+  // handles breaking of cycles.
+  // A nice side effect of this is that for error cases and nodes without types, the
+  // type "defaults" to nil and we can avoid setting Type_nil in the switch below.
+  if (n->kind != NFun) {
+    n->type = Type_nil;
+  }
 
-
+  // branch on node kind
   switch (n->kind) {
 
   // uses u.array
-  case NBlock:
   case NFile:
-    // TODO: Type.
-    // - For file, type is ignored
-    // - For block, type is the last expression (remember to check returns)
-    // - For list, type is heterogeneous (tuple)
+    n->type = Type_nil;
     NodeListForEach(&n->u.array.a, n,
       resolveType(cc, n));
+    break;
+
+  case NBlock:
+    // type of a block is the type of the last expression.
+    // TODO: handle & check "return" expressions.
+    NodeListForEach(&n->u.array.a, n,
+      resolveType(cc, n));
+    if (n->u.array.a.tail) {
+      assert(n->u.array.a.tail->node != NULL);
+      n->type = n->u.array.a.tail->node->type;
+    } else {
+      n->type = Type_nil;
+    }
     break;
 
   case NList: {
@@ -103,52 +126,74 @@ static Node* resolveType(CCtx* cc, Node* n) {
       NodeListAppend(&cc->mem, &tt->u.array.a, t);
     });
     n->type = tt;
-    return tt;
+    break;
   }
 
   // uses u.fun
   case NFun:
-    return resolveFunType(cc, n);
+    n->type = resolveFunType(cc, n);
+    break;
 
   // uses u.op
   case NOp:
   case NPrefixOp:
   case NAssign:
-  case NReturn:
-    resolveType(cc, n->u.op.left);
-    if (n->u.op.right) {
-      return resolveType(cc, n->u.op.right);
+  case NReturn: {
+    auto ltype = resolveType(cc, n->u.op.left);
+    if (n->u.op.right == NULL) {
+      n->type = ltype;
+    } else {
+      auto rtype = resolveType(cc, n->u.op.right);
+      // TODO: check ltype == rtype
+      n->type = rtype;
     }
     break;
+  }
 
   // uses u.call
   case NCall: {
     auto argstype = resolveType(cc, n->u.call.args);
-    dlog("TODO check argstype <> receiver type");
 
-    // Important: we do not resolve type of receiver since it will be a function
-    // since ResolveSym has been run already. Trying to resolve the receiver will
-    // cause an infinite loop.
-    //resolveType(cc, n->u.call.receiver);
+    // Note: resolveFunType breaks handles cycles where a function calls itself,
+    // making this safe (i.e. will not cause an infinite loop.)
+    auto ftype = resolveType(cc, n->u.call.receiver);
+
+    dlog("TODO check argstype <> receiver type");
+    // Note: Consider arguments with defaults:
+    // fun foo(a, b int, c int = 0)
+    // foo(1, 2) == foo(1, 2, 0)
+
+    n->type = ftype->u.tfun.result;
+    break;
   }
 
   // uses u.field
   case NVar:
   case NField: {
     if (n->u.field.init) {
-      return resolveType(cc, n->u.field.init);
+      n->type = resolveType(cc, n->u.field.init);
+    } else {
+      n->type = Type_nil;
     }
     break;
   }
 
   // uses u.cond
-  case NIf:
-    resolveType(cc, n->u.cond.cond);
-    resolveType(cc, n->u.cond.thenb);
-    if (n->u.cond.elseb) {
-      return resolveType(cc, n->u.cond.elseb);
+  case NIf: {
+    auto cond = n->u.cond.cond;
+    auto condt = resolveType(cc, cond);
+    if (condt != Type_bool) {
+      errorf(cc, cond->pos, "non-bool %s (type %s) used as condition",
+        NodeReprShort(cond), NodeReprShort(condt));
     }
+    auto thent = resolveType(cc, n->u.cond.thenb);
+    if (n->u.cond.elseb) {
+      auto elset = resolveType(cc, n->u.cond.elseb);
+      dlog("TODO: check thent == elset");
+    }
+    n->type = thent;
     break;
+  }
 
   case NIdent:
     n->type = resolveType(cc, (Node*)n->u.ref.target);

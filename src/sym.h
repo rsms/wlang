@@ -83,11 +83,14 @@ TOKEN_KEYWORDS(SYM_DEF)
 
 // symbols and AST nodes for predefined types (defined in types.h)
 #define SYM_DEF(name) \
-  const Sym   sym_##name; \
-  const Node* Type_##name;
+  const Sym sym_##name; \
+  Node* Type_##name;
 TYPE_SYMS(SYM_DEF)
 #undef SYM_DEF
-// type nodes
+
+// nil is special and implemented without macros since its sym is defined by TOKEN_KEYWORDS
+Node* Type_nil;
+Node* Const_nil;
 
 
 // symbols and AST nodes for predefined constants
@@ -96,8 +99,8 @@ TYPE_SYMS(SYM_DEF)
   _( false, bool, 0 ) \
 /*END PREDEFINED_CONSTANTS*/
 #define SYM_DEF(name, _type, _val) \
-  const Sym   sym_##name; \
-  const Node* Const_##name;
+  const Sym sym_##name; \
+  Node* Const_##name;
 PREDEFINED_CONSTANTS(SYM_DEF)
 #undef SYM_DEF
 

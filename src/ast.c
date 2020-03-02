@@ -125,6 +125,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   // does not use u
   case NBad:
   case NNone:
+  case NNil:
   case NZeroInit:
     sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
     break;
@@ -184,7 +185,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   case NPrefixOp:
   case NAssign:
   case NReturn:
-    if (n->u.op.op != TNil) {
+    if (n->u.op.op != TNone) {
       s = sdscat(s, TokName(n->u.op.op));
       s = sdscatlen(s, " ", 1);
     }
@@ -309,6 +310,18 @@ Str NodeRepr(const Node* n, Str s) {
   ReprCtx ctx = { 0 };
   PtrMapInit(&ctx.seen, 32);
   return nodeRepr(n, s, &ctx);
+}
+
+
+const char* NodeReprShort(const Node* n) {
+  // return a short string representation of a node, suitable for use in error messages.
+  // Important: The returned string is invalidated on the next call to NodeReprShort,
+  // so either copy it into an sds Str or make use of it right away.
+
+  // Note: Do not include type information.
+  // Instead, in use sites, call NodeReprShort individually for n->type when needed.
+
+  return "<TODO ast.c/NodeReprShort>";
 }
 
 

@@ -68,7 +68,7 @@ static void syntaxerrp(P* p, SrcPos pos, const char* format, ...) {
   va_end(ap);
 
   const char* tokname;
-  if (p->s.tok == TNil) {
+  if (p->s.tok == TNone) {
     tokname = "end of input";
   } else if (p->s.tok == TSemi && p->s.inp > p->s.src->buf && *(p->s.inp - 1) == '\n') {
     tokname = "newline";
@@ -133,7 +133,7 @@ static void advance(P* p, const Tok* followlist) {
     // errors and (usually) shouldn't be skipped over.
     while (!toklistHas(followlist, p->s.tok)) {
       switch (p->s.tok) {
-        case TNil:
+        case TNone:
         case TBreak:
         case TConst:
         case TContinue:
@@ -156,7 +156,7 @@ static void advance(P* p, const Tok* followlist) {
       next(p);
     }
   } else {
-    while (p->s.tok != TNil && !toklistHas(followlist, p->s.tok)) {
+    while (p->s.tok != TNone && !toklistHas(followlist, p->s.tok)) {
       // dlog("skip %s", TokName(p->s.tok));
       next(p);
     }
@@ -485,7 +485,7 @@ static Node* PBlock(P* p) {
 
   pushScope(p);
 
-  while (p->s.tok != TNil && p->s.tok != '}') {
+  while (p->s.tok != TNone && p->s.tok != '}') {
     // nlistPush(n, exprOrList(p, PREC_LOWEST));
     NodeListAppend(&p->cc->mem, &n->u.array.a, exprOrList(p, PREC_LOWEST));
     if (!got(p, ';')) {
@@ -596,7 +596,7 @@ static Node* params(P* p) {
   bool hasTypedParam = false; // true when at least one param has type; e.g. "x T"
   NodeList typeq;
 
-  while (p->s.tok != TRParen && p->s.tok != TNil) {
+  while (p->s.tok != TRParen && p->s.tok != TNone) {
     auto field = PNewNode(p, NField);
     if (p->s.tok == TIdent) {
       field->u.field.name = p->s.name;
@@ -761,7 +761,7 @@ inline static Node* prefixExpr(P* p) {
 
 inline static Node* infixExpr(P* p, int precedence, Node* left) {
   // wrap parselets
-  while (p->s.tok != TNil) {
+  while (p->s.tok != TNone) {
     auto parselet = &parselets[p->s.tok];
     // if (parselet->f) {
     //   dlog("found infix parselet for %s; parselet->prec=%d < precedence=%d = %s",
@@ -832,7 +832,7 @@ Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
   auto file = PNewNode(p, NFile);
   pushScope(p);
 
-  while (p->s.tok != TNil) {
+  while (p->s.tok != TNone) {
     Node* n = exprOrList(p, PREC_LOWEST);
     NodeListAppend(&p->cc->mem, &file->u.array.a, n);
 
@@ -850,7 +850,7 @@ Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
     // sdsfree(s);
 
     // check that we either got a semicolon or EOF
-    if (p->s.tok != TNil && !got(p, TSemi)) {
+    if (p->s.tok != TNone && !got(p, TSemi)) {
       syntaxerr(p, "after top level declaration");
       Tok followlist[] = { TType, TFun, TConst, TVar, TSemi, 0 };
       advance(p, followlist);

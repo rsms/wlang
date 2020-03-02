@@ -50,6 +50,7 @@
   _(in,          TIn)          \
   _(interface,   TInterface)   \
   _(is,          TIs)          \
+  _(nil,         TNil)         \
   _(return,      TReturn)      \
   _(select,      TSelect)      \
   _(struct,      TStruct)      \
@@ -62,7 +63,7 @@
 /*END TOKEN_KEYWORDS*/
 
 typedef enum {
-  TNil,
+  TNone,
 
   #define I_ENUM(name, str) name = str[0],
   TOKEN_TYPES_1_1(I_ENUM)
