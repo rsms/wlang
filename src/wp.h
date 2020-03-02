@@ -111,6 +111,33 @@ inline static size_t align2(size_t n, size_t w) {
   return (n + (w - 1)) & ~(w - 1);
 }
 
+// testing
+#if DEBUG
+  #define W_UNIT_TEST(name, body) \
+    __attribute__((constructor)) static void unit_test_##name() { \
+      dlog("TEST " #name); \
+      do body while(0); \
+    }
+
+// #define W_UNIT_TEST(name, body) \
+//     __attribute__((constructor)) static void unit_test_##name() \
+//     body
+#else
+  #define W_UNIT_TEST(name, body)
+#endif
+
+// // Attribute for opting out of address sanitation.
+// // Needed for realloc() with a null pointer.
+// // e.g.
+// // W_NO_SANITIZE_ADDRESS
+// // void ThisFunctionWillNotBeInstrumented() { return realloc(NULL, 1); }
+// #if defined(__clang__) || defined (__GNUC__)
+//   #define W_NO_SANITIZE_ADDRESS __attribute__((no_sanitize("address")))
+// #else
+//   #define W_NO_SANITIZE_ADDRESS
+// #endif
+
+
 // -------------------------------------------------------------------------------------
 
 // error
@@ -246,7 +273,7 @@ typedef struct {
   ErrorHandler* errh;
   void*         userdata; // passed to errh
   Source        src;
-  NodeAllocator na;
+  FWAllocator   mem; // memory used only during compilation, like AST nodes
 } CCtx;
 
 // initialize and/or recycle a CCtx

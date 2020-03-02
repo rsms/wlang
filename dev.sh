@@ -33,7 +33,7 @@ if $OPT_HELP; then
   echo "usage: $0 [options] [--] [<runarg> ...]"
   echo "options:"
   echo "  -h, -help   Show help"
-  echo "  -time       Run program with performance timer instead debugger."
+  echo "  -time       Run release-build program with performance timer."
   echo "              Redirects stdio to /dev/null."
   echo "<runarg>s are passed to the program"
   exit 1
@@ -55,13 +55,15 @@ fi
 
 function dev_run {
   set +e
-  echo exec lldb -bo r ./build/wp.g "$@"
   pid=
   if $OPT_TIME; then
-    time ./build/wp.g "$@" >/dev/null 2>&1 &
+    time ./build/wp "$@" >/dev/null 2>&1 &
     pid=$!
   else
-    lldb -bo r ./build/wp.g "$@" &
+    # echo lldb -bo r ./build/wp.g "$@"
+    # ASAN_OPTIONS=detect_stack_use_after_return=1 \
+    #   lldb -bo r ./build/wp.g "$@" &
+    ASAN_OPTIONS=detect_stack_use_after_return=1 ./build/wp.g "$@" &
     pid=$!
   fi
   echo $pid > "$pidfile"
@@ -72,8 +74,14 @@ function dev_run {
 
 
 function dev_start {
-  if ./build.sh -g; then
-    dev_run "$@"
+  if $OPT_TIME; then
+    if ./build.sh; then
+      dev_run "$@"
+    fi
+  else
+    if ./build.sh -g; then
+      dev_run "$@"
+    fi
   fi
 }
 

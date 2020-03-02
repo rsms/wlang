@@ -49,15 +49,15 @@ const Sym sym__ = "\0\0\0\0\0\0\0\x6E\x19\x0C\xDA\x01\x00\x01\x00\x02""_" + 16;
 const Sym sym_true = "\0\0\0\0\0\0\0\xE5\x11\xB2\x4D\x04\x00\x04\x00\x02""true" + 16;
 const Sym sym_false = "\0\0\0\0\0\0\0\x58\x99\x06\x0B\x05\x00\x05\x00\x02""false" + 16;
 
-static const Node _badnode = {NULL,NBad,{0,0},NULL};
-static const Node _Type_int = {NULL,NType,{0,0},NULL,{.ref={sym_int,&_badnode}}};
+static const Node _badnode = {NBad,{0,0},NULL};
+static const Node _Type_int = {NType,{0,0},NULL,{.ref={sym_int,&_badnode}}};
 const Node* Type_int = &_Type_int;
-static const Node _Type_bool = {NULL,NType,{0,0},NULL,{.ref={sym_bool,&_badnode}}};
+static const Node _Type_bool = {NType,{0,0},NULL,{.ref={sym_bool,&_badnode}}};
 const Node* Type_bool = &_Type_bool;
 
-static const Node _Const_true = {NULL,NBool,{0,0},&_Type_bool,{.integer=1}};
+static const Node _Const_true = {NBool,{0,0},(Node*)&_Type_bool,{.integer=1}};
 const Node* Const_true = &_Const_true;
-static const Node _Const_false = {NULL,NBool,{0,0},&_Type_bool,{.integer=0}};
+static const Node _Const_false = {NBool,{0,0},(Node*)&_Type_bool,{.integer=0}};
 const Node* Const_false = &_Const_false;
 
 static RBNode n_false = { sym_false, true, null, null };
@@ -326,14 +326,14 @@ __attribute__((constructor)) static void gen_constants() {
   // const Node* type_NAME
   printf(
     "\n"
-    "static const Node _badnode = {NULL,NBad,{0,0},NULL};\n"
+    "static const Node _badnode = {NBad,{0,0},NULL};\n"
   );
-  #define SYM_DEF(name) \
-    printf(                                                            \
-      "static const Node _Type_%s = "                                  \
-      "{NULL,NType,{0,0},NULL,{.ref={sym_%s,&_badnode}}};\n"   \
-      "const Node* Type_%s = &_Type_%s;\n",                            \
-      #name, #name, #name, #name                                       \
+  #define SYM_DEF(name)                                   \
+    printf(                                               \
+      "static const Node _Type_%s = "                     \
+      "{NType,{0,0},NULL,{.ref={sym_%s,&_badnode}}};\n"   \
+      "const Node* Type_%s = &_Type_%s;\n",               \
+      #name, #name, #name, #name                          \
     );
   TYPE_SYMS(SYM_DEF)
   #undef SYM_DEF
@@ -344,7 +344,7 @@ __attribute__((constructor)) static void gen_constants() {
   #define SYM_DEF(name, type, value)              \
     printf(                                       \
       "static const Node _Const_%s = "            \
-      "{NULL,%s,{0,0},&_Type_%s,{.%s=%s}};\n"     \
+      "{%s,{0,0},(Node*)&_Type_%s,{.%s=%s}};\n"          \
       "const Node* Const_%s = &_Const_%s;\n",     \
       #name,                                      \
       #type == "bool" ? "NBool" : "NInt",         \
@@ -446,13 +446,15 @@ __attribute__((constructor)) static void debug_check() {
 #undef HASHMAP_VALUE
 
 
-#if 1
+#ifdef DEBUG
 static void testMapIterator(Sym key, const Node* value, bool* stop, void* userdata) {
   // dlog("\"%s\" => %zu", key, (size_t)value);
   size_t* n = (size_t*)userdata;
   (*n)++;
 }
-__attribute__((constructor)) static void test_SymMap() {
+#endif
+
+W_UNIT_TEST(SymMap, {
   SymMap m;
   SymMapInit(&m, 64);
 
@@ -658,9 +660,7 @@ __attribute__((constructor)) static void test_SymMap() {
   assert(SymMapGet(&m, SYM("int"))         == 0);
 
   SymMapFree(&m);
-  dlog("SymMap test OK");
-}
-#endif
+}) // W_UNIT_TEST
 
 
 // -----------------------------------------------------------------------------------------------

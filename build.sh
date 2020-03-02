@@ -4,6 +4,7 @@ cd "$(dirname "$0")"
 OPT_HELP=false
 OPT_CONFIG=false
 OPT_G=false
+OPT_MSAN=false
 USAGE_EXIT_CODE=0
 
 # parse args

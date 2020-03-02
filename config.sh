@@ -4,9 +4,10 @@ cd "$(dirname "$0")"
 sources=( \
   src/array.c \
   src/ast.c \
-  src/ast_alloc.c \
   src/cctx.c \
+  src/fwalloc.c \
   src/hash.c \
+  src/os.c \
   src/parse.c \
   src/parseint.c \
   src/ptrmap.c \
@@ -16,14 +17,11 @@ sources=( \
   src/sds.c \
   src/source.c \
   src/sym.c \
+  src/tstyle.c \
   src/unicode.c \
-  src/os.c \
   src/wp.c \
 )
 # sources=src/*.c
-
-dev_objects=()
-opt_objects=()
 
 builddir=build
 TF=$builddir/.build.ninja
@@ -31,22 +29,27 @@ mkdir -p "$builddir"
 rm -f "$TF"
 touch "$TF"
 
+dev_objects=()
+opt_objects=()
+
 for srcfile in ${sources[@]}; do
   objfile=$(basename "$srcfile" .c).o
 
-  dev_objects+=( "$\n  \$builddir/obj/dev__$objfile" )
   opt_objects+=( "$\n  \$builddir/obj/opt__$objfile" )
+  dev_objects+=( "$\n  \$builddir/obj/dev__$objfile" )
+
+  echo "build \$builddir/obj/opt__$objfile: compile_obj $srcfile" >> "$TF"
+  echo "  cflags = \$cflags_opt" >> "$TF"
 
   echo "build \$builddir/obj/dev__$objfile: compile_obj $srcfile" >> "$TF"
   echo "  cflags = \$cflags_dev" >> "$TF"
-  echo "build \$builddir/obj/opt__$objfile: compile_obj $srcfile" >> "$TF"
-  echo "  cflags = \$cflags_opt" >> "$TF"
 done
+
+echo -e "build \$builddir/wp: link ${opt_objects[@]}" >> "$TF"
+echo "  lflags = \$lflags_opt" >> "$TF"
 
 echo -e "build \$builddir/wp.g: link ${dev_objects[@]}" >> "$TF"
 echo "  lflags = \$lflags_dev" >> "$TF"
-echo -e "build \$builddir/wp: link ${opt_objects[@]}" >> "$TF"
-echo "  lflags = \$lflags_opt" >> "$TF"
 
 sed -E "/CONFIG_REPLACE_BUILDS/r $TF" "build.in.ninja" \
 | sed -E "/CONFIG_REPLACE_BUILDS/d" \

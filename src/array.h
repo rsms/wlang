@@ -8,7 +8,7 @@ typedef struct {
   bool   onheap;  // false if v is space on stack
 } Array;
 
-#define Array_INIT { 0, 0, 0 }
+#define Array_INIT { NULL, 0, 0, true }
 
 #define Array_STACK_INIT(cap) (({ \
   void* __ArrayStackStorage__##__LINE__[cap]; \

@@ -1,5 +1,6 @@
 #include "wp.h"
 #include "ptrmap.h"
+#include "tstyle.h"
 
 // Lookup table N<kind> => name
 static const char* const NodeKindNameTable[] = {
@@ -31,19 +32,8 @@ const char* NodeClassName(NodeClass c) {
 
 
 // NBad node
-static const Node _NodeBad = {NULL,NBad,{0,0},NULL};
+static const Node _NodeBad = {NBad,{0,0},NULL};
 const Node* NodeBad = &_NodeBad;
-
-
-Node* NodeAlloc(NodeKind kind) {
-  auto n = (Node*)calloc(1, sizeof(Node));
-  n->kind = kind;
-  if (kind == NBlock || kind == NList || kind == NFile) {
-    n->u.array.a.v = n->u.array.astorage;
-    n->u.array.a.cap = countof(n->u.array.astorage);
-  }
-  return n;
-}
 
 
 typedef struct {
@@ -54,7 +44,6 @@ typedef struct {
 
 static Str indent(Str s, int ind) {
   if (ind > 0) {
-    s = strgrow(s, ind);
     s = sdscatlen(s, "\n", 1);
     s = sdsgrow(s, sdslen(s) + ind, ' ');
   }
@@ -105,25 +94,26 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     return s;
   }
 
-  s = indent(s, ctx->ind);
-  s = sdscatfmt(s, "(%s ", NodeKindNameTable[n->kind]);
+  auto isType = NodeIsType(n);
+  if (!isType) {
+    s = indent(s, ctx->ind);
+  }
+
+  if (!isType) {
+    if (n->kind != NFile) {
+      s = TStyleBlue(s);
+      if (n->type) {
+        s = nodeRepr(n->type, s, ctx);
+        s = sdscatlen(s, ":", 1);
+      } else {
+        s = sdscatlen(s, "?:", 2);
+      }
+      s = TStyleNone(s);
+    }
+    s = sdscatfmt(s, "(%s ", NodeKindNameTable[n->kind]);
+  }
 
   ctx->ind += 2;
-
-  if (n->type) {
-    auto t = n->type;
-    if (t->kind == NType) {
-      s = sdscatfmt(s, "<%S> ", t->u.ref.name);
-    } else if (t->kind == NIdent) {
-      s = sdscatfmt(s, "<~%S> ", t->u.ref.name);
-    } else if (t->kind == NBad) {
-      s = sdscat(s, "<BAD> ");
-    } else {
-      s = sdscatlen(s, "<", 1);
-      s = nodeRepr(t, s, ctx);
-      s = sdscatlen(s, "> ", 2);
-    }
-  }
 
   // auto scope = getScope(n);
   // if (scope) {
@@ -163,18 +153,30 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
 
   // uses u.ref
   case NIdent:
-    assert(n->u.ref.name);
+    s = TStyleRed(s);
     s = sdscatsds(s, n->u.ref.name);
     if (n->u.ref.target) {
       s = sdscatfmt(s, " @%s", NodeKindNameTable[n->u.ref.target->kind]);
       // s = nodeRepr(n->u.ref.target, s, ctx);
     }
     break;
+
   case NType:
-    s = sdscatfmt(s, "<%S>", n->u.ref.name);
+    s = sdscatsds(s, n->u.ref.name);
     break;
+
   case NFunType: // TODO
-    s = sdscat(s, "<TODO-ast.c-NFunType>");
+    if (n->u.tfun.params) {
+      s = nodeRepr(n->u.tfun.params, s, ctx);
+    } else {
+      s = sdscat(s, "()");
+    }
+    s = sdscat(s, "->");
+    if (n->u.tfun.result) {
+      s = nodeRepr(n->u.tfun.result, s, ctx);
+    } else {
+      s = sdscat(s, "()");
+    }
     break;
 
   // uses u.op
@@ -198,10 +200,23 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   case NFile:
   {
     sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
-    auto a = &n->u.array.a;
-    for (u32 i = 0; i < a->len; i++) {
-      s = nodeRepr(a->v[i], s, ctx);
-    }
+    NodeListForEach(&n->u.array.a, n, {
+      s = nodeRepr(n, s, ctx);
+    });
+    break;
+  }
+  case NTupleType: {
+    s = sdscatlen(s, "(", 1);
+    bool first = true;
+    NodeListForEach(&n->u.array.a, n, {
+      if (first) {
+        first = false;
+      } else {
+        s = sdscatlen(s, " ", 1);
+      }
+      s = nodeRepr(n, s, ctx);
+    });
+    s = sdscatlen(s, ")", 1);
     break;
   }
 
@@ -232,16 +247,12 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
       s = sdscatlen(s, "_", 1);
     }
 
+    s = TStyleRed(s);
     s = sdscatprintf(s, " %p", n);
+    s = TStyleNone(s);
 
     if (f->params) {
       s = nodeRepr(f->params, s, ctx);
-    } else {
-      s = reprEmpty(s, ctx);
-    }
-
-    if (f->result) {
-      s = nodeRepr(f->result, s, ctx);
     } else {
       s = reprEmpty(s, ctx);
     }
@@ -254,10 +265,21 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   }
 
   // uses u.call
-  case NCall:
-    s = nodeRepr(n->u.call.receiver, s, ctx);
+  case NCall: {
+    // s = nodeRepr(n->u.call.receiver, s, ctx);
+    auto recv = n->u.call.receiver;
+    if (recv->u.fun.name) {
+      s = sdscatsds(s, recv->u.fun.name);
+    } else {
+      s = sdscatlen(s, "_", 1);
+    }
+    s = TStyleRed(s);
+    s = sdscatprintf(s, " %p", recv);
+    s = TStyleNone(s);
+
     s = nodeRepr(n->u.call.args, s, ctx);
     break;
+  }
 
   // uses u.cond
   case NIf:
@@ -276,7 +298,9 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   ctx->ind -= 2;
   PtrMapDel(&ctx->seen, (void*)n);
 
-  s = sdscatlen(s, ")", 1);
+  if (!isType) {
+    s = sdscatlen(s, ")", 1);
+  }
   return s;
 }
 
@@ -285,6 +309,32 @@ Str NodeRepr(const Node* n, Str s) {
   ReprCtx ctx = { 0 };
   PtrMapInit(&ctx.seen, 32);
   return nodeRepr(n, s, &ctx);
+}
+
+
+// static void nodeArrayGrow(FWAllocator* na, NodeArray* a, size_t addl) {
+//   u32 reqcap = a->len + addl;
+//   if (a->cap < reqcap) {
+//     u32 cap = align2(reqcap, sizeof(Node) * 4);
+//     // allocate new memory
+//     void* m2 = FWAlloc(na, sizeof(Node) * cap);
+//     memcpy(m2, a->items, sizeof(Node) * a->cap);
+//     a->items = (Node**)m2;
+//     a->cap = cap;
+//   }
+// }
+
+
+void NodeListAppend(FWAllocator* na, NodeList* a, Node* n) {
+  auto l = (NodeListLink*)FWAlloc(na, sizeof(NodeListLink));
+  l->node = n;
+  if (a->tail == NULL) {
+    a->head = l;
+  } else {
+    a->tail->next = l;
+  }
+  a->tail = l;
+  a->len++;
 }
 
 

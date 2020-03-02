@@ -31,7 +31,7 @@ void parsefile(Str filename, Scope* pkgscope) {
   u32 errcount = 0;
 
   // compilation context
-  static CCtx cc; // shared
+  CCtx cc; // TODO: share across individual, non-overlapping compile sessions
   CCtxInit(&cc, errorHandler, &errcount, filename, buf, len);
 
   // parse input

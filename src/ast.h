@@ -1,5 +1,6 @@
 #pragma once
 #include "array.h"
+#include "fwalloc.h"
 
 typedef enum {
   NodeClassInvalid = 0,
@@ -14,6 +15,7 @@ typedef enum {
   _(Bad,         Invalid) /* substitute "filler node" for invalid syntax */ \
   _(Type,        Type) /* Basic type, e.g. int, bool */ \
   _(FunType,     Type) /* Function type, e.g. (int,int)->(float,bool) */ \
+  _(TupleType,   Type) /* Tuple type, e.g. (float,bool,int) */ \
   _(File,        Expr) \
   _(Comment,     Expr) \
   _(Ident,       Expr) \
@@ -67,12 +69,22 @@ const Node* ScopeAssoc(Scope*, Sym, const Node* value);
 const Node* ScopeLookup(const Scope*, Sym);
 const Scope* GetGlobalScope();
 
+// NodeList is a linked list of nodes
+typedef struct NodeListLink NodeListLink;
+typedef struct NodeListLink {
+  Node*         node;
+  NodeListLink* next;
+} NodeListLink;
+typedef struct {
+  NodeListLink* head;
+  NodeListLink* tail;
+  u32           len;   // number of items
+} NodeList;
 
 typedef struct Node {
-  Node*       link_next; // link to next item when part of a list
-  NodeKind    kind;      // kind of node (e.g. NIdent)
-  SrcPos      pos;       // source origin & position
-  const Node* type;      // value type. null if unknown.
+  NodeKind kind;      // kind of node (e.g. NIdent)
+  SrcPos   pos;       // source origin & position
+  Node*    type;      // value type. null if unknown.
   // u.
   union {
     u64    integer;  // Bool, Int
@@ -90,25 +102,27 @@ typedef struct Node {
       Node* right;  // null for unary operations
       Tok   op;
     } op;
-    struct { // List, Block, File
-      Array  a;           // null for empty list
-      void*  astorage[2]; // initial storage of a (TODO: tune this constant)
-      Scope* scope;       // non-null if kind==Block|File
+    struct { // List, Block, File, TupleType
+      Scope*   scope; // non-null if kind==Block|File
+      NodeList a;
     } array;
     struct { // Fun
-      Node*  params; // input parameters
-      Node*  result; // output result
+      Scope* scope;  // parameter scope
+      Node*  params; // input parameters (result type is stored in n.type during parsing)
       Sym    name;   // null for fun-type and lambda
       Node*  body;   // null for fun-type and fun-declaration
-      Scope* scope;  // parameter scope
     } fun;
+    struct { // FunType
+      Node* params;
+      Node* result;
+    } tfun;
     struct { // Call
       Node* receiver;
       Node* args;
     } call;
     struct { // Field, Var, Const
       Sym   name;
-      Node* init;  // initial value; null if none
+      Node* init;  // initial value
     } field;
     struct { // If
       Node* cond;
@@ -118,42 +132,54 @@ typedef struct Node {
   } u;
 } Node;
 
-Node* NodeAlloc(NodeKind); // one-off allocation using calloc()
-inline static void NodeFree(Node* _) {}
+// Node* NodeAlloc(NodeKind); // one-off allocation using calloc()
+// inline static void NodeFree(Node* _) {}
 Str NodeRepr(const Node* n, Str s); // return human-readable printable text representation
+
+// NodeIsType returns true if n represents a type (i.e. NType, NFunType, etc.)
+static inline bool NodeIsType(const Node* n) {
+  return n != NULL && NodeClassTable[n->kind] == NodeClassType;
+}
+
+
+#define NodeListForEach(list, nodename, body)               \
+  do {                                                      \
+    auto __l = (list)->head;                                \
+    while (__l) {                                           \
+      auto nodename = __l->node;                            \
+      body;                                                 \
+      __l = __l->next;                                      \
+    }                                                       \
+  } while(0)
+
+
+#define NodeListMap(list, nodename, expr)                   \
+  do {                                                      \
+    auto __l = (list)->head;                                \
+    while (__l) {                                           \
+      auto nodename = __l->node;                            \
+      __l->node = expr;                                     \
+      __l = __l->next;                                      \
+    }                                                       \
+  } while(0)
+
+
+// Add node to list
+void NodeListAppend(FWAllocator* na, NodeList*, Node*);
+
+static inline void NodeListClear(NodeList* list) {
+  list->len = 0;
+  list->head = NULL;
+  list->tail = NULL;
+}
+
+
 
 const Node* NodeBad;  // kind==NBad
 
-
-// NodeAllocator is a forward-only allocator for nodes.
-//
-// The way this works is that nodes are allocated as needed but freed in one big sweep,
-// when an AST build with a NodeAllocator is no longer needed.
-// Sort of like a cheapo garbage collector.
-// This simplifies the code (since we do a lot of node rewiring during resolve) and speeds
-// up parsing (since we don't need to free nodes during parsing.)
-//
-// The allocator makes use of blocks (NAllocBlock) which is a big chunk of memory.
-// When a block runs out of space, a new block is allocated from the system and made the
-// head (mfree) of the linked list. The used-up block is moved to the mused linked-list.
-//
-// NodeAllocatorInit either:
-//   if used, moves all blocks from mused to mfree and resets the blocks' offs.
-//   else allocates one new block on mfree.
-// NodeAllocatorFree frees all blocks (mfree and mused lists) are freed.
-// NAlloc allocates space for a Node in the head block of the mfree list.
-//
-typedef struct NAllocBlock NAllocBlock;
-typedef struct NAllocBlock {
-  NAllocBlock* next; // linked list
-  uint offs;         // offset in data to free memory
-  u8   data[];       // start of memory
-} NAllocBlock;
-typedef struct {
-  NAllocBlock* mfree; // free memory linked-list head.
-  NAllocBlock* mused; // used memory linked-list head.
-} NodeAllocator;
-
-void NodeAllocatorInit(NodeAllocator*);  // initialize new or reset existing for reuse.
-void NodeAllocatorFree(NodeAllocator*); // free all its node memory
-Node* NAlloc(NodeAllocator*, NodeKind);  // allocate a node from an allocator
+// allocate a node from an allocator
+static inline Node* NewNode(FWAllocator* na, NodeKind kind) {
+  Node* n = (Node*)FWAlloc(na, sizeof(Node));
+  n->kind = kind;
+  return n;
+}

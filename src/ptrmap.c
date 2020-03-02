@@ -33,13 +33,16 @@
 #undef HASHMAP_KEY_HASH
 
 
-#if 1
+#ifdef DEBUG
 static void testMapIterator(void* key, void* value, bool* stop, void* userdata) {
   // dlog("\"%s\" => %zu", key, (size_t)value);
   size_t* n = (size_t*)userdata;
   (*n)++;
 }
-__attribute__((constructor)) static void test_PtrMap() {
+#endif
+
+
+W_UNIT_TEST(PtrMap, {
   PtrMap m;
   PtrMapInit(&m, 8);
 
@@ -110,6 +113,4 @@ __attribute__((constructor)) static void test_PtrMap() {
   assert(PtrMapGet(&m, "hello") == (void*)2);
 
   PtrMapFree(&m);
-  dlog("PtrMap test OK");
-}
-#endif
+}) // W_UNIT_TEST

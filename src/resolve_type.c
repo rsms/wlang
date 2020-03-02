@@ -9,11 +9,11 @@ typedef struct {
 } ResCtx;
 
 
-static void resolveType(CCtx* cc, Node* n);
+static Node* resolveType(CCtx* cc, Node* n);
 
 
 void ResolveType(CCtx* cc, Node* n) {
-  resolveType(cc, n);
+  n->type = resolveType(cc, n);
 }
 
 
@@ -31,31 +31,49 @@ static void errorf(CCtx* cc, SrcPos pos, const char* format, ...) {
 }
 
 
-static void resolveFunType(CCtx* cc, Node* n) {
+static Node* resolveFunType(CCtx* cc, Node* n) {
+  Node* ft = NewNode(&cc->mem, NFunType);
+
   if (n->u.fun.params) {
     resolveType(cc, n->u.fun.params);
-  }
-  if (n->u.fun.result) {
-    resolveType(cc, n->u.fun.result);
+    ft->u.tfun.params = (Node*)n->u.fun.params->type;
   }
 
-  // Node* ft =  TODO: pick up here when the node allocator is ready
+  if (n->type) {
+    ft->u.tfun.result = (Node*)resolveType(cc, n->type);
+  }
 
   if (n->u.fun.body) {
     resolveType(cc, n->u.fun.body);
+    // TODO: check result type
   }
+
+  n->type = ft;
+  return ft;
 }
 
 
-static void resolveType(CCtx* cc, Node* n) {
+static bool isTyped(const Node* n) {
+  if (n->kind == NFun) {
+    return n->type && n->type->kind == NFunType;
+  }
+  return NodeIsType(n->type);
+}
+
+
+static Node* resolveType(CCtx* cc, Node* n) {
   auto nc = NodeClassTable[n->kind];
   dlog("resolveType %s %s", NodeKindName(n->kind), NodeClassName(nc));
 
-  if (n->type != NULL && NodeClassTable[n->type->kind] == NodeClassType) {
+  if (NodeIsType(n)) {
+    return n;
+  }
+
+  if (isTyped(n)) {
     // type already known
-    dlog("  already resolved kind=%s class=%s", NodeKindName(n->type->kind),
-      NodeClassName(NodeClassTable[n->type->kind]));
-    return;
+    // dlog("  already resolved kind=%s class=%s", NodeKindName(n->type->kind),
+    //   NodeClassName(NodeClassTable[n->type->kind]));
+    return n->type;
   }
 
   //TODO NodeClassTable and NodeClassName for type
@@ -65,17 +83,27 @@ static void resolveType(CCtx* cc, Node* n) {
 
   // uses u.array
   case NBlock:
-  case NList:
-  case NFile: {
+  case NFile:
     // TODO: Type.
     // - For file, type is ignored
     // - For block, type is the last expression (remember to check returns)
     // - For list, type is heterogeneous (tuple)
-    auto a = &n->u.array.a;
-    for (u32 i = 0; i < a->len; i++) {
-      resolveType(cc, a->v[i]);
-    }
+    NodeListForEach(&n->u.array.a, n,
+      resolveType(cc, n));
     break;
+
+  case NList: {
+    Node* tt = NewNode(&cc->mem, NTupleType);
+    NodeListForEach(&n->u.array.a, n, {
+      auto t = resolveType(cc, n);
+      if (!t) {
+        t = (Node*)NodeBad;
+        errorf(cc, n->pos, "unknown type");
+      }
+      NodeListAppend(&cc->mem, &tt->u.array.a, t);
+    });
+    n->type = tt;
+    return tt;
   }
 
   // uses u.fun
@@ -94,12 +122,15 @@ static void resolveType(CCtx* cc, Node* n) {
     break;
 
   // uses u.call
-  case NCall:
-    return resolveType(cc, n->u.call.args);
+  case NCall: {
+    auto argstype = resolveType(cc, n->u.call.args);
+    dlog("TODO check argstype <> receiver type");
+
     // Important: we do not resolve type of receiver since it will be a function
     // since ResolveSym has been run already. Trying to resolve the receiver will
     // cause an infinite loop.
     //resolveType(cc, n->u.call.receiver);
+  }
 
   // uses u.field
   case NVar:
@@ -119,6 +150,10 @@ static void resolveType(CCtx* cc, Node* n) {
     }
     break;
 
+  case NIdent:
+    n->type = resolveType(cc, (Node*)n->u.ref.target);
+    break;
+
   // all other: does not have children
   default:
   // case NBad:
@@ -131,8 +166,11 @@ static void resolveType(CCtx* cc, Node* n) {
   // case NInt:
   // case NNone:
   // case NType:
+  // case NTupleType:
   // case NZeroInit:
     break;
 
   }  // switch (n->kind)
+
+  return n->type;
 }

@@ -14,6 +14,21 @@ lflags =
 lflags_dev = $lflags -g -O0 -fno-lto
 lflags_opt = $lflags -O3 -flto
 
+# https://clang.llvm.org/docs/AddressSanitizer.html
+#
+# -fno-omit-frame-pointer
+#   Leave frame pointers. Allows the fast unwinder to function properly.
+#
+# -fno-optimize-sibling-calls
+#   Disable tail calls to improve stack traces
+#
+cflags_dev = $cflags_dev $
+  -fsanitize=address $
+  -fsanitize-address-use-after-scope $
+  -fno-omit-frame-pointer $
+  -fno-optimize-sibling-calls
+lflags_dev = $lflags_dev -fsanitize=address
+
 rule compile_obj
   command = clang -MMD -MF $out.d $cflags -c -o $out $in
   depfile = $out.d
@@ -24,6 +39,7 @@ rule link
 CONFIG_REPLACE_BUILDS
 
 build debug:   phony | $builddir/wp.g
+build msan:    phony | $builddir/wp.msan
 build release: phony | $builddir/wp
 
 default debug

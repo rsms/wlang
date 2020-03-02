@@ -102,15 +102,9 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
     if (n->u.array.scope) {
       scope = n->u.array.scope;
     }
-    // TODO: Type.
-    // - For file, type is ignored
-    // - For block, type is the last expression (remember to check returns)
-    // - For list, type is heterogeneous (build tuple-type)
-    // Node* elemType = NULL; ...
-    auto a = &n->u.array.a;
-    for (u32 i = 0; i < a->len; i++) {
-      a->v[i] = resolve(a->v[i], scope, ctx);
-    }
+    NodeListMap(&n->u.array.a, n,
+      resolve(n, scope, ctx)
+    );
     break;
   }
 
@@ -120,8 +114,8 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
     if (n->u.fun.params) {
       resolve(n->u.fun.params, scope, ctx);
     }
-    if (n->u.fun.result) {
-      resolve(n->u.fun.result, scope, ctx);
+    if (n->type) {
+      resolve(n->type, scope, ctx);
     }
     auto body = n->u.fun.body;
     if (body) {

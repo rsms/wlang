@@ -18,7 +18,7 @@ void CCtxInit(
     SourceFree(&cc->src);
   }
   SourceInit(&cc->src, srcname, srcbuf, srclen);
-  NodeAllocatorInit(&cc->na);
+  FWAllocInit(&cc->mem);
   cc->errh = errh;
   cc->userdata = userdata;
 }
@@ -30,5 +30,5 @@ void CCtxFree(CCtx* cc) {
     cc->src.buf = NULL;
   }
   SourceFree(&cc->src);
-  NodeAllocatorFree(&cc->na);
+  FWAllocFree(&cc->mem);
 }

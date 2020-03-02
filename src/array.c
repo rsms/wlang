@@ -6,8 +6,8 @@ void ArrayGrow(Array* a, size_t addl) {
   if (a->cap < reqcap) {
     u32 cap = align2(reqcap, 64);
     // u32 cap = a->cap == 0 ? 64 : a->cap * 2;
-    if (a->onheap) {
-      a->v = (void*)realloc(a->v, sizeof(void*) * cap);
+    if (a->onheap || a->v == NULL) {
+      a->v = realloc(a->v, sizeof(void*) * cap);
     } else {
       // moving array from stack to heap
       void** v = (void*)malloc(sizeof(void*) * cap);

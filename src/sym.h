@@ -75,7 +75,8 @@ void SymMapIter(const SymMap*, SymMapIterator*, void* userdata);
 
 
 // symbols for language keywords (defined in token.h)
-#define SYM_DEF(str, _) const Sym sym_##str;
+#define SYM_DEF(str, _) \
+  const Sym sym_##str;
 TOKEN_KEYWORDS(SYM_DEF)
 #undef SYM_DEF
 
@@ -106,6 +107,7 @@ PREDEFINED_CONSTANTS(SYM_DEF)
 #define PREDEFINED_IDENTS(ID) \
   ID( _ ) \
 /*END PREDEFINED_IDENTS*/
-#define SYM_DEF(name) const Sym sym_##name;
+#define SYM_DEF(name) \
+  const Sym sym_##name;
 PREDEFINED_IDENTS(SYM_DEF)
 #undef SYM_DEF

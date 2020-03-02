@@ -370,7 +370,7 @@ sds sdsgrow(sds s, size_t len, unsigned char c) {
     /* Make sure added region doesn't contain garbage */
     memset(s+curlen,c,(len-curlen+1));
     sdssetlen(s, len);
-    s[curlen + len] = '\0';
+    s[len] = '\0';
     return s;
 }
 
