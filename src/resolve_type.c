@@ -191,16 +191,25 @@ static Node* resolveType(CCtx* cc, Node* n) {
 
   // uses u.call
   case NCall: {
-    // auto argstype = resolveType(cc, n->u.call.args);
+    auto argstype = resolveType(cc, n->u.call.args);
 
     // Note: resolveFunType breaks handles cycles where a function calls itself,
     // making this safe (i.e. will not cause an infinite loop.)
     auto ftype = resolveType(cc, n->u.call.receiver);
+    assert(ftype != NULL);
+
+    // Input type is at ftype->u.tfun.params
+    // Output type is at ftype->u.tfun.result
 
     dlog("TODO NCall check argstype <> receiver type");
     // Note: Consider arguments with defaults:
     // fun foo(a, b int, c int = 0)
     // foo(1, 2) == foo(1, 2, 0)
+
+    if (!TypeEquals(ftype->u.tfun.params, argstype)) {
+      errorf(cc, n->pos, "incompatible arguments %s in function call. Expected %s",
+        NodeReprShort(argstype), NodeReprShort(ftype->u.tfun.params));
+    }
 
     n->type = ftype->u.tfun.result;
     break;
@@ -248,19 +257,19 @@ static Node* resolveType(CCtx* cc, Node* n) {
     break;
 
   // all other: does not have children
-  default:
-  // case NBad:
-  // case NBool:
-  // case NComment:
-  // case NConst:
-  // case NFloat:
-  // case NFunType:
-  // case NIdent:
-  // case NInt:
-  // case NNone:
-  // case NType:
-  // case NTupleType:
-  // case NZeroInit:
+  case NNil:
+  case NBad:
+  case NBool:
+  case NComment:
+  case NConst:
+  case NFloat:
+  case NFunType:
+  case NInt:
+  case NNone:
+  case NType:
+  case NTupleType:
+  case NZeroInit:
+  case _NodeKindMax:
     break;
 
   }  // switch (n->kind)

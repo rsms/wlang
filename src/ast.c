@@ -41,21 +41,27 @@ const Node* NodeBad = &_NodeBad;
 
 typedef struct {
   int    ind;  // indentation level
+  int    maxdepth;
+  bool   pretty;
   PtrMap seen; // cycle guard
 } ReprCtx;
 
 
-static Str indent(Str s, int ind) {
-  if (ind > 0) {
-    s = sdscatlen(s, "\n", 1);
-    s = sdsgrow(s, sdslen(s) + ind, ' ');
+static Str indent(Str s, const ReprCtx* ctx) {
+  if (ctx->ind > 0) {
+    if (ctx->pretty) {
+      s = sdscatlen(s, "\n", 1);
+      s = sdsgrow(s, sdslen(s) + ctx->ind, ' ');
+    } else {
+      s = sdscatlen(s, " ", 1);
+    }
   }
   return s;
 }
 
 
-static Str reprEmpty(Str s, ReprCtx* ctx) {
-  s = indent(s, ctx->ind);
+static Str reprEmpty(Str s, const ReprCtx* ctx) {
+  s = indent(s, ctx);
   return sdscatlen(s, "()", 2);
 }
 
@@ -74,7 +80,7 @@ static Str reprEmpty(Str s, ReprCtx* ctx) {
 // }
 
 
-static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
+static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   assert(n);
 
   // dlog("nodeRepr %s", NodeKindNameTable[n->kind]);
@@ -90,6 +96,13 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   //   }
   // }
 
+  if (depth > ctx->maxdepth) {
+    s = TStyleYellow(s);
+    s = sdscat(s, "...");
+    s = TStyleNone(s);
+    return s;
+  }
+
   // cycle guard
   if (PtrMapSet(&ctx->seen, (void*)n, (void*)1) != NULL) {
     PtrMapDel(&ctx->seen, (void*)n);
@@ -99,14 +112,14 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
 
   auto isType = NodeIsType(n);
   if (!isType) {
-    s = indent(s, ctx->ind);
+    s = indent(s, ctx);
   }
 
   if (!isType) {
     if (n->kind != NFile) {
       s = TStyleBlue(s);
       if (n->type) {
-        s = nodeRepr(n->type, s, ctx);
+        s = nodeRepr(n->type, s, ctx, depth + 1);
         s = sdscatlen(s, ":", 1);
       } else {
         s = sdscatlen(s, "?:", 2);
@@ -162,7 +175,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     s = TStyleNone(s);
     if (n->u.ref.target) {
       s = sdscatfmt(s, " @%s", NodeKindNameTable[n->u.ref.target->kind]);
-      // s = nodeRepr(n->u.ref.target, s, ctx);
+      // s = nodeRepr(n->u.ref.target, s, ctx, depth + 1);
     }
     break;
 
@@ -172,13 +185,13 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
 
   case NFunType: // TODO
     if (n->u.tfun.params) {
-      s = nodeRepr(n->u.tfun.params, s, ctx);
+      s = nodeRepr(n->u.tfun.params, s, ctx, depth + 1);
     } else {
       s = sdscat(s, "()");
     }
     s = sdscat(s, "->");
     if (n->u.tfun.result) {
-      s = nodeRepr(n->u.tfun.result, s, ctx);
+      s = nodeRepr(n->u.tfun.result, s, ctx, depth + 1);
     } else {
       s = sdscat(s, "()");
     }
@@ -193,9 +206,9 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
       s = sdscat(s, TokName(n->u.op.op));
       s = sdscatlen(s, " ", 1);
     }
-    s = nodeRepr(n->u.op.left, s, ctx);
+    s = nodeRepr(n->u.op.left, s, ctx, depth + 1);
     if (n->u.op.right) {
-      s = nodeRepr(n->u.op.right, s, ctx);
+      s = nodeRepr(n->u.op.right, s, ctx, depth + 1);
     }
     break;
 
@@ -206,7 +219,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   {
     sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
     NodeListForEach(&n->u.array.a, n, {
-      s = nodeRepr(n, s, ctx);
+      s = nodeRepr(n, s, ctx, depth + 1);
     });
     break;
   }
@@ -219,7 +232,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
       } else {
         s = sdscatlen(s, " ", 1);
       }
-      s = nodeRepr(n, s, ctx);
+      s = nodeRepr(n, s, ctx, depth + 1);
     });
     s = sdscatlen(s, ")", 1);
     break;
@@ -238,7 +251,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
       s = sdscatlen(s, "_", 1);
     }
     if (f->init) {
-      s = nodeRepr(f->init, s, ctx);
+      s = nodeRepr(f->init, s, ctx, depth + 1);
     }
     break;
   }
@@ -258,13 +271,13 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     s = TStyleNone(s);
 
     if (f->params) {
-      s = nodeRepr(f->params, s, ctx);
+      s = nodeRepr(f->params, s, ctx, depth + 1);
     } else {
       s = reprEmpty(s, ctx);
     }
 
     if (f->body) {
-      s = nodeRepr(f->body, s, ctx);
+      s = nodeRepr(f->body, s, ctx, depth + 1);
     }
 
     break;
@@ -272,7 +285,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
 
   // uses u.call
   case NCall: {
-    // s = nodeRepr(n->u.call.receiver, s, ctx);
+    // s = nodeRepr(n->u.call.receiver, s, ctx, depth + 1);
     auto recv = n->u.call.receiver;
     if (recv->u.fun.name) {
       s = sdscatsds(s, recv->u.fun.name);
@@ -283,16 +296,16 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     s = sdscatprintf(s, " %p", recv);
     s = TStyleNone(s);
 
-    s = nodeRepr(n->u.call.args, s, ctx);
+    s = nodeRepr(n->u.call.args, s, ctx, depth + 1);
     break;
   }
 
   // uses u.cond
   case NIf:
-    s = nodeRepr(n->u.cond.cond, s, ctx);
-    s = nodeRepr(n->u.cond.thenb, s, ctx);
+    s = nodeRepr(n->u.cond.cond, s, ctx, depth + 1);
+    s = nodeRepr(n->u.cond.thenb, s, ctx, depth + 1);
     if (n->u.cond.elseb) {
-      s = nodeRepr(n->u.cond.elseb, s, ctx);
+      s = nodeRepr(n->u.cond.elseb, s, ctx, depth + 1);
     }
     break;
 
@@ -313,12 +326,14 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
 
 Str NodeRepr(const Node* n, Str s) {
   ReprCtx ctx = { 0 };
+  ctx.maxdepth = 48;
+  ctx.pretty = true;
   PtrMapInit(&ctx.seen, 32);
-  return nodeRepr(n, s, &ctx);
+  return nodeRepr(n, s, &ctx, /*depth*/ 1);
 }
 
 
-const char* NodeReprShort(const Node* n) {
+CStr NodeReprShort(const Node* n) {
   // return a short string representation of a node, suitable for use in error messages.
   // Important: The returned string is invalidated on the next call to NodeReprShort,
   // so either copy it into an sds Str or make use of it right away.
@@ -326,7 +341,18 @@ const char* NodeReprShort(const Node* n) {
   // Note: Do not include type information.
   // Instead, in use sites, call NodeReprShort individually for n->type when needed.
 
-  return "<TODO ast.c/NodeReprShort>";
+  static sds buf;
+  if (buf == NULL) {
+    buf = sdsMakeRoomFor(sdsempty(), 4096);
+  } else {
+    sdssetlen(buf, 0);
+  }
+  ReprCtx ctx = { 0 };
+  ctx.maxdepth = 3;
+  ctx.pretty = false;
+  PtrMapInit(&ctx.seen, 32);
+  buf = nodeRepr(n, buf, &ctx, /*depth*/ 1);
+  return buf;
 }
 
 

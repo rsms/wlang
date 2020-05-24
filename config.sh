@@ -18,6 +18,7 @@ sources=( \
   src/source.c \
   src/sym.c \
   src/tstyle.c \
+  src/typeid.c \
   src/unicode.c \
   src/wp.c \
 )
