@@ -168,6 +168,37 @@ Go's approach works but is inconvenient:
   which needed through an interface.
 
 
+#### Idea 1: Convert at call site
+
+If the type of a parameter is identical to an argument, then no conversion is needed.
+Otherwise create a temporary struct:
+
+    if typeid(param0) == typeid(arg0):
+      call printName a
+    else:
+      tmp = alloca sizeof(User)
+      tmp[0] = a[1]  // remap field
+      tmp[1] = a[2]  // remap field
+      call printName tmp
+
+In this approach we could further optimize this by tracking what fields a function needs access to:
+
+    fun printName(u User) {
+      // compiler meta data: (struct_access User (minField name) (maxField name))
+      print(u.name)
+    }
+
+At the call sites we can generate just the code needed:
+
+    if typeid(param0) == typeid(arg0):
+      call printName a
+    else:
+      tmp = alloca sizeof( offsetof(User.maxField)
+                         + offsetof(User.minField)
+                         + sizeof(User.maxField) )
+      tmp[0] = a[1]  // remap field
+      call printName tmp
+
 
 
 ## Listing of identities
