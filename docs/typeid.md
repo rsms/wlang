@@ -113,7 +113,9 @@ def typeIsAssignable(L, R):  # L <= R
     if typeid(L)[0] == structTypeID:
       for field in L:
         if typeid(R) not in structIndex.lookup(typeid(field)):
-          return True
+          # R does not have field
+          return False
+      return True # all fields found
     if typeid(L)[0] == listTypeID:
       return typeIsAssignable(L.listElementType, R.listElementType)
   return False
