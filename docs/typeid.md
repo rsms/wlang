@@ -119,7 +119,6 @@ def typeIsAssignable(L, R):  # L <= R
   return False
 ```
 
-(Note that lists are not represented in this function. They would in practice.)
 There are likely better, more efficient ways to match on arbitrary structural shapes.
 
 
