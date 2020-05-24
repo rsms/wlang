@@ -181,9 +181,19 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     break;
 
   // uses u.op
+  case NAssign:
+    if (n->u.op.op != TNone) {
+      s = sdscat(s, TokName(n->u.op.op));
+      s = sdscatlen(s, " ", 1);
+    }
+    s = nodeRepr(n->u.op.left, s, ctx);
+    if (n->u.op.right) {
+      s = nodeRepr(n->u.op.right, s, ctx);
+    }
+    break;
+
   case NOp:
   case NPrefixOp:
-  case NAssign:
   case NReturn:
     if (n->u.op.op != TNone) {
       s = sdscat(s, TokName(n->u.op.op));

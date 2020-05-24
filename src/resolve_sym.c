@@ -132,12 +132,19 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   case NOp:
   case NPrefixOp:
   case NAssign:
-  case NReturn:
-    n->u.op.left = resolve(n->u.op.left, scope, ctx);
+  case NReturn: {
+    auto newleft = resolve(n->u.op.left, scope, ctx);
+    if (n->kind != NAssign || n->u.op.left->kind != NIdent) {
+      // note: in case of assignment where the left side is an identifier,
+      // avoid replacing the identifier with its value.
+      // This branch is taken in all other cases.
+      n->u.op.left = newleft;
+    }
     if (n->u.op.right) {
       n->u.op.right = resolve(n->u.op.right, scope, ctx);
     }
     break;
+  }
 
   // uses u.call
   case NCall:

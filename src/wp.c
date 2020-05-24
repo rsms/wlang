@@ -37,7 +37,7 @@ void parsefile(Str filename, Scope* pkgscope) {
   // parse input
   static P parser; // shared parser
   auto file = Parse(&parser, &cc, SCAN_COMMENTS, pkgscope);
-  // printAst(file);
+  printAst(file);
 
   // resolve symbols and types
   if (errcount == 0) {
