@@ -4,6 +4,7 @@ builddir = build
 
 cflags = $
   -std=c11 $
+  -Wall -Wuninitialized -Wmissing-field-initializers -Wconditional-uninitialized $
   -fcolor-diagnostics
 
 cflags_dev = $cflags -O0 -g -DDEBUG
@@ -31,6 +32,7 @@ lflags_dev = $lflags_dev -fsanitize=address
 
 rule compile_obj
   command = clang -MMD -MF $out.d $cflags -c -o $out $in
+  #command = ./misc/checker/bin/scan-build clang -MMD -MF $out.d $cflags -c -o $out $in
   depfile = $out.d
 
 rule link

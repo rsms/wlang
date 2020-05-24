@@ -179,25 +179,25 @@ void HM_FUN(Iter)(const HASHMAP_NAME* m, HM_FUN(Iterator)* it, void* userdata) {
   }
 }
 
-static u32* hashmapDebugDistr(const HASHMAP_NAME* m) {
-  size_t valindex = 0;
-  u32* vals = (u32*)calloc(m->cap, sizeof(u32));
-  for (size_t bi = 0; bi < m->cap; bi++) {
-    auto b = &((Bucket*)m->buckets)[bi];
-    u32 depth = 0;
-    for (size_t i = 0; i < bucketSize; i++) {
-      auto e = &b->entries[i];
-      if (e->key == NULL) {
-        break;
-      }
-      if (e->value != NULL) {
-        depth++;
-      }
-    }
-    vals[valindex++] = depth;
-  }
-  return vals;
-}
+// static u32* hashmapDebugDistr(const HASHMAP_NAME* m) {
+//   size_t valindex = 0;
+//   u32* vals = (u32*)calloc(m->cap, sizeof(u32));
+//   for (size_t bi = 0; bi < m->cap; bi++) {
+//     auto b = &((Bucket*)m->buckets)[bi];
+//     u32 depth = 0;
+//     for (size_t i = 0; i < bucketSize; i++) {
+//       auto e = &b->entries[i];
+//       if (e->key == NULL) {
+//         break;
+//       }
+//       if (e->value != NULL) {
+//         depth++;
+//       }
+//     }
+//     vals[valindex++] = depth;
+//   }
+//   return vals;
+// }
 
 #undef _HM_MAKE_FN_NAME
 #undef _HM_FUN

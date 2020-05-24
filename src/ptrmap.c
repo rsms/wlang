@@ -43,7 +43,7 @@ static void testMapIterator(void* key, void* value, bool* stop, void* userdata) 
 
 
 W_UNIT_TEST(PtrMap, {
-  PtrMap m;
+  PtrMap m = {0};
   PtrMapInit(&m, 8);
 
   assert(m.len == 0);

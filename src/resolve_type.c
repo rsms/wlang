@@ -1,6 +1,8 @@
 // Resolve types in an AST. Usuaully run after Parse() and ResolveSym()
 #include "wp.h"
 
+// #define DEBUG_TYPE_RESOLUTION 1
+
 
 typedef struct {
   Source*       src;
@@ -14,6 +16,11 @@ static Node* resolveType(CCtx* cc, Node* n);
 
 void ResolveType(CCtx* cc, Node* n) {
   n->type = resolveType(cc, n);
+}
+
+
+static bool TypeEquals(const Node* t1, const Node* t2) {
+  return t1 == t2;
 }
 
 
@@ -60,6 +67,25 @@ static Node* resolveFunType(CCtx* cc, Node* n) {
 }
 
 
+static Node* resolveBinOpType(CCtx* cc, Node* n, Tok op, Node* ltype, Node* rtype) {
+  switch (op) {
+    case TEqEq:
+    case TNEq:
+    case TLEq:
+    case TGEq:
+      return Type_bool;
+    case TPlus:
+    case TMinus:
+    case TSlash:
+    case TStar:
+      return rtype;
+    default:
+      dlog("TODO resolveBinOpType %s", TokName(op));
+      return rtype;
+  }
+}
+
+
 static bool isTyped(const Node* n) {
   if (n->kind == NFun) {
     return n->type && n->type->kind == NFunType;
@@ -69,8 +95,11 @@ static bool isTyped(const Node* n) {
 
 
 static Node* resolveType(CCtx* cc, Node* n) {
+
+  #if DEBUG_TYPE_RESOLUTION
   auto nc = NodeClassTable[n->kind];
   dlog("resolveType %s %s", NodeKindName(n->kind), NodeClassName(nc));
+  #endif
 
   if (NodeIsType(n)) {
     return n;
@@ -144,21 +173,31 @@ static Node* resolveType(CCtx* cc, Node* n) {
       n->type = ltype;
     } else {
       auto rtype = resolveType(cc, n->u.op.right);
-      // TODO: check ltype == rtype
-      n->type = rtype;
+      // For binary operations, the operands must be of compatible types.
+      // i.e. 1 == 1.0 is an error because float and int are different,
+      // but 1.0 == 1.0 and 1 == 1 is ok (float==float and int==int, respectively).
+      if (!TypeEquals(ltype, rtype)) {
+        errorf(cc, n->pos, "operation %s on incompatible types %s %s",
+          TokName(n->u.op.op), NodeReprShort(ltype), NodeReprShort(rtype));
+      }
+      if (n->kind == NOp) {
+        n->type = resolveBinOpType(cc, n, n->u.op.op, ltype, rtype);
+      } else {
+        n->type = rtype;
+      }
     }
     break;
   }
 
   // uses u.call
   case NCall: {
-    auto argstype = resolveType(cc, n->u.call.args);
+    // auto argstype = resolveType(cc, n->u.call.args);
 
     // Note: resolveFunType breaks handles cycles where a function calls itself,
     // making this safe (i.e. will not cause an infinite loop.)
     auto ftype = resolveType(cc, n->u.call.receiver);
 
-    dlog("TODO check argstype <> receiver type");
+    dlog("TODO NCall check argstype <> receiver type");
     // Note: Consider arguments with defaults:
     // fun foo(a, b int, c int = 0)
     // foo(1, 2) == foo(1, 2, 0)
@@ -169,6 +208,7 @@ static Node* resolveType(CCtx* cc, Node* n) {
 
   // uses u.field
   case NVar:
+  case NLet:
   case NField: {
     if (n->u.field.init) {
       n->type = resolveType(cc, n->u.field.init);
@@ -189,14 +229,22 @@ static Node* resolveType(CCtx* cc, Node* n) {
     auto thent = resolveType(cc, n->u.cond.thenb);
     if (n->u.cond.elseb) {
       auto elset = resolveType(cc, n->u.cond.elseb);
-      dlog("TODO: check thent == elset");
+      // branches must be of the same type.
+      // TODO: only check type when the result is used.
+      if (!TypeEquals(thent, elset)) {
+        errorf(cc, n->pos, "if..else branches of incompatible types %s %s",
+          NodeReprShort(thent), NodeReprShort(elset));
+      }
     }
     n->type = thent;
     break;
   }
 
   case NIdent:
-    n->type = resolveType(cc, (Node*)n->u.ref.target);
+    if (n->u.ref.target) {
+      // NULL when identifier failed to resolve
+      n->type = resolveType(cc, (Node*)n->u.ref.target);
+    }
     break;
 
   // all other: does not have children

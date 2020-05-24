@@ -16,7 +16,7 @@ static Sym newsym(u32 hash, const u8* ptr, size_t len, u8 flags);
 // Define to run the generator during program initialization:
 // #define W_SYM_RUN_GENERATOR
 
-//-- BEGIN gen_constants() at src/sym.c:259
+//-- BEGIN gen_constants() at src/sym.c:260
 
 const Sym sym_break = "\0\0\0\0\0\0\0\x78\x81\x64\xC9\x05\x00\x05\x00\x0A""break" + 16;
 const Sym sym_case = "\0\0\0\0\0\0\0\xB1\x38\x25\x9B\x04\x00\x04\x00\x12""case" + 16;
@@ -26,39 +26,38 @@ const Sym sym_default = "\0\0\0\0\0\0\0\xDE\x5B\x3B\x93\x07\x00\x07\x00\x2A""def
 const Sym sym_defer = "\0\0\0\0\0\0\0\x3B\xFB\x01\x1A\x05\x00\x05\x00\x32""defer" + 16;
 const Sym sym_else = "\0\0\0\0\0\0\0\xF0\x5B\xBF\xBD\x04\x00\x04\x00\x3A""else" + 16;
 const Sym sym_enum = "\0\0\0\0\0\0\0\x00\xB0\x6C\x81\x04\x00\x04\x00\x42""enum" + 16;
-const Sym sym_fallthrough = "\0\0\0\0\0\0\0\x09\x7B\x34\x80\x0B\x00\x0B\x00\x4A""fallthrough" + 16;
-const Sym sym_for = "\0\0\0\0\0\0\0\x90\x83\xF3\xAC\x03\x00\x03\x00\x52""for" + 16;
-const Sym sym_fun = "\0\0\0\0\0\0\0\x5E\x78\xDB\xA8\x03\x00\x03\x00\x5A""fun" + 16;
-const Sym sym_go = "\0\0\0\0\0\0\0\x4B\x77\x20\x42\x02\x00\x02\x00\x62""go" + 16;
-const Sym sym_if = "\0\0\0\0\0\0\0\x06\x6E\x38\x39\x02\x00\x02\x00\x6A""if" + 16;
-const Sym sym_import = "\0\0\0\0\0\0\0\xD4\x90\x2A\x11\x06\x00\x06\x00\x72""import" + 16;
-const Sym sym_in = "\0\0\0\0\0\0\0\x9E\x7A\x38\x41\x02\x00\x02\x00\x7A""in" + 16;
-const Sym sym_interface = "\0\0\0\0\0\0\0\x30\x51\xEA\x84\x09\x00\x09\x00\x82""interface" + 16;
-const Sym sym_is = "\0\0\0\0\0\0\0\x15\x8F\x38\x4E\x02\x00\x02\x00\x8A""is" + 16;
-const Sym sym_nil = "\0\0\0\0\0\0\0\xEC\xF8\xA3\x0D\x03\x00\x03\x00\x92""nil" + 16;
-const Sym sym_return = "\0\0\0\0\0\0\0\xBF\x37\xEE\x85\x06\x00\x06\x00\x9A""return" + 16;
-const Sym sym_select = "\0\0\0\0\0\0\0\x2D\x66\xC2\x11\x06\x00\x06\x00\xA2""select" + 16;
-const Sym sym_struct = "\0\0\0\0\0\0\0\x20\xBE\xC2\x92\x06\x00\x06\x00\xAA""struct" + 16;
-const Sym sym_switch = "\0\0\0\0\0\0\0\x71\x5F\xE0\x93\x06\x00\x06\x00\xB2""switch" + 16;
-const Sym sym_symbol = "\0\0\0\0\0\0\0\xD1\x51\xFB\xF3\x06\x00\x06\x00\xBA""symbol" + 16;
-const Sym sym_type = "\0\0\0\0\0\0\0\x4D\xF1\x27\x51\x04\x00\x04\x00\xC2""type" + 16;
-const Sym sym_var = "\0\0\0\0\0\0\0\xBE\xE7\x25\x8A\x03\x00\x03\x00\xCA""var" + 16;
-const Sym sym_while = "\0\0\0\0\0\0\0\xCE\x28\xC6\x0D\x05\x00\x05\x00\xD2""while" + 16;
+const Sym sym_for = "\0\0\0\0\0\0\0\x90\x83\xF3\xAC\x03\x00\x03\x00\x4A""for" + 16;
+const Sym sym_fun = "\0\0\0\0\0\0\0\x5E\x78\xDB\xA8\x03\x00\x03\x00\x52""fun" + 16;
+const Sym sym_go = "\0\0\0\0\0\0\0\x4B\x77\x20\x42\x02\x00\x02\x00\x5A""go" + 16;
+const Sym sym_if = "\0\0\0\0\0\0\0\x06\x6E\x38\x39\x02\x00\x02\x00\x62""if" + 16;
+const Sym sym_import = "\0\0\0\0\0\0\0\xD4\x90\x2A\x11\x06\x00\x06\x00\x6A""import" + 16;
+const Sym sym_in = "\0\0\0\0\0\0\0\x9E\x7A\x38\x41\x02\x00\x02\x00\x72""in" + 16;
+const Sym sym_interface = "\0\0\0\0\0\0\0\x30\x51\xEA\x84\x09\x00\x09\x00\x7A""interface" + 16;
+const Sym sym_is = "\0\0\0\0\0\0\0\x15\x8F\x38\x4E\x02\x00\x02\x00\x82""is" + 16;
+const Sym sym_nil = "\0\0\0\0\0\0\0\xEC\xF8\xA3\x0D\x03\x00\x03\x00\x8A""nil" + 16;
+const Sym sym_return = "\0\0\0\0\0\0\0\xBF\x37\xEE\x85\x06\x00\x06\x00\x92""return" + 16;
+const Sym sym_select = "\0\0\0\0\0\0\0\x2D\x66\xC2\x11\x06\x00\x06\x00\x9A""select" + 16;
+const Sym sym_struct = "\0\0\0\0\0\0\0\x20\xBE\xC2\x92\x06\x00\x06\x00\xA2""struct" + 16;
+const Sym sym_switch = "\0\0\0\0\0\0\0\x71\x5F\xE0\x93\x06\x00\x06\x00\xAA""switch" + 16;
+const Sym sym_symbol = "\0\0\0\0\0\0\0\xD1\x51\xFB\xF3\x06\x00\x06\x00\xB2""symbol" + 16;
+const Sym sym_type = "\0\0\0\0\0\0\0\x4D\xF1\x27\x51\x04\x00\x04\x00\xBA""type" + 16;
+const Sym sym_var = "\0\0\0\0\0\0\0\xBE\xE7\x25\x8A\x03\x00\x03\x00\xC2""var" + 16;
+const Sym sym_while = "\0\0\0\0\0\0\0\xCE\x28\xC6\x0D\x05\x00\x05\x00\xCA""while" + 16;
 const Sym sym_int = "\0\0\0\0\0\0\0\x5E\x7E\xE9\x95\x03\x00\x03\x00\x02""int" + 16;
 const Sym sym_bool = "\0\0\0\0\0\0\0\x3D\x95\x94\xC8\x04\x00\x04\x00\x02""bool" + 16;
 const Sym sym__ = "\0\0\0\0\0\0\0\x6E\x19\x0C\xDA\x01\x00\x01\x00\x02""_" + 16;
 const Sym sym_true = "\0\0\0\0\0\0\0\xE5\x11\xB2\x4D\x04\x00\x04\x00\x02""true" + 16;
 const Sym sym_false = "\0\0\0\0\0\0\0\x58\x99\x06\x0B\x05\x00\x05\x00\x02""false" + 16;
 
-static const Node _badnode = {NBad,{0,0},NULL};
-static const Node _Type_int = {NType,{0,0},NULL,{.ref={sym_int,&_badnode}}};
+static const Node _badnode = {NBad,{0,0,0},NULL,{0}};
+static const Node _Type_int = {NType,{0,0,0},NULL,{.ref={sym_int,&_badnode}}};
 Node* Type_int = (Node*)&_Type_int;
-static const Node _Type_bool = {NType,{0,0},NULL,{.ref={sym_bool,&_badnode}}};
+static const Node _Type_bool = {NType,{0,0,0},NULL,{.ref={sym_bool,&_badnode}}};
 Node* Type_bool = (Node*)&_Type_bool;
 
-static const Node _Const_true = {NBool,{0,0},(Node*)&_Type_bool,{.integer=1}};
+static const Node _Const_true = {NBool,{0,0,0},(Node*)&_Type_bool,{.integer=1}};
 Node* Const_true = (Node*)&_Const_true;
-static const Node _Const_false = {NBool,{0,0},(Node*)&_Type_bool,{.integer=0}};
+static const Node _Const_false = {NBool,{0,0,0},(Node*)&_Type_bool,{.integer=0}};
 Node* Const_false = (Node*)&_Const_false;
 
 static RBNode n_false = { sym_false, true, null, null };
@@ -73,15 +72,14 @@ static RBNode n_type = { sym_type, true, null, null };
 static RBNode n_is = { sym_is, false, &n_true, &n_type };
 static RBNode n_go = { sym_go, false, &n_in, &n_is };
 static RBNode n_if = { sym_if, false, &n_import, &n_go };
-static RBNode n_fallthrough = { sym_fallthrough, false, null, null };
-static RBNode n_interface = { sym_interface, false, null, null };
-static RBNode n_enum = { sym_enum, false, &n_fallthrough, &n_interface };
-static RBNode n_var = { sym_var, true, null, null };
-static RBNode n_struct = { sym_struct, false, &n_var, null };
-static RBNode n_switch = { sym_switch, true, null, null };
-static RBNode n_int = { sym_int, false, &n_switch, null };
-static RBNode n_default = { sym_default, false, &n_struct, &n_int };
-static RBNode n_return = { sym_return, true, &n_enum, &n_default };
+static RBNode n_enum = { sym_enum, false, null, null };
+static RBNode n_return = { sym_return, true, null, null };
+static RBNode n_var = { sym_var, false, &n_return, null };
+static RBNode n_interface = { sym_interface, true, &n_enum, &n_var };
+static RBNode n_default = { sym_default, true, null, null };
+static RBNode n_int = { sym_int, true, null, null };
+static RBNode n_switch = { sym_switch, false, &n_default, &n_int };
+static RBNode n_struct = { sym_struct, false, &n_interface, &n_switch };
 static RBNode n_fun = { sym_fun, true, null, null };
 static RBNode n_continue = { sym_continue, true, null, null };
 static RBNode n_for = { sym_for, false, &n_fun, &n_continue };
@@ -90,44 +88,43 @@ static RBNode n_else = { sym_else, true, &n_for, &n_bool };
 static RBNode n__ = { sym__, true, null, null };
 static RBNode n_symbol = { sym_symbol, false, &n__, null };
 static RBNode n_break = { sym_break, false, &n_else, &n_symbol };
-static RBNode n_case = { sym_case, false, &n_return, &n_break };
+static RBNode n_case = { sym_case, false, &n_struct, &n_break };
 static RBNode n_const = { sym_const, false, &n_if, &n_case };
 
 static RBNode* symRoot = &n_const;
 #ifndef NDEBUG
 static const char* const debugSymCheck =
   "break#1001 case#1002 const#1003 continue#1004 default#1005 defer#1006 else#1007 "
-  "enum#1008 fallthrough#1009 for#100a fun#100b go#100c if#100d import#100e "
-  "in#100f interface#1010 is#1011 nil#1012 return#1013 select#1014 struct#1015 "
-  "switch#1016 symbol#1017 type#1018 var#1019 while#101a int bool true:bool=1 "
-  "false:bool=0 _ ";
+  "enum#1008 for#1009 fun#100a go#100b if#100c import#100d in#100e interface#100f "
+  "is#1010 nil#1011 return#1012 select#1013 struct#1014 switch#1015 symbol#1016 "
+  "type#1017 var#1018 while#1019 int bool true:bool=1 false:bool=0 _ ";
 #endif
 
-//-- END gen_constants() at src/sym.c:408
+//-- END gen_constants() at src/sym.c:409
 
 // nil is special and implemented without macros since its sym is defined by TOKEN_KEYWORDS
-static const Node _Type_nil = {NType,{0,0},NULL,{.ref={sym_nil,&_badnode}}};
+static const Node _Type_nil = {NType,{0,0,0},NULL,{.ref={sym_nil,&_badnode}}};
 Node* Type_nil = (Node*)&_Type_nil;
-static const Node _Const_nil = {NNil,{0,0},(Node*)&_Type_nil,{.integer=0}};
+static const Node _Const_nil = {NNil,{0,0,0},(Node*)&_Type_nil,{.integer=0}};
 Node* Const_nil = (Node*)&_Const_nil;
 
 
 // -----------------------------------------------------------------------------------------
 
 
-// dumpSymTree functionn
-#ifdef DEBUG
-static Str dumpSymTreeFmtKey(Str s, Sym k) {
-  s = sdscatrepr(s, k, sdslen(k));
-  return sdscatprintf(s, " (flags %02X, hash %u)", SYM_HDR(k)->sh.flags, SYM_HDR(k)->hash);
-}
-static void dumpSymTree() {
-  auto s = RBRepr(symRoot, sdsempty(), 0, &dumpSymTreeFmtKey);
-  s[sdslen(s)] = '\n'; // replace NUL with ln
-  fwrite(s, sdslen(s)+1, 1, stderr);
-  sdsfree(s);
-}
-#endif
+// // dumpSymTree functionn
+// #ifdef DEBUG
+// static Str dumpSymTreeFmtKey(Str s, Sym k) {
+//   s = sdscatrepr(s, k, sdslen(k));
+//   return sdscatprintf(s, " (flags %02X, hash %u)", SYM_HDR(k)->sh.flags, SYM_HDR(k)->hash);
+// }
+// static void dumpSymTree() {
+//   auto s = RBRepr(symRoot, sdsempty(), 0, &dumpSymTreeFmtKey);
+//   s[sdslen(s)] = '\n'; // replace NUL with ln
+//   fwrite(s, sdslen(s)+1, 1, stderr);
+//   sdsfree(s);
+// }
+// #endif
 
 
 static Sym newsym(u32 hash, const u8* ptr, size_t len, u8 flags) {
@@ -201,8 +198,9 @@ Sym symget(const u8* data, size_t _len, u32 hash) {
   u16 len = (u16)_len;
   auto s = symFind(hash, data, len);
   if (s == NULL) {
-    auto key = newsym(hash, data, len, SDS_TYPE_16);
-    bool rbhas = RBHas(symRoot, key);
+    // intern miss
+    // auto key = newsym(hash, data, len, SDS_TYPE_16);
+    // bool rbhas = RBHas(symRoot, key);
     s = newsym(hash, data, len, SDS_TYPE_16);
     symRoot = RBInsert(symRoot, s);
   }
@@ -335,13 +333,13 @@ __attribute__((constructor)) static void gen_constants() {
   // const Node* type_NAME
   printf(
     "\n"
-    "static const Node _badnode = {NBad,{0,0},NULL};\n"
+    "static const Node _badnode = {NBad,{0,0,0},NULL,{0}};\n"
   );
-  #define SYM_DEF(name)                                                               \
-    printf(                                                                           \
-      "static const Node _Type_%s = {NType,{0,0},NULL,{.ref={sym_%s,&_badnode}}};\n"  \
-      "Node* Type_%s = (Node*)&_Type_%s;\n",                                          \
-      #name, #name, #name, #name                                                      \
+  #define SYM_DEF(name)                                                                \
+    printf(                                                                            \
+      "static const Node _Type_%s = {NType,{0,0,0},NULL,{.ref={sym_%s,&_badnode}}};\n" \
+      "Node* Type_%s = (Node*)&_Type_%s;\n",                                           \
+      #name, #name, #name, #name                                                       \
     );
   TYPE_SYMS(SYM_DEF)
   #undef SYM_DEF
@@ -349,16 +347,16 @@ __attribute__((constructor)) static void gen_constants() {
 
   // PREDEFINED_CONSTANTS
   printf("\n");
-  #define SYM_DEF(name, type, value)                                           \
-    printf(                                                                    \
-      "static const Node _Const_%s = {%s,{0,0},(Node*)&_Type_%s,{.%s=%s}};\n"  \
-      "Node* Const_%s = (Node*)&_Const_%s;\n",                                 \
-      #name,                                                                   \
-      #type == "bool" ? "NBool" : "NInt",                                      \
-      #type,                                                                   \
-      "integer", /* u field. depends on type */                                \
-      #value,                                                                  \
-      #name, #name                                                             \
+  #define SYM_DEF(name, type, value)                                            \
+    printf(                                                                     \
+      "static const Node _Const_%s = {%s,{0,0,0},(Node*)&_Type_%s,{.%s=%s}};\n" \
+      "Node* Const_%s = (Node*)&_Const_%s;\n",                                  \
+      #name,                                                                    \
+      #type == "bool" ? "NBool" : "NInt",                                       \
+      #type,                                                                    \
+      "integer", /* u field. depends on type */                                 \
+      #value,                                                                   \
+      #name, #name                                                              \
     );
   PREDEFINED_CONSTANTS(SYM_DEF)
   #undef SYM_DEF
@@ -462,7 +460,7 @@ static void testMapIterator(Sym key, const Node* value, bool* stop, void* userda
 #endif
 
 W_UNIT_TEST(SymMap, {
-  SymMap m;
+  SymMap m = {0};
   SymMapInit(&m, 64);
 
   assert(m.len == 0);

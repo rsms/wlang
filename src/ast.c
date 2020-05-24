@@ -2,6 +2,9 @@
 #include "ptrmap.h"
 #include "tstyle.h"
 
+// #define DEBUG_LOOKUP
+
+
 // Lookup table N<kind> => name
 static const char* const NodeKindNameTable[] = {
   #define I_ENUM(name, _cls) #name,
@@ -32,7 +35,7 @@ const char* NodeClassName(NodeClass c) {
 
 
 // NBad node
-static const Node _NodeBad = {NBad,{0,0},NULL};
+static const Node _NodeBad = {NBad,{0,0,0},NULL,{0}};
 const Node* NodeBad = &_NodeBad;
 
 
@@ -57,18 +60,18 @@ static Str reprEmpty(Str s, ReprCtx* ctx) {
 }
 
 
-static Scope* getScope(const Node* n) {
-  switch (n->kind) {
-    case NBlock:
-    case NList:
-    case NFile:
-      return n->u.array.scope;
-    case NFun:
-      return n->u.fun.scope;
-    default:
-      return NULL;
-  }
-}
+// static Scope* getScope(const Node* n) {
+//   switch (n->kind) {
+//     case NBlock:
+//     case NList:
+//     case NFile:
+//       return n->u.array.scope;
+//     case NFun:
+//       return n->u.fun.scope;
+//     default:
+//       return NULL;
+//   }
+// }
 
 
 static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
@@ -156,6 +159,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   case NIdent:
     s = TStyleRed(s);
     s = sdscatsds(s, n->u.ref.name);
+    s = TStyleNone(s);
     if (n->u.ref.target) {
       s = sdscatfmt(s, " @%s", NodeKindNameTable[n->u.ref.target->kind]);
       // s = nodeRepr(n->u.ref.target, s, ctx);
@@ -181,18 +185,8 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
     break;
 
   // uses u.op
-  case NAssign:
-    if (n->u.op.op != TNone) {
-      s = sdscat(s, TokName(n->u.op.op));
-      s = sdscatlen(s, " ", 1);
-    }
-    s = nodeRepr(n->u.op.left, s, ctx);
-    if (n->u.op.right) {
-      s = nodeRepr(n->u.op.right, s, ctx);
-    }
-    break;
-
   case NOp:
+  case NAssign:
   case NPrefixOp:
   case NReturn:
     if (n->u.op.op != TNone) {
@@ -232,6 +226,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx) {
   }
 
   // uses u.field
+  case NLet:
   case NVar:
   case NConst:
   case NField:
@@ -411,7 +406,11 @@ const Node* ScopeLookup(const Scope* scope, Sym s) {
     scope = scope->parent;
   }
   #ifdef DEBUG_LOOKUP
-  dlog("lookup %s => %s", s, n == NULL ? "null" : NodeKindName(n->kind));
+  if (n == NULL) {
+    dlog("lookup %s => (null)", s);
+  } else {
+    dlog("lookup %s => node of kind %s", s, NodeKindName(n->kind));
+  }
   #endif
   return n;
 }

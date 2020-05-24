@@ -154,6 +154,7 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
 
   // uses u.field
   case NVar:
+  case NLet:
   case NField: {
     if (n->u.field.init) {
       n->u.field.init = resolve(n->u.field.init, scope, ctx);
@@ -172,7 +173,18 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
     }
     break;
 
-  default:
+  case NNone:
+  case NBad:
+  case NType:
+  case NFunType:
+  case NTupleType:
+  case NComment:
+  case NNil:
+  case NBool:
+  case NInt:
+  case NFloat:
+  case NZeroInit:
+  case _NodeKindMax:
     break;
 
   } // switch n->kind

@@ -135,7 +135,7 @@ void _FWAllocGrow(FWAllocator* na) {
 
 
 W_UNIT_TEST(fwalloc, {
-  FWAllocator a;
+  FWAllocator a = {0};
   assert(a.mfree == NULL);
   assert(a.mused == NULL);
 

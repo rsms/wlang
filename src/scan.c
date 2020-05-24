@@ -173,7 +173,7 @@ static void snameuni(S* s) {
       r = b;
       s->inp++;
     } else {
-      u32 w;
+      u32 w = 0;
       r = utf8decode(s->inp, s->inend - s->inp, &w);
       s->inp += w;
       if (r == RuneErr) {
@@ -289,11 +289,20 @@ Tok SNext(S* s) {
     s->tok = (Tok)c;
     break;
 
+  // "!=", "==", "<=", ">="
   case '!':
   case '=':
+  case '<':
+  case '>':
     if (s->inp+1 < s->inend && *s->inp == '=') {
       s->inp++;
-      s->tok = c == '=' ? TEqEq : TNEq;
+      switch (c) {
+        case '=': s->tok = TEqEq; break;
+        case '!': s->tok = TNEq; break;
+        case '<': s->tok = TLEq; break;
+        case '>': s->tok = TGEq; break;
+        default: break;
+      }
       s->tokend++;
       break;
     }
@@ -313,8 +322,6 @@ Tok SNext(S* s) {
   case '/':
   case ',':
   case ';':
-  case '>':
-  case '<':
     s->tok = (Tok)c;
     break;
 
@@ -337,7 +344,6 @@ Tok SNext(S* s) {
       case TIdent:
       case TBreak:
       case TContinue:
-      case TFallthrough:
       case TReturn:
         insertSemi = true;
         break;

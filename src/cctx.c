@@ -10,10 +10,11 @@ void CCtxInit(
   const u8*     srcbuf,
   size_t        srclen
 ) {
-  if (cc->src.buf != NULL) {
-    free((void*)cc->src.buf);
-    cc->src.buf = NULL;
-  }
+  // Disabled since srcbuf is owned by caller
+  // if (cc->src.buf != NULL) {
+  //   free((void*)cc->src.buf);
+  //   cc->src.buf = NULL;
+  // }
   if (cc->src.name != NULL) {
     SourceFree(&cc->src);
   }
@@ -25,10 +26,10 @@ void CCtxInit(
 
 
 void CCtxFree(CCtx* cc) {
-  if (cc->src.buf != NULL) {
-    free((void*)cc->src.buf);
-    cc->src.buf = NULL;
-  }
+  // if (cc->src.buf != NULL) {
+  //   free((void*)cc->src.buf);
+  //   cc->src.buf = NULL;
+  // }
   SourceFree(&cc->src);
   FWAllocFree(&cc->mem);
 }

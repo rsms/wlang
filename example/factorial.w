@@ -9,7 +9,8 @@ fun main {
 fun factorial(n int) int {
   # y = 3
   # xs = for x in [1,2,3] { x * 2 }
-  if n {
+  # if n <= 0 1 else n * factorial(n - 1)
+  if n <= 0 {
     1
   } else {
     n * factorial(n - 1)

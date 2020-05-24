@@ -138,10 +138,8 @@ static void advance(P* p, const Tok* followlist) {
         case TConst:
         case TContinue:
         case TDefer:
-        case TFallthrough:
         case TFor:
         case TGo:
-        // case TGoto:
         case TIf:
         case TReturn:
         case TSelect:
@@ -283,6 +281,20 @@ static Node* PIdent(P* p) {
   return n;
 }
 
+// parses an identifier and attempts to resolve it in an efficient way.
+// This should only be used in contexts where the identifier is only referenced.
+// I.e. only where the identifier is an rvalue, never an lvalue.
+static Node* pidentWithLookup(P* p) {
+  assert(p->s.tok == TIdent);
+  auto n = (Node*)ScopeLookup(p->scope, p->s.name);
+  if (n == NULL) {
+    n = PNewNode(p, NIdent);
+    n->u.ref.name = p->s.name;
+  }
+  next(p);
+  return n;
+}
+
 static Node* pident(P* p) {
   if (p->s.tok != TIdent) {
     syntaxerr(p, "expecting identifier");
@@ -292,11 +304,12 @@ static Node* pident(P* p) {
   return PIdent(p);
 }
 
-//!Parselet (TEq ASSIGN)
-static Node* PAssign(P* p, const Parselet* e, Node* left) {
+
+// assignment to fields, e.g. "x.y = 3" -> (assign (Field (Ident x) (Ident y)) (Int 3))
+static Node* pAssign(P* p, const Parselet* e, Node* left) {
   auto n = PNewNode(p, NAssign);
   n->u.op.op = p->s.tok;
-  next(p);
+  next(p); // consume '='
   auto right = exprOrList(p, e->prec);
   n->u.op.left = left;
   n->u.op.right = right;
@@ -337,11 +350,36 @@ static Node* PAssign(P* p, const Parselet* e, Node* left) {
   return n;
 }
 
+
+//!Parselet (TEq ASSIGN)
+static Node* PLetOrAssign(P* p, const Parselet* e, Node* left) {
+  if (left->kind != NIdent) {
+    return pAssign(p, e, left);
+  }
+  // let
+  // common case: let binding. e.g. "x = 3" -> (let (Ident x) (Int 3))
+  dlog("PLetOrAssign/let %s", left->u.ref.name);
+  next(p); // consume '='
+
+  auto name = left;
+  auto value = expr(p, PREC_MEMBER);
+
+  auto n = PNewNode(p, NLet);
+  n->pos = name->pos;
+  n->type = value->type;
+  n->u.field.init = value;
+  n->u.field.name = name->u.ref.name;
+  defsym(p, name->u.ref.name, n);
+
+  return n;
+}
+
+
 // ptype = Type
 //
 static Node* ptype(P* p) {
   if (p->s.tok == TIdent) {
-    return PIdent(p);
+    return pidentWithLookup(p);
   } else if (p->s.tok == TFun) {
     return pfun(p, /*nameOptional*/true);
   }
@@ -516,7 +554,7 @@ static Node* PPrefixOp(P* p) {
 //!Parselet (TPlus ADD) (TMinus ADD)
 //          (TStar MULTIPLY) (TSlash MULTIPLY)
 //          (TLt COMPARE) (TGt COMPARE)
-//          (TEqEq EQUAL) (TNEq EQUAL)
+//          (TEqEq EQUAL) (TNEq EQUAL) (TLEq EQUAL) (TGEq EQUAL)
 static Node* PInfixOp(P* p, const Parselet* e, Node* left) {
   auto n = PNewNode(p, NOp);
   n->u.op.op = p->s.tok;
@@ -594,7 +632,7 @@ static Node* params(P* p) {
   want(p, '(');
   auto n = PNewNode(p, NList);
   bool hasTypedParam = false; // true when at least one param has type; e.g. "x T"
-  NodeList typeq;
+  NodeList typeq = {0};
 
   while (p->s.tok != TRParen && p->s.tok != TNone) {
     auto field = PNewNode(p, NField);
@@ -731,13 +769,15 @@ static const Parselet parselets[TMax] = {
   [TIf] = {PIf, NULL, PREC_MEMBER},
   [TReturn] = {PReturn, NULL, PREC_MEMBER},
   [TFun] = {PFun, NULL, PREC_MEMBER},
-  [TEq] = {NULL, PAssign, PREC_ASSIGN},
+  [TEq] = {NULL, PLetOrAssign, PREC_ASSIGN},
   [TStar] = {NULL, PInfixOp, PREC_MULTIPLY},
   [TSlash] = {NULL, PInfixOp, PREC_MULTIPLY},
   [TLt] = {NULL, PInfixOp, PREC_COMPARE},
   [TGt] = {NULL, PInfixOp, PREC_COMPARE},
   [TEqEq] = {NULL, PInfixOp, PREC_EQUAL},
   [TNEq] = {NULL, PInfixOp, PREC_EQUAL},
+  [TLEq] = {NULL, PInfixOp, PREC_EQUAL},
+  [TGEq] = {NULL, PInfixOp, PREC_EQUAL},
   [TPlusPlus] = {NULL, PPostfixOp, PREC_UNARY_POSTFIX},
   [TMinusMinus] = {NULL, PPostfixOp, PREC_UNARY_POSTFIX},
 };

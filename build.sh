@@ -5,6 +5,7 @@ OPT_HELP=false
 OPT_CONFIG=false
 OPT_G=false
 OPT_MSAN=false
+OPT_CLEAN=false
 USAGE_EXIT_CODE=0
 
 # parse args
@@ -16,6 +17,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   -config|--config)
     OPT_CONFIG=true
+    shift
+    ;;
+  -clean|--clean)
+    OPT_CLEAN=true
     shift
     ;;
   -g)
@@ -35,11 +40,16 @@ if $OPT_HELP; then
   echo "options:"
   echo "  -h, -help  Show help on stdout."
   echo "  -config    Configure build even if config.sh <> build.ninja is up to date."
+  echo "  -clean     Clean ./build directory before building."
   echo "  -g         Build debug build instead of release build."
   exit $USAGE_EXIT_CODE
 fi
 
-if $OPT_CONFIG || [ config.sh -nt build.ninja ]; then
+if $OPT_CLEAN; then
+  rm -rf build
+fi
+
+if $OPT_CONFIG || [ config.sh -nt build.ninja ] || [ build.in.ninja -nt build.ninja ]; then
   ./config.sh
 fi
 

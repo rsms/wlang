@@ -16,19 +16,19 @@ typedef struct {
   a; \
 }))
 
-static void ArrayInit(Array* a) {
-  a->v = NULL;
-  a->cap = a->len = 0;
-  a->onheap = true;
-}
+// static void ArrayInit(Array* a) {
+//   a->v = NULL;
+//   a->cap = a->len = 0;
+//   a->onheap = true;
+// }
 
-static void ArrayFree(Array* a) {
-  if (a->onheap) {
-    free(a->v);
-    a->v = NULL;
-    a->cap = 0;
-  }
-}
+// static void ArrayFree(Array* a) {
+//   if (a->onheap) {
+//     free(a->v);
+//     a->v = NULL;
+//     a->cap = 0;
+//   }
+// }
 
 // cap = align2(len + addl)
 void ArrayGrow(Array*, size_t addl);

@@ -26,6 +26,7 @@ typedef enum {
   _(Int,         Expr) /* integer literal */ \
   _(Float,       Expr) /* floating-point literal */ \
   _(Const,       Expr) \
+  _(Let,         Expr) \
   _(Var,         Expr) \
   _(Assign,      Expr) \
   _(Fun,         Expr) \
@@ -121,9 +122,9 @@ typedef struct Node {
       Node* receiver;
       Node* args;
     } call;
-    struct { // Field, Var, Const
+    struct { // Field, Var, Const, Let
       Sym   name;
-      Node* init;  // initial value
+      Node* init;  // initial value (final value for Let)
     } field;
     struct { // If
       Node* cond;

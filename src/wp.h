@@ -168,7 +168,7 @@ inline static Str strgrow(Str s, size_t addlSize) {
 // Source
 typedef struct {
   Str       name;
-  const u8* buf;
+  const u8* buf;       // owned by caller
   size_t    len;       // length of buf
   u32*      _lineoffsets;
   u32       _linecount;
@@ -282,7 +282,7 @@ void CCtxInit(
   ErrorHandler* errh,
   void*         userdata,
   Str           srcname,
-  const u8*     srcbuf,
+  const u8*     srcbuf,  // caller owns
   size_t        srclen
 );
 void CCtxFree(CCtx*);

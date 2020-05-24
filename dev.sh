@@ -106,6 +106,7 @@ trap exit SIGINT  # make sure we can ctrl-c in the while loop
 
 
 while true; do
+  echo -e "\x1bc"  # clear screen ("scroll to top" style)
   dev_start "$@"
   fswatch -1 -l 0.2 -E --exclude='.*' --include='\.(c|h|w|sh)$' src example config.sh
   echo "———————————————————— restarting ————————————————————"

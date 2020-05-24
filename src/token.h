@@ -31,6 +31,8 @@
   _(TRArr,       "->")      \
   _(TEqEq,       "==")      \
   _(TNEq,        "!=")      \
+  _(TLEq,        "<=")      \
+  _(TGEq,        ">=")      \
 /*END TOKEN_TYPES*/
 #define TOKEN_KEYWORDS(_) \
   _(break,       TBreak)       \
@@ -41,7 +43,6 @@
   _(defer,       TDefer)       \
   _(else,        TElse)        \
   _(enum,        TEnum)        \
-  _(fallthrough, TFallthrough) \
   _(for,         TFor)         \
   _(fun,         TFun)         \
   _(go,          TGo)          \

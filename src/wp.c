@@ -31,13 +31,13 @@ void parsefile(Str filename, Scope* pkgscope) {
   u32 errcount = 0;
 
   // compilation context
-  CCtx cc; // TODO: share across individual, non-overlapping compile sessions
+  CCtx cc = {0}; // TODO: share across individual, non-overlapping compile sessions
   CCtxInit(&cc, errorHandler, &errcount, filename, buf, len);
 
   // parse input
-  static P parser; // shared parser
+  static P parser; // shared parser (zero-initialized since it's static)
   auto file = Parse(&parser, &cc, SCAN_COMMENTS, pkgscope);
-  printAst(file);
+  // printAst(file);
 
   // resolve symbols and types
   if (errcount == 0) {
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  int out = 1; // stdout
+  // int out = 1; // stdout
   // TODO: support -o <file> CLI flag.
   // int out = open(argv[2], O_WRONLY | O_CREAT, 0660);
   // if (out < 0) {
