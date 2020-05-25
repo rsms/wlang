@@ -190,7 +190,7 @@ In this approach we could further optimize this by tracking what fields a functi
 
 At the call sites we can generate just the code needed:
 
-    if typeid(param0) == typeid(arg0):
+    if typeid(param0) == typeid(a):
       call printName a
     else:
       tmp = alloca sizeof( offsetof(User.maxField)
