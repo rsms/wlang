@@ -2,7 +2,7 @@
 #include "token.h"
 #include "types.h"
 
-// Sym is an type of sds string with an additional header containing
+// Sym is a type of sds string with an additional header containing
 // a precomputed FNV1a hash. Sym is immutable.
 typedef const char* Sym;
 

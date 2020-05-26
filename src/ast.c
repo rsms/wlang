@@ -69,7 +69,7 @@ static Str reprEmpty(Str s, const ReprCtx* ctx) {
 // static Scope* getScope(const Node* n) {
 //   switch (n->kind) {
 //     case NBlock:
-//     case NList:
+//     case NTuple:
 //     case NFile:
 //       return n->u.array.scope;
 //     case NFun:
@@ -180,7 +180,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
     break;
 
   case NType:
-    s = sdscatsds(s, n->u.ref.name);
+    s = sdscatsds(s, n->u.t.name);
     break;
 
   case NFunType: // TODO
@@ -214,7 +214,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
 
   // uses u.array
   case NBlock:
-  case NList:
+  case NTuple:
   case NFile:
   {
     sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
@@ -223,10 +223,12 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
     });
     break;
   }
+
+  // uses u.ttuple
   case NTupleType: {
     s = sdscatlen(s, "(", 1);
     bool first = true;
-    NodeListForEach(&n->u.array.a, n, {
+    NodeListForEach(&n->u.ttuple.a, n, {
       if (first) {
         first = false;
       } else {

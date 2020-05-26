@@ -144,7 +144,7 @@ static Node* resolveType(CCtx* cc, Node* n) {
     }
     break;
 
-  case NList: {
+  case NTuple: {
     Node* tt = NewNode(&cc->mem, NTupleType);
     NodeListForEach(&n->u.array.a, n, {
       auto t = resolveType(cc, n);
@@ -152,7 +152,7 @@ static Node* resolveType(CCtx* cc, Node* n) {
         t = (Node*)NodeBad;
         errorf(cc, n->pos, "unknown type");
       }
-      NodeListAppend(&cc->mem, &tt->u.array.a, t);
+      NodeListAppend(&cc->mem, &tt->u.ttuple.a, t);
     });
     n->type = tt;
     break;

@@ -16,7 +16,8 @@ static Sym newsym(u32 hash, const u8* ptr, size_t len, u8 flags);
 // Define to run the generator during program initialization:
 // #define W_SYM_RUN_GENERATOR
 
-//-- BEGIN gen_constants() at src/sym.c:260
+
+//-- BEGIN gen_constants() at src/sym.c:257
 
 const Sym sym_break = "\0\0\0\0\0\0\0\x78\x81\x64\xC9\x05\x00\x05\x00\x0A""break" + 16;
 const Sym sym_case = "\0\0\0\0\0\0\0\xB1\x38\x25\x9B\x04\x00\x04\x00\x12""case" + 16;
@@ -43,36 +44,78 @@ const Sym sym_symbol = "\0\0\0\0\0\0\0\xD1\x51\xFB\xF3\x06\x00\x06\x00\xB2""symb
 const Sym sym_type = "\0\0\0\0\0\0\0\x4D\xF1\x27\x51\x04\x00\x04\x00\xBA""type" + 16;
 const Sym sym_var = "\0\0\0\0\0\0\0\xBE\xE7\x25\x8A\x03\x00\x03\x00\xC2""var" + 16;
 const Sym sym_while = "\0\0\0\0\0\0\0\xCE\x28\xC6\x0D\x05\x00\x05\x00\xCA""while" + 16;
-const Sym sym_int = "\0\0\0\0\0\0\0\x5E\x7E\xE9\x95\x03\x00\x03\x00\x02""int" + 16;
 const Sym sym_bool = "\0\0\0\0\0\0\0\x3D\x95\x94\xC8\x04\x00\x04\x00\x02""bool" + 16;
+const Sym sym_int = "\0\0\0\0\0\0\0\x5E\x7E\xE9\x95\x03\x00\x03\x00\x02""int" + 16;
+const Sym sym_uint = "\0\0\0\0\0\0\0\xA1\x36\x98\xCB\x04\x00\x04\x00\x02""uint" + 16;
+const Sym sym_int8 = "\0\0\0\0\0\0\0\x92\xFA\x91\x64\x04\x00\x04\x00\x02""int8" + 16;
+const Sym sym_int16 = "\0\0\0\0\0\0\0\xD1\x72\xE3\x07\x05\x00\x05\x00\x02""int16" + 16;
+const Sym sym_int32 = "\0\0\0\0\0\0\0\xBF\xE2\xDE\xFB\x05\x00\x05\x00\x02""int32" + 16;
+const Sym sym_int64 = "\0\0\0\0\0\0\0\x64\x23\xD2\x03\x05\x00\x05\x00\x02""int64" + 16;
+const Sym sym_uint8 = "\0\0\0\0\0\0\0\xDB\xF2\x9D\x19\x05\x00\x05\x00\x02""uint8" + 16;
+const Sym sym_uint16 = "\0\0\0\0\0\0\0\xF2\xBE\x8E\xAE\x06\x00\x06\x00\x02""uint16" + 16;
+const Sym sym_uint32 = "\0\0\0\0\0\0\0\xEC\x0B\x94\x32\x06\x00\x06\x00\x02""uint32" + 16;
+const Sym sym_uint64 = "\0\0\0\0\0\0\0\x13\x08\xA0\xAE\x06\x00\x06\x00\x02""uint64" + 16;
+const Sym sym_float32 = "\0\0\0\0\0\0\0\x10\x74\x9F\xE8\x07\x00\x07\x00\x02""float32" + 16;
+const Sym sym_float64 = "\0\0\0\0\0\0\0\x47\x0E\x98\x7C\x07\x00\x07\x00\x02""float64" + 16;
+const Sym sym_str = "\0\0\0\0\0\0\0\x90\xD1\x4B\xC2\x03\x00\x03\x00\x02""str" + 16;
 const Sym sym__ = "\0\0\0\0\0\0\0\x6E\x19\x0C\xDA\x01\x00\x01\x00\x02""_" + 16;
 const Sym sym_true = "\0\0\0\0\0\0\0\xE5\x11\xB2\x4D\x04\x00\x04\x00\x02""true" + 16;
 const Sym sym_false = "\0\0\0\0\0\0\0\x58\x99\x06\x0B\x05\x00\x05\x00\x02""false" + 16;
 
 static const Node _badnode = {NBad,{0,0,0},NULL,{0}};
-static const Node _Type_int = {NType,{0,0,0},NULL,{.ref={sym_int,&_badnode}}};
-Node* Type_int = (Node*)&_Type_int;
-static const Node _Type_bool = {NType,{0,0,0},NULL,{.ref={sym_bool,&_badnode}}};
+static const Node _Type_bool = {NType,{0,0,0},NULL,{.t={TypeID_bool,sym_bool}}};
 Node* Type_bool = (Node*)&_Type_bool;
+static const Node _Type_int = {NType,{0,0,0},NULL,{.t={TypeID_int,sym_int}}};
+Node* Type_int = (Node*)&_Type_int;
+static const Node _Type_uint = {NType,{0,0,0},NULL,{.t={TypeID_uint,sym_uint}}};
+Node* Type_uint = (Node*)&_Type_uint;
+static const Node _Type_int8 = {NType,{0,0,0},NULL,{.t={TypeID_int8,sym_int8}}};
+Node* Type_int8 = (Node*)&_Type_int8;
+static const Node _Type_int16 = {NType,{0,0,0},NULL,{.t={TypeID_int16,sym_int16}}};
+Node* Type_int16 = (Node*)&_Type_int16;
+static const Node _Type_int32 = {NType,{0,0,0},NULL,{.t={TypeID_int32,sym_int32}}};
+Node* Type_int32 = (Node*)&_Type_int32;
+static const Node _Type_int64 = {NType,{0,0,0},NULL,{.t={TypeID_int64,sym_int64}}};
+Node* Type_int64 = (Node*)&_Type_int64;
+static const Node _Type_uint8 = {NType,{0,0,0},NULL,{.t={TypeID_uint8,sym_uint8}}};
+Node* Type_uint8 = (Node*)&_Type_uint8;
+static const Node _Type_uint16 = {NType,{0,0,0},NULL,{.t={TypeID_uint16,sym_uint16}}};
+Node* Type_uint16 = (Node*)&_Type_uint16;
+static const Node _Type_uint32 = {NType,{0,0,0},NULL,{.t={TypeID_uint32,sym_uint32}}};
+Node* Type_uint32 = (Node*)&_Type_uint32;
+static const Node _Type_uint64 = {NType,{0,0,0},NULL,{.t={TypeID_uint64,sym_uint64}}};
+Node* Type_uint64 = (Node*)&_Type_uint64;
+static const Node _Type_float32 = {NType,{0,0,0},NULL,{.t={TypeID_float32,sym_float32}}};
+Node* Type_float32 = (Node*)&_Type_float32;
+static const Node _Type_float64 = {NType,{0,0,0},NULL,{.t={TypeID_float64,sym_float64}}};
+Node* Type_float64 = (Node*)&_Type_float64;
+static const Node _Type_str = {NType,{0,0,0},NULL,{.t={TypeID_str,sym_str}}};
+Node* Type_str = (Node*)&_Type_str;
 
 static const Node _Const_true = {NBool,{0,0,0},(Node*)&_Type_bool,{.integer=1}};
 Node* Const_true = (Node*)&_Const_true;
 static const Node _Const_false = {NBool,{0,0,0},(Node*)&_Type_bool,{.integer=0}};
 Node* Const_false = (Node*)&_Const_false;
 
+static RBNode n_int64 = { sym_int64, true, null, null };
 static RBNode n_false = { sym_false, true, null, null };
-static RBNode n_while = { sym_while, true, null, null };
-static RBNode n_nil = { sym_nil, false, &n_false, &n_while };
-static RBNode n_select = { sym_select, true, null, null };
-static RBNode n_defer = { sym_defer, false, &n_select, null };
-static RBNode n_import = { sym_import, false, &n_nil, &n_defer };
+static RBNode n_int16 = { sym_int16, false, &n_int64, &n_false };
+static RBNode n_while = { sym_while, false, null, null };
+static RBNode n_nil = { sym_nil, false, &n_int16, &n_while };
+static RBNode n_select = { sym_select, false, null, null };
+static RBNode n_defer = { sym_defer, true, null, null };
+static RBNode n_uint32 = { sym_uint32, false, &n_defer, null };
+static RBNode n_uint8 = { sym_uint8, false, &n_select, &n_uint32 };
+static RBNode n_import = { sym_import, true, &n_nil, &n_uint8 };
 static RBNode n_in = { sym_in, false, null, null };
 static RBNode n_true = { sym_true, true, null, null };
-static RBNode n_type = { sym_type, true, null, null };
-static RBNode n_is = { sym_is, false, &n_true, &n_type };
-static RBNode n_go = { sym_go, false, &n_in, &n_is };
-static RBNode n_if = { sym_if, false, &n_import, &n_go };
-static RBNode n_enum = { sym_enum, false, null, null };
+static RBNode n_is = { sym_is, false, &n_true, null };
+static RBNode n_go = { sym_go, true, &n_in, &n_is };
+static RBNode n_int8 = { sym_int8, false, null, null };
+static RBNode n_type = { sym_type, false, &n_go, &n_int8 };
+static RBNode n_if = { sym_if, false, &n_import, &n_type };
+static RBNode n_float64 = { sym_float64, true, null, null };
+static RBNode n_enum = { sym_enum, false, &n_float64, null };
 static RBNode n_return = { sym_return, true, null, null };
 static RBNode n_var = { sym_var, false, &n_return, null };
 static RBNode n_interface = { sym_interface, true, &n_enum, &n_var };
@@ -80,16 +123,22 @@ static RBNode n_default = { sym_default, true, null, null };
 static RBNode n_int = { sym_int, true, null, null };
 static RBNode n_switch = { sym_switch, false, &n_default, &n_int };
 static RBNode n_struct = { sym_struct, false, &n_interface, &n_switch };
-static RBNode n_fun = { sym_fun, true, null, null };
+static RBNode n_fun = { sym_fun, false, null, null };
+static RBNode n_uint16 = { sym_uint16, true, null, null };
 static RBNode n_continue = { sym_continue, true, null, null };
-static RBNode n_for = { sym_for, false, &n_fun, &n_continue };
-static RBNode n_bool = { sym_bool, false, null, null };
-static RBNode n_else = { sym_else, true, &n_for, &n_bool };
-static RBNode n__ = { sym__, true, null, null };
-static RBNode n_symbol = { sym_symbol, false, &n__, null };
-static RBNode n_break = { sym_break, false, &n_else, &n_symbol };
-static RBNode n_case = { sym_case, false, &n_struct, &n_break };
-static RBNode n_const = { sym_const, false, &n_if, &n_case };
+static RBNode n_uint64 = { sym_uint64, false, &n_uint16, &n_continue };
+static RBNode n_for = { sym_for, false, &n_fun, &n_uint64 };
+static RBNode n_case = { sym_case, true, &n_struct, &n_for };
+static RBNode n_str = { sym_str, true, null, null };
+static RBNode n_bool = { sym_bool, false, &n_str, null };
+static RBNode n_uint = { sym_uint, true, null, null };
+static RBNode n_float32 = { sym_float32, true, null, null };
+static RBNode n__ = { sym__, false, &n_uint, &n_float32 };
+static RBNode n_break = { sym_break, true, &n_bool, &n__ };
+static RBNode n_int32 = { sym_int32, false, null, null };
+static RBNode n_symbol = { sym_symbol, false, &n_break, &n_int32 };
+static RBNode n_else = { sym_else, false, &n_case, &n_symbol };
+static RBNode n_const = { sym_const, false, &n_if, &n_else };
 
 static RBNode* symRoot = &n_const;
 #ifndef NDEBUG
@@ -97,13 +146,15 @@ static const char* const debugSymCheck =
   "break#1001 case#1002 const#1003 continue#1004 default#1005 defer#1006 else#1007 "
   "enum#1008 for#1009 fun#100a go#100b if#100c import#100d in#100e interface#100f "
   "is#1010 nil#1011 return#1012 select#1013 struct#1014 switch#1015 symbol#1016 "
-  "type#1017 var#1018 while#1019 int bool true:bool=1 false:bool=0 _ ";
+  "type#1017 var#1018 while#1019 bool int uint int8 int16 int32 int64 uint8 "
+  "uint16 uint32 uint64 float32 float64 str true:bool=1 false:bool=0 _ ";
 #endif
 
-//-- END gen_constants() at src/sym.c:409
+//-- END gen_constants() at src/sym.c:406
+
 
 // nil is special and implemented without macros since its sym is defined by TOKEN_KEYWORDS
-static const Node _Type_nil = {NType,{0,0,0},NULL,{.ref={sym_nil,&_badnode}}};
+static const Node _Type_nil = {NType,{0,0,0},NULL,{.t={TypeID_nil,sym_nil}}};
 Node* Type_nil = (Node*)&_Type_nil;
 static const Node _Const_nil = {NNil,{0,0,0},(Node*)&_Type_nil,{.integer=0}};
 Node* Const_nil = (Node*)&_Const_nil;
@@ -337,9 +388,9 @@ __attribute__((constructor)) static void gen_constants() {
   );
   #define SYM_DEF(name)                                                                \
     printf(                                                                            \
-      "static const Node _Type_%s = {NType,{0,0,0},NULL,{.ref={sym_%s,&_badnode}}};\n" \
+      "static const Node _Type_%s = {NType,{0,0,0},NULL,{.t={TypeID_%s,sym_%s}}};\n"   \
       "Node* Type_%s = (Node*)&_Type_%s;\n",                                           \
-      #name, #name, #name, #name                                                       \
+      #name, #name, #name, #name, #name                                                \
     );
   TYPE_SYMS(SYM_DEF)
   #undef SYM_DEF

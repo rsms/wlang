@@ -97,7 +97,7 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
 
   // uses u.array
   case NBlock:
-  case NList:
+  case NTuple:
   case NFile: {
     if (n->u.array.scope) {
       scope = n->u.array.scope;

@@ -36,7 +36,7 @@ typedef enum {
   _(Call,        Expr) \
   _(ZeroInit,    Expr) \
   _(Block,       Expr) \
-  _(List,        Expr) \
+  _(Tuple,       Expr) \
 /*END DEF_NODE_KINDS*/
 
 typedef enum {
@@ -67,7 +67,7 @@ typedef struct Scope {
 typedef struct Node Node;
 Scope* ScopeNew(const Scope* parent);
 void ScopeFree(Scope*);
-const Node* ScopeAssoc(Scope*, Sym, const Node* value);
+const Node* ScopeAssoc(Scope*, Sym, const Node* value); // Returns replaced value or NULL
 const Node* ScopeLookup(const Scope*, Sym);
 const Scope* GetGlobalScope();
 
@@ -104,7 +104,7 @@ typedef struct Node {
       Node* right;  // null for unary operations
       Tok   op;
     } op;
-    struct { // List, Block, File, TupleType
+    struct { // Tuple, Block, File
       Scope*   scope; // non-null if kind==Block|File
       NodeList a;
     } array;
@@ -114,10 +114,6 @@ typedef struct Node {
       Sym    name;   // null for fun-type and lambda
       Node*  body;   // null for fun-type and fun-declaration
     } fun;
-    struct { // FunType
-      Node* params;
-      Node* result;
-    } tfun;
     struct { // Call
       Node* receiver;
       Node* args;
@@ -131,6 +127,41 @@ typedef struct Node {
       Node* thenb;
       Node* elseb; // null or expr
     } cond;
+
+    // Type
+    // struct {
+    //   const Sym id; // lazy; initially NULL. Computed from Node.
+    //   union {
+    //     struct { // Type
+    //       // const Sym id; // lazy
+    //       TypeID tid;
+    //       Sym    name;
+    //     } basic;
+    //     struct { // TupleType
+    //       // const Sym typeSym; // lazy
+    //       NodeList a;
+    //     } tuple;
+    //     struct { // FunType
+    //       Node*  params;
+    //       Node*  result;
+    //     } fun;
+    //   };
+    // } t;
+
+    struct { // Type
+      // const Sym id; // lazy
+      TypeID tid;
+      Sym    name;
+    } t;
+    struct { // TupleType
+      // const Sym typeSym; // lazy
+      NodeList a;
+    } ttuple;
+    struct { // FunType
+      Node*  params;
+      Node*  result;
+    } tfun;
+
   } u;
 } Node;
 

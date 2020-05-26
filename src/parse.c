@@ -177,11 +177,11 @@ inline static Node* PNewNode(P* p, NodeKind kind) {
 // precedence should match the calling parselet's own precedence
 static Node* expr(P* p, int precedence);
 
-// exprList = Expr ("," Expr)*
-static Node* exprList(P* p, int precedence);
+// Tuple = Expr ("," Expr)+
+static Node* ptuple(P* p, int precedence);
 
-// exprOrList = Expr | exprList
-static Node* exprOrList(P* p, int precedence);
+// exprOrTuple = Expr | Tuple
+static Node* exprOrTuple(P* p, int precedence);
 
 // Fun = "fun" Ident Params? Type? Block?
 static Node* pfun(P* p, bool nameOptional);
@@ -260,13 +260,13 @@ static Node* bad(P* p) {
 }
 
 
-// exprListTrailingComma = Expr ("," Expr)* ","?
-static Node* exprListTrailingComma(P* p, int precedence, Tok stoptok) {
-  auto list = PNewNode(p, NList);
+// tupleTrailingComma = Expr ("," Expr)* ","?
+static Node* tupleTrailingComma(P* p, int precedence, Tok stoptok) {
+  auto tuple = PNewNode(p, NTuple);
   do {
-    NodeListAppend(&p->cc->mem, &list->u.array.a, expr(p, precedence));
+    NodeListAppend(&p->cc->mem, &tuple->u.array.a, expr(p, precedence));
   } while (got(p, TComma) && p->s.tok != stoptok);
-  return list;
+  return tuple;
 }
 
 // ============================================================================================
@@ -310,13 +310,13 @@ static Node* pAssign(P* p, const Parselet* e, Node* left) {
   auto n = PNewNode(p, NAssign);
   n->u.op.op = p->s.tok;
   next(p); // consume '='
-  auto right = exprOrList(p, e->prec);
+  auto right = exprOrTuple(p, e->prec);
   n->u.op.left = left;
   n->u.op.right = right;
 
   // defsym
-  if (left->kind == NList) {
-    if (right->kind != NList) {
+  if (left->kind == NTuple) {
+    if (right->kind != NTuple) {
       syntaxerrp(p, left->pos, "assignment mismatch: %u targets but 1 value",
         left->u.array.a.len);
     } else {
@@ -340,7 +340,7 @@ static Node* pAssign(P* p, const Parselet* e, Node* left) {
         }
       }
     }
-  } else if (right->kind == NList) {
+  } else if (right->kind == NTuple) {
     syntaxerrp(p, left->pos, "assignment mismatch: 1 target but %u values",
       right->u.array.a.len);
   } else if (left->kind == NIdent) {
@@ -390,7 +390,7 @@ static Node* ptype(P* p) {
 
 // helper for PVar to parse a multi-name definition
 static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
-  auto names = PNewNode(p, NList);
+  auto names = PNewNode(p, NTuple);
   names->pos = ident0->pos;
 
   NodeListAppend(&p->cc->mem, &names->u.array.a, ident0);
@@ -435,7 +435,7 @@ static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
   }
 
   if (got(p, ',')) {
-    auto extra = exprList(p, PREC_MEMBER);
+    auto extra = ptuple(p, PREC_MEMBER);
     syntaxerrp(p, extra->pos, "assignment mismatch: %u targets but %u values",
       namecount, namecount + extra->u.array.a.len);
   }
@@ -444,8 +444,8 @@ static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
 }
 
 
-// VarDecl   = "var" identList (Type? "=" exprList | Type)
-// ConstDecl = "const" identList Type? "=" exprList
+// VarDecl   = "var" identList (Type? "=" ptuple | Type)
+// ConstDecl = "const" identList Type? "=" ptuple
 //
 // e.g. "var x, y u32 = 3, 45"
 //
@@ -500,7 +500,7 @@ static Node* PComment(P* p) {
 //!PrefixParselet TLParen
 static Node* PGroup(P* p) {
   next(p); // consume "("
-  auto n = expr(p, PREC_LOWEST);
+  auto n = exprOrTuple(p, PREC_LOWEST);
   want(p, ')');
   return n;
 }
@@ -510,7 +510,7 @@ static Node* PCall(P* p, const Parselet* e, Node* receiver) {
   auto n = PNewNode(p, NCall);
   next(p); // consume "("
   n->u.call.receiver = receiver;
-  n->u.call.args = exprListTrailingComma(p, PREC_LOWEST, ')');
+  n->u.call.args = tupleTrailingComma(p, PREC_LOWEST, ')');
   want(p, ')');
   return n;
 }
@@ -524,8 +524,8 @@ static Node* PBlock(P* p) {
   pushScope(p);
 
   while (p->s.tok != TNone && p->s.tok != '}') {
-    // nlistPush(n, exprOrList(p, PREC_LOWEST));
-    NodeListAppend(&p->cc->mem, &n->u.array.a, exprOrList(p, PREC_LOWEST));
+    // nlistPush(n, exprOrTuple(p, PREC_LOWEST));
+    NodeListAppend(&p->cc->mem, &n->u.array.a, exprOrTuple(p, PREC_LOWEST));
     if (!got(p, ';')) {
       break;
     }
@@ -608,7 +608,7 @@ static Node* PReturn(P* p) {
   auto n = PNewNode(p, NReturn);
   next(p);
   if (p->s.tok != ';' && p->s.tok != '}') {
-    n->u.op.left = exprOrList(p, PREC_LOWEST);
+    n->u.op.left = exprOrTuple(p, PREC_LOWEST);
   }
   return n;
 }
@@ -630,7 +630,7 @@ static Node* params(P* p) {
   // (T1, T2, ... T3)
   //
   want(p, '(');
-  auto n = PNewNode(p, NList);
+  auto n = PNewNode(p, NTuple);
   bool hasTypedParam = false; // true when at least one param has type; e.g. "x T"
   NodeList typeq = {0};
 
@@ -727,14 +727,14 @@ static Node* pfun(P* p, bool nameOptional) {
   }
   // result type(s)
   if (p->s.tok != '{' && p->s.tok != ';' && p->s.tok != TRArr) {
-    n->type = exprOrList(p, PREC_LOWEST);
+    n->type = exprOrTuple(p, PREC_LOWEST);
   }
   // body
   p->fnest++;
   if (p->s.tok == '{') {
     n->u.fun.body = PBlock(p);
   } else if (got(p, TRArr)) {
-    n->u.fun.body = exprOrList(p, PREC_LOWEST);
+    n->u.fun.body = exprOrTuple(p, PREC_LOWEST);
   }
   p->fnest--;
   n->u.fun.scope = popScope(p);
@@ -824,20 +824,25 @@ static Node* expr(P* p, int precedence) {
 }
 
 
-// exprOrList = Expr | exprList
-static Node* exprOrList(P* p, int precedence) {
+// exprOrTuple = Expr | Tuple
+static Node* exprOrTuple(P* p, int precedence) {
   // // skip semicolons
   // while (got(p, TSemi)) {
   //   next(p);
   // }
 
+  // auto srcpos = SrcPosFmt(sdsempty(), SSrcPos(&p->s));
+  // dlog("%s exprOrTuple: start at token %s", srcpos, TokName(p->s.tok));
+
   // parse prefix
   auto left = prefixExpr(p);
+
+  // dlog("exprOrTuple: After left, got token %s", TokName(p->s.tok));
 
   // if a comma appears after a primary expression, read more primary expressions and group
   // them into an List.
   if (got(p, TComma)) {
-    auto g = PNewNode(p, NList);
+    auto g = PNewNode(p, NTuple);
     NodeListAppend(&p->cc->mem, &g->u.array.a, left);
     do {
       NodeListAppend(&p->cc->mem, &g->u.array.a, prefixExpr(p));
@@ -849,13 +854,13 @@ static Node* exprOrList(P* p, int precedence) {
 }
 
 
-// exprList = Expr ("," Expr)*
-static Node* exprList(P* p, int precedence) {
-  auto list = PNewNode(p, NList);
+// ptuple = Expr ("," Expr)+
+static Node* ptuple(P* p, int precedence) {
+  auto tuple = PNewNode(p, NTuple);
   do {
-    NodeListAppend(&p->cc->mem, &list->u.array.a, expr(p, precedence));
+    NodeListAppend(&p->cc->mem, &tuple->u.array.a, expr(p, precedence));
   } while (got(p, TComma));
-  return list;
+  return tuple;
 }
 
 
@@ -873,7 +878,7 @@ Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
   pushScope(p);
 
   while (p->s.tok != TNone) {
-    Node* n = exprOrList(p, PREC_LOWEST);
+    Node* n = exprOrTuple(p, PREC_LOWEST);
     NodeListAppend(&p->cc->mem, &file->u.array.a, n);
 
     // // print associated comments

@@ -53,11 +53,12 @@ So, the identity of any type is a list:
     bool                      => 5
     fun                       => 6
     funret                    => 7
-    (int,float)               => 0, 1
-    (int,float,float,int)     => 0, 1, 1, 0
-    ((int,float),(float,int)) => 0, 1, 1, 0
+    tuple                     => 8
+    (int,float)               => 8, 0, 1
+    (int,float,float,int)     => 8, 0, 1, 1, 0
+    ((int,float),(float,int)) => 8, 8, 0, 1, 8, 1, 0
     [int]                     => 4, 0
-    [(int,float)]             => 4, 0, 1
+    [(int,float)]             => 4, 8, 0, 1
     fun(int,[float])bool      => 6, 0, 4, 1, 7, 5
 
 
@@ -203,25 +204,30 @@ At the call sites we can generate just the code needed:
 
 ## Listing of identities
 
-    typeid(nil)                    = 0
-    typeid(bool)                   = 10
-    typeid(int8)                   = 20
-    typeid(int16)                  = 21
-    typeid(int32)                  = 22
-    typeid(int64)                  = 23
-    typeid(uint8)                  = 24
-    typeid(uint16)                 = 25
-    typeid(uint32)                 = 26
-    typeid(uint64)                 = 27
-    typeid(float32)                = 30
-    typeid(float64)                = 31
-    typeid(str)                    = 40
-    typeid(list)                   = 41
-    typeid(struct)                 = 42
-    typeid(fun)                    = 43
-    typeid(funret)                 = 44
+    id(nil)                    = 0
+    id(bool)                   = 10
+    id(int8)                   = 20
+    id(int16)                  = 21
+    id(int32)                  = 22
+    id(int64)                  = 23
+    id(uint8)                  = 24
+    id(uint16)                 = 25
+    id(uint32)                 = 26
+    id(uint64)                 = 27
+    id(float32)                = 30
+    id(float64)                = 31
+    id(tuple)                  = 40
+    id(list)                   = 41
+    id(struct)                 = 42
+    id(fun)                    = 43
+    id(funret)                 = 44
+    id(str)                    = 45
     // compound types:
-    typeid(int,float)              = typeid(int), typeid(float)
-    typeid((int,float),(bool,int)) = typeid(int,float), typeid(bool,int)
-    typeid([int])                  = typeid(list), typeid(int)
-    typeid({name str; age int})    = ("age", typeid(int)) ("name", typeid(str))
+    id(int,float)              = id(tuple), id(int), id(float)
+    id((int,float),(bool,int)) = id(tuple), id(tuple), id(int,float),
+                                            id(tuple), id(bool,int)
+    id([int])                  = id(list), id(int)
+    id({name str; age int})    = id(struct) ("age", id(int))
+                                            ("name", id(str))
+    id(fun(int,float)->bool)   = id(fun)
+
