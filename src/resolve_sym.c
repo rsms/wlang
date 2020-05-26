@@ -35,14 +35,14 @@ static void resolveErrorf(ResCtx* ctx, SrcPos pos, const char* format, ...) {
 
 
 static inline Node* resolveConst(Node* n, Scope* scope, ResCtx* ctx) {
-  assert(n->u.field.init != NULL);
-  auto value = resolve(n->u.field.init, scope, ctx);
+  assert(n->field.init != NULL);
+  auto value = resolve(n->field.init, scope, ctx);
   // short-circuit constants inside functions
   if (value != n) {
     if (ctx->fnest > 0) {
       return value;
     }
-    n->u.field.init = value;
+    n->field.init = value;
   }
   return n;
 }
@@ -50,17 +50,17 @@ static inline Node* resolveConst(Node* n, Scope* scope, ResCtx* ctx) {
 
 static const Node* resolveIdent(const Node* n, Scope* scope, ResCtx* ctx) {
   while (1) {
-    const Node* target = n->u.ref.target;
-    // dlog("resolveIdent %s", n->u.ref.name);
+    const Node* target = n->ref.target;
+    // dlog("resolveIdent %s", n->ref.name);
     if (target == NULL) {
-      target = ScopeLookup(scope, n->u.ref.name);
+      target = ScopeLookup(scope, n->ref.name);
       if (target == NULL) {
-        resolveErrorf(ctx, n->pos, "undefined symbol %s", n->u.ref.name);
-        ((Node*)n)->u.ref.target = NodeBad;
+        resolveErrorf(ctx, n->pos, "undefined symbol %s", n->ref.name);
+        ((Node*)n)->ref.target = NodeBad;
         return n;
       }
-      ((Node*)n)->u.ref.target = target;
-      // dlog("resolveIdent %s => %s", n->u.ref.name, NodeKindName(target->kind));
+      ((Node*)n)->ref.target = target;
+      // dlog("resolveIdent %s => %s", n->ref.name, NodeKindName(target->kind));
     }
     switch (target->kind) {
       case NIdent:
@@ -78,7 +78,7 @@ static const Node* resolveIdent(const Node* n, Scope* scope, ResCtx* ctx) {
 static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   // dlog("resolve(%s, scope=%p)", NodeKindName(n->kind), scope);
 
-  if (n->type != NULL && n->type->kind != NType) {
+  if (n->type != NULL && n->type->kind != NBasicType) {
     if (n->kind == NFun) {
       ctx->fnest++;
     }
@@ -99,10 +99,10 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   case NBlock:
   case NTuple:
   case NFile: {
-    if (n->u.array.scope) {
-      scope = n->u.array.scope;
+    if (n->array.scope) {
+      scope = n->array.scope;
     }
-    NodeListMap(&n->u.array.a, n,
+    NodeListMap(&n->array.a, n,
       resolve(n, scope, ctx)
     );
     break;
@@ -111,16 +111,16 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   // uses u.fun
   case NFun: {
     ctx->fnest++;
-    if (n->u.fun.params) {
-      resolve(n->u.fun.params, scope, ctx);
+    if (n->fun.params) {
+      resolve(n->fun.params, scope, ctx);
     }
     if (n->type) {
       resolve(n->type, scope, ctx);
     }
-    auto body = n->u.fun.body;
+    auto body = n->fun.body;
     if (body) {
-      if (n->u.fun.scope) {
-        scope = n->u.fun.scope;
+      if (n->fun.scope) {
+        scope = n->fun.scope;
       }
       resolve(body, scope, ctx);
     }
@@ -133,31 +133,31 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   case NPrefixOp:
   case NAssign:
   case NReturn: {
-    auto newleft = resolve(n->u.op.left, scope, ctx);
-    if (n->kind != NAssign || n->u.op.left->kind != NIdent) {
+    auto newleft = resolve(n->op.left, scope, ctx);
+    if (n->kind != NAssign || n->op.left->kind != NIdent) {
       // note: in case of assignment where the left side is an identifier,
       // avoid replacing the identifier with its value.
       // This branch is taken in all other cases.
-      n->u.op.left = newleft;
+      n->op.left = newleft;
     }
-    if (n->u.op.right) {
-      n->u.op.right = resolve(n->u.op.right, scope, ctx);
+    if (n->op.right) {
+      n->op.right = resolve(n->op.right, scope, ctx);
     }
     break;
   }
 
   // uses u.call
   case NCall:
-    n->u.call.args = resolve(n->u.call.args, scope, ctx);
-    n->u.call.receiver = resolve(n->u.call.receiver, scope, ctx);
+    n->call.args = resolve(n->call.args, scope, ctx);
+    n->call.receiver = resolve(n->call.receiver, scope, ctx);
     break;
 
   // uses u.field
   case NVar:
   case NLet:
   case NField: {
-    if (n->u.field.init) {
-      n->u.field.init = resolve(n->u.field.init, scope, ctx);
+    if (n->field.init) {
+      n->field.init = resolve(n->field.init, scope, ctx);
     }
     break;
   }
@@ -166,16 +166,16 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
 
   // uses u.cond
   case NIf:
-    resolve(n->u.cond.cond, scope, ctx);
-    resolve(n->u.cond.thenb, scope, ctx);
-    if (n->u.cond.elseb) {
-      resolve(n->u.cond.elseb, scope, ctx);
+    resolve(n->cond.cond, scope, ctx);
+    resolve(n->cond.thenb, scope, ctx);
+    if (n->cond.elseb) {
+      resolve(n->cond.elseb, scope, ctx);
     }
     break;
 
   case NNone:
   case NBad:
-  case NType:
+  case NBasicType:
   case NFunType:
   case NTupleType:
   case NComment:

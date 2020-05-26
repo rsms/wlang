@@ -13,7 +13,7 @@ typedef enum {
   /* N<kind>     NClass<class> */ \
   _(None,        Invalid) \
   _(Bad,         Invalid) /* substitute "filler node" for invalid syntax */ \
-  _(Type,        Type) /* Basic type, e.g. int, bool */ \
+  _(BasicType,   Type) /* Basic type, e.g. int, bool */ \
   _(FunType,     Type) /* Function type, e.g. (int,int)->(float,bool) */ \
   _(TupleType,   Type) /* Tuple type, e.g. (float,bool,int) */ \
   _(File,        Expr) \
@@ -129,40 +129,22 @@ typedef struct Node {
     } cond;
 
     // Type
-    // struct {
-    //   const Sym id; // lazy; initially NULL. Computed from Node.
-    //   union {
-    //     struct { // Type
-    //       // const Sym id; // lazy
-    //       TypeID tid;
-    //       Sym    name;
-    //     } basic;
-    //     struct { // TupleType
-    //       // const Sym typeSym; // lazy
-    //       NodeList a;
-    //     } tuple;
-    //     struct { // FunType
-    //       Node*  params;
-    //       Node*  result;
-    //     } fun;
-    //   };
-    // } t;
-
-    struct { // Type
-      // const Sym id; // lazy
-      TypeID tid;
-      Sym    name;
+    struct {
+      Sym id; // lazy; initially NULL. Computed from Node.
+      union {
+        struct { // BasicType
+          TypeCode typeCode;
+          Sym      name;
+        } basic;
+        NodeList tuple; // TupleType
+        struct { // FunType
+          Node* params;
+          Node* result;
+        } fun;
+      };
     } t;
-    struct { // TupleType
-      // const Sym typeSym; // lazy
-      NodeList a;
-    } ttuple;
-    struct { // FunType
-      Node*  params;
-      Node*  result;
-    } tfun;
 
-  } u;
+  }; // union
 } Node;
 
 // Node* NodeAlloc(NodeKind); // one-off allocation using calloc()
@@ -175,7 +157,7 @@ Str NodeRepr(const Node* n, Str s); // return human-readable printable text repr
 // so either copy it into an sds Str or make use of it right away.
 const char* NodeReprShort(const Node*);
 
-// NodeIsType returns true if n represents a type (i.e. NType, NFunType, etc.)
+// NodeIsType returns true if n represents a type (i.e. NBasicType, NFunType, etc.)
 static inline bool NodeIsType(const Node* n) {
   return n != NULL && NodeClassTable[n->kind] == NodeClassType;
 }

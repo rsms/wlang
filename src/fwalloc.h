@@ -36,6 +36,8 @@ void FWAllocRecycle(FWAllocator*);  // recycle for reuse
 void FWAllocFree(FWAllocator*);     // free all memory allocated by an allocator
 void _FWAllocGrow(FWAllocator*);    // internal function used by FWAlloc
 
+// TODO: void* FWRealloc(FWAllocator* na, void* ptr, size_t size);
+
 // FWAlloc allocates some memory
 static inline void* FWAlloc(FWAllocator* na, size_t size) {
   // allocates space for a Node in the head block of the mfree list.

@@ -21,28 +21,29 @@
 /*END W_TYPE_SYMS*/
 
 
-// TypeID identifies all basic types
+// TypeCode identifies all basic types
 typedef enum {
-  // named types exported in the global scope
-  TypeID_bool    = 'b',
-  TypeID_int     = 'i',
-  TypeID_uint    = 'u',
-  TypeID_int8    = '1',
-  TypeID_int16   = '2',
-  TypeID_int32   = '4',
-  TypeID_int64   = '8',
-  TypeID_uint8   = '3',
-  TypeID_uint16  = '5',
-  TypeID_uint32  = '6',
-  TypeID_uint64  = '7',
-  TypeID_float32 = 'f',
-  TypeID_float64 = 'F',
-  TypeID_str     = 's',
+  // named types exported in the global scope. Names must match those of TYPE_SYMS.
+  TypeCode_bool    = 'b',
+  TypeCode_int     = 'i',
+  TypeCode_uint    = 'u',
+  TypeCode_int8    = '1',
+  TypeCode_int16   = '2',
+  TypeCode_int32   = '4',
+  TypeCode_int64   = '8',
+  TypeCode_uint8   = '3',
+  TypeCode_uint16  = '5',
+  TypeCode_uint32  = '6',
+  TypeCode_uint64  = '7',
+  TypeCode_float32 = 'f',
+  TypeCode_float64 = 'F',
+  TypeCode_str     = 's',
 
   // internal types not directly reachable by names in the language
-  TypeID_nil     = '0',
-  TypeID_fun     = '^',
-  TypeID_tuple   = '(', TypeID_tupleEnd  = ')',
-  TypeID_list    = '[', TypeID_listEnd   = '[',
-  TypeID_struct  = '{', TypeID_structEnd = '{',
-} TypeID;
+  TypeCode_nil     = '0',
+  TypeCode_fun     = '^',
+  TypeCode_tuple   = '(', TypeCode_tupleEnd  = ')',
+  TypeCode_list    = '[', TypeCode_listEnd   = '[',
+  TypeCode_struct  = '{', TypeCode_structEnd = '{',
+} TypeCode;
+

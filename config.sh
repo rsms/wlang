@@ -16,7 +16,9 @@ sources=( \
   src/scan.c \
   src/sds.c \
   src/source.c \
+  src/str.c \
   src/sym.c \
+  src/tmpdata.c \
   src/tstyle.c \
   src/typeid.c \
   src/unicode.c \

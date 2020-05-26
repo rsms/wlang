@@ -18,3 +18,11 @@ fun factorial(n int) int {
     n * factorial(n - 1)
   }
 }
+
+# fun factorial(n float32) float32 {
+#   if n <= 0.0 {
+#     1.0
+#   } else {
+#     n * factorial(n - 1.0)
+#   }
+# }

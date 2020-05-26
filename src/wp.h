@@ -147,6 +147,8 @@ typedef enum {
   ErrSize,   // size is wrong
 } Err;
 
+
+
 // sds, Str
 #include "sds.h"
 #define Str  sds
@@ -162,8 +164,24 @@ inline static Str strgrow(Str s, size_t addlSize) {
   return sdsMakeRoomFor(s, align2(addlSize, 128));
 }
 
+// strrepr returns a printable representation of an sds string (sds, Sym, etc.)
+// using sdscatrepr which encodes non-printable ASCII chars for safe printing.
+// E.g. "foo\x00bar" if the string contains a zero byte.
+// Not thread safe! Use sdscatrepr when you need thread safety.
+const char* strrepr(CStr);
+
+
+// TmpData allocates "size" number of bytes to be used for a short amount of time.
+// The returned memory is valid until the next call to TmpRecycle() in the same thread.
+void* TmpData(size_t size);
+
+// TmpRecycle frees all memory allocated with TmpData.
+void TmpRecycle();
+
+
 // Sym
 #include "sym.h"
+
 
 // Source
 typedef struct {
@@ -190,6 +208,7 @@ void SourceFree(Source*);
 Str SrcPosMsg(Str s, SrcPos, CStr message);
 Str SrcPosFmt(Str s, SrcPos pos); // "<file>:<line>:<col>"
 LineCol SrcPosLineCol(SrcPos);
+
 
 // -----------------------------
 // Unicode

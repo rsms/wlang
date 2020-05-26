@@ -1,27 +1,8 @@
 #include "wp.h"
-#include "hash.h"
 #include "types.h"
 
 // See docs/typeid.md
 
-
-// static bool TypeEquals(const Node* t1, const Node* t2) {
-//   return t1 == t2;
-// }
-
-// TypeSymRepr returns a printable representation of a type symbol's value.
-// E.g. a tuple (int, int, bool) is represented as "(iib)".
-// Not thread safe!
-static const char* TypeSymRepr(const Sym s) {
-  static Str buf;
-  if (buf == NULL) {
-    buf = sdsempty();
-  } else {
-    sdssetlen(buf, 0);
-  }
-  buf = sdscatrepr(buf, s, symlen(s));
-  return buf;
-}
 
 // // TypeSymStr returns a human-readable representation of a type symbol.
 // // E.g. a tuple (int, int, bool) is represented as "(int, int, bool)".
@@ -39,72 +20,99 @@ static const char* TypeSymRepr(const Sym s) {
 // }
 
 
-inline static void sdsPushChar(Str s, char c) {
+inline static Str sdsPushChar(Str s, char c) {
+  if (sdsavail(s) < 1) {
+    // grow by some margin when there's no more room
+    s = sdsMakeRoomFor(s, 32);
+  }
   auto slen = sdslen(s);
   s[slen] = c;
   sdssetlen(s, slen + 1);
+  return s;
 }
 
 
 static Str buildTypeSymStr(Str s, const Node* n) {
-  if (sdsavail(s) < 1) {
-    s = sdsMakeRoomFor(s, 32);
+  if (n->kind != NBasicType && n->t.id) {
+    // append n's precomputed type id. E.g. "(ii)" for a tuple "(int, int)".
+    // However for basic types its faster to just use sdsPushChar as buildTypeSymStr is
+    // never called directly for a basic type, as all basic types have precomputed TypeIDs
+    // which short-circuits GetTypeID.
+    return sdscatlen(s, n->t.id, symlen(n->t.id));
   }
   switch (n->kind) {
 
-    case NType: {
-      sdsPushChar(s, n->u.t.tid);
+    case NBasicType:
+      s = sdsPushChar(s, n->t.basic.typeCode);
       break;
-    }
 
-    case NTupleType: {
-      sdsPushChar(s, TypeID_tuple);
-      NodeListForEach(&n->u.ttuple.a, n, {
-        dlog("+ append node of type %s", NodeReprShort(n));
+    case NTupleType:
+      s = sdsPushChar(s, TypeCode_tuple);
+      NodeListForEach(&n->t.tuple, n, {
         s = buildTypeSymStr(s, n);
       });
-      if (sdsavail(s) < 1) {
-        s = sdsMakeRoomFor(s, 32);
+      s = sdsPushChar(s, TypeCode_tupleEnd);
+      break;
+
+    case NFunType: {
+      s = sdsPushChar(s, TypeCode_fun);
+      if (n->t.fun.params) {
+        s = buildTypeSymStr(s, n->t.fun.params);
+      } else {
+        s = sdsPushChar(s, TypeCode_nil);
       }
-      sdsPushChar(s, TypeID_tupleEnd);
+      if (n->t.fun.result) {
+        s = buildTypeSymStr(s, n->t.fun.result);
+      } else {
+        s = sdsPushChar(s, TypeCode_nil);
+      }
       break;
     }
 
     default:
       dlog("TODO buildTypeSymStr handle %s", NodeKindName(n->kind));
+      assert(!NodeIsType(n)); // unhandled type
       break;
   }
   return s;
 }
 
 
-// getTypeSym returns the type Sym for t.
+// GetTypeID returns the type Sym identifying n.
 // Not thread safe!
-static Sym getTypeSym(const Node* t) {
-  // TODO: precompile type Sym's for all basic types (all in TYPE_SYMS + nil)
+Sym GetTypeID(Node* n) {
+  if (n->t.id != NULL) {
+    return n->t.id;
+  }
+  // TODO: precompile type Sym's for all basic types
   static Str buf;
   if (buf == NULL) {
     buf = sdsempty();
   } else {
     sdssetlen(buf, 0);
   }
-  buf = buildTypeSymStr(buf, t);
+
+  buf = buildTypeSymStr(buf, n);
   // Note: buf is likely not nil-terminated at this point. Use sdslen(buf).
-  dlog("buildTypeSymStr() => %s", sdscatrepr(sdsempty(), buf, sdslen(buf)));
+  // dlog("buildTypeSymStr() => %s", sdscatrepr(sdsempty(), buf, sdslen(buf)));
 
-  return symgeth((const u8*)buf, sdslen(buf));
+  Sym id = symgeth((const u8*)buf, sdslen(buf));
+  n->t.id = id;
+  return id;
 }
 
 
-static size_t typeIDForNode(const Node* n) {
-  switch (n->kind) {
-    case NType: return n->u.t.tid;
-    case NTupleType: return TypeID_tuple;
-    default:
-      dlog("TODO buildTypeSymStr handle %s", NodeKindName(n->kind));
-      return TypeID_nil;
+bool TypeEquals(Node* a, Node* b) {
+  assert(NodeIsType(a));
+  if (a->kind != b->kind) {
+    return false;
   }
+  if (a->kind == NBasicType) { // common case
+    return a->t.id == b->t.id;
+  }
+  return GetTypeID(a) == GetTypeID(b);
 }
+
 
 //
 // Operations needed:
@@ -152,52 +160,142 @@ static void test() {
 
   auto scope = ScopeNew(GetGlobalScope()); // defined in ast.h
 
-  dlog("sizeof(TypeID_nil) %zu", sizeof(TypeID_nil));
+  dlog("sizeof(TypeCode_nil) %zu", sizeof(TypeCode_nil));
 
   // const u8 data[] = { '\t', 1, 2, 3 };
-  // auto typeSym = symgeth(data, sizeof(data));
-  // dlog("typeSym: %p", typeSym);
+  // auto id = symgeth(data, sizeof(data));
+  // dlog("id: %p", id);
 
-  // auto typeNode = mknode(NType);
+  // auto typeNode = mknode(NBasicType);
   // dlog("typeNode: %p", typeNode);
 
-  // const Node* replacedNode = ScopeAssoc(scope, typeSym, typeNode);
+  // const Node* replacedNode = ScopeAssoc(scope, id, typeNode);
   // dlog("ScopeAssoc() => replacedNode: %p", replacedNode);
 
-  // const Node* foundTypeNode = ScopeLookup(scope, typeSym);
+  // const Node* foundTypeNode = ScopeLookup(scope, id);
   // dlog("ScopeLookup() => foundTypeNode: %p", foundTypeNode);
 
 
   { // build a type Sym from a basic data type. Type_int is a predefined node (sym.h)
-    auto intType = getTypeSym(Type_int);
-    dlog("int intType: %p %s", intType, TypeSymRepr(intType));
+    auto intType = GetTypeID(Type_int);
+    dlog("int intType: %p %s", intType, strrepr(intType));
   }
 
   { // (int, int, bool) => "(iib)"
     Node* tupleType = mknode(NTupleType);
-    NodeListAppend(&mem, &tupleType->u.ttuple.a, Type_int);
-    NodeListAppend(&mem, &tupleType->u.ttuple.a, Type_int);
-    NodeListAppend(&mem, &tupleType->u.ttuple.a, Type_bool);
-    auto typeSym = getTypeSym(tupleType);
-    dlog("tuple (int, int, bool) typeSym: %p %s", typeSym, TypeSymRepr(typeSym));
+    NodeListAppend(&mem, &tupleType->t.tuple, Type_int);
+    NodeListAppend(&mem, &tupleType->t.tuple, Type_int);
+    NodeListAppend(&mem, &tupleType->t.tuple, Type_bool);
+    auto id = GetTypeID(tupleType);
+    dlog("tuple (int, int, bool) id: %p %s", id, strrepr(id));
   }
 
   { // ((int, int), (bool, int), int) => "((ii)(bi)i)"
     Node* t2 = mknode(NTupleType);
-    NodeListAppend(&mem, &t2->u.ttuple.a, Type_bool);
-    NodeListAppend(&mem, &t2->u.ttuple.a, Type_int);
+    NodeListAppend(&mem, &t2->t.tuple, Type_bool);
+    NodeListAppend(&mem, &t2->t.tuple, Type_int);
 
     Node* t1 = mknode(NTupleType);
-    NodeListAppend(&mem, &t1->u.ttuple.a, Type_int);
-    NodeListAppend(&mem, &t1->u.ttuple.a, Type_int);
+    NodeListAppend(&mem, &t1->t.tuple, Type_int);
+    NodeListAppend(&mem, &t1->t.tuple, Type_int);
 
     Node* t0 = mknode(NTupleType);
-    NodeListAppend(&mem, &t0->u.ttuple.a, t1);
-    NodeListAppend(&mem, &t0->u.ttuple.a, t2);
-    NodeListAppend(&mem, &t0->u.ttuple.a, Type_int);
+    NodeListAppend(&mem, &t0->t.tuple, t1);
+    NodeListAppend(&mem, &t0->t.tuple, t2);
+    NodeListAppend(&mem, &t0->t.tuple, Type_int);
 
-    auto typeSym = getTypeSym(t0);
-    dlog("tuple (int, int, bool) typeSym: %p %s", typeSym, TypeSymRepr(typeSym));
+    auto id = GetTypeID(t0);
+    dlog("tuple (int, int, bool) id: %p %s", id, strrepr(id));
+
+    // create second one that has the same shape
+    Node* t2b = mknode(NTupleType);
+    NodeListAppend(&mem, &t2b->t.tuple, Type_bool);
+    NodeListAppend(&mem, &t2b->t.tuple, Type_int);
+
+    Node* t1b = mknode(NTupleType);
+    NodeListAppend(&mem, &t1b->t.tuple, Type_int);
+    NodeListAppend(&mem, &t1b->t.tuple, Type_int);
+
+    Node* t0b = mknode(NTupleType);
+    NodeListAppend(&mem, &t0b->t.tuple, t1b);
+    NodeListAppend(&mem, &t0b->t.tuple, t2b);
+    NodeListAppend(&mem, &t0b->t.tuple, Type_int);
+
+    // they should be equivalent
+    assert(TypeEquals(t0, t0b));
+
+    // create third one that has a slightly different shape (bool at end)
+    Node* t2c = mknode(NTupleType);
+    NodeListAppend(&mem, &t2c->t.tuple, Type_bool);
+    NodeListAppend(&mem, &t2c->t.tuple, Type_int);
+
+    Node* t1c = mknode(NTupleType);
+    NodeListAppend(&mem, &t1c->t.tuple, Type_int);
+    NodeListAppend(&mem, &t1c->t.tuple, Type_int);
+
+    Node* t0c = mknode(NTupleType);
+    NodeListAppend(&mem, &t0c->t.tuple, t1c);
+    NodeListAppend(&mem, &t0c->t.tuple, t2c);
+    NodeListAppend(&mem, &t0c->t.tuple, Type_bool);
+
+    // they should be different
+    assert( ! TypeEquals(t0, t0c));
+  }
+
+
+  { // fun (int,bool) -> int
+    Node* params = mknode(NTupleType);
+    NodeListAppend(&mem, &params->t.tuple, Type_int);
+    NodeListAppend(&mem, &params->t.tuple, Type_bool);
+
+    Node* result = Type_int;
+
+    Node* f = mknode(NFunType);
+    f->t.fun.params = params;
+    f->t.fun.result = result;
+
+    auto id = GetTypeID(f);
+    dlog("fun (int,bool) -> int id: %p %s", id, strrepr(id));
+    assert(strcmp(id, "^(ib)i") == 0);
+  }
+
+
+  { // fun () -> ()
+    Node* f = mknode(NFunType);
+    auto id = GetTypeID(f);
+    dlog("fun () -> () id: %p %s", id, strrepr(id));
+    assert(strcmp(id, "^00") == 0);
+  }
+
+
+  { // ( fun(int,bool)->int, fun(int)->bool, fun()->(int,bool) )
+    Node* params = mknode(NTupleType);
+    NodeListAppend(&mem, &params->t.tuple, Type_int);
+    NodeListAppend(&mem, &params->t.tuple, Type_bool);
+    Node* f1 = mknode(NFunType);
+    f1->t.fun.params = params;
+    f1->t.fun.result = Type_int;
+
+    params = mknode(NTupleType);
+    NodeListAppend(&mem, &params->t.tuple, Type_int);
+    Node* f2 = mknode(NFunType);
+    f2->t.fun.params = params;
+    f2->t.fun.result = Type_bool;
+
+    auto result = mknode(NTupleType);
+    NodeListAppend(&mem, &result->t.tuple, Type_int);
+    NodeListAppend(&mem, &result->t.tuple, Type_bool);
+    Node* f3 = mknode(NFunType);
+    f3->t.fun.result = result;
+
+    Node* t1 = mknode(NTupleType);
+    NodeListAppend(&mem, &t1->t.tuple, f1);
+    NodeListAppend(&mem, &t1->t.tuple, f2);
+    NodeListAppend(&mem, &t1->t.tuple, f3);
+
+    auto id = GetTypeID(t1);
+    dlog("t1 id: %p %s", id, strrepr(id));
+    assert(strcmp(id, "(^(ib)i^(i)b^0(ib))") == 0);
   }
 
 
@@ -205,5 +303,12 @@ static void test() {
   printf("\n--------------------------------------------------\n\n");
 }
 
-W_UNIT_TEST(TypeID, { test(); }) // W_UNIT_TEST
+W_UNIT_TEST(TypeCode, { test(); }) // W_UNIT_TEST
 #endif
+
+
+// // TypeGTEq returns true if L >= R. I.e. R fits in L.
+// // Examples:
+// //   TypeGTEq( {id int}, {name str; id int} ) => true
+// //   TypeGTEq( {name str; id int}, {id int} ) => false (R is missing "name" field)
+// bool TypeGTEq(Node* L, Node* R);

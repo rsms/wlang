@@ -51,6 +51,7 @@ void parsefile(Str filename, Scope* pkgscope) {
   printAst(file);
 
   CCtxFree(&cc);
+  TmpRecycle();
 }
 
 

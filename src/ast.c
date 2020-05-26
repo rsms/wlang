@@ -71,9 +71,9 @@ static Str reprEmpty(Str s, const ReprCtx* ctx) {
 //     case NBlock:
 //     case NTuple:
 //     case NFile:
-//       return n->u.array.scope;
+//       return n->array.scope;
 //     case NFun:
-//       return n->u.fun.scope;
+//       return n->fun.scope;
 //     default:
 //       return NULL;
 //   }
@@ -86,13 +86,13 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   // dlog("nodeRepr %s", NodeKindNameTable[n->kind]);
   // if (n->kind == NIdent) {
   //   dlog("  addr:   %p", n);
-  //   dlog("  name:   %s", n->u.ref.name);
-  //   if (n->u.ref.target == NULL) {
+  //   dlog("  name:   %s", n->ref.name);
+  //   if (n->ref.target == NULL) {
   //     dlog("  target: <null>");
   //   } else {
   //     dlog("  target:");
-  //     dlog("    addr:   %p", n->u.ref.target);
-  //     dlog("    kind:   %s", NodeKindNameTable[n->u.ref.target->kind]);
+  //     dlog("    addr:   %p", n->ref.target);
+  //     dlog("    kind:   %s", NodeKindNameTable[n->ref.target->kind]);
   //   }
   // }
 
@@ -113,9 +113,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   auto isType = NodeIsType(n);
   if (!isType) {
     s = indent(s, ctx);
-  }
 
-  if (!isType) {
     if (n->kind != NFile) {
       s = TStyleBlue(s);
       if (n->type) {
@@ -148,10 +146,10 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
 
   // uses u.integer
   case NInt:
-    s = sdscatfmt(s, "%U", n->u.integer);
+    s = sdscatfmt(s, "%U", n->integer);
     break;
   case NBool:
-    if (n->u.integer == 0) {
+    if (n->integer == 0) {
       s = sdscat(s, "false");
     } else {
       s = sdscat(s, "true");
@@ -160,38 +158,38 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
 
   // uses u.real
   case NFloat:
-    s = sdscatprintf(s, "%f", n->u.real);
+    s = sdscatprintf(s, "%f", n->real);
     break;
 
   // uses u.str
   case NComment:
-    s = sdscatrepr(s, (const char*)n->u.str.ptr, n->u.str.len);
+    s = sdscatrepr(s, (const char*)n->str.ptr, n->str.len);
     break;
 
   // uses u.ref
   case NIdent:
     s = TStyleRed(s);
-    s = sdscatsds(s, n->u.ref.name);
+    s = sdscatsds(s, n->ref.name);
     s = TStyleNone(s);
-    if (n->u.ref.target) {
-      s = sdscatfmt(s, " @%s", NodeKindNameTable[n->u.ref.target->kind]);
-      // s = nodeRepr(n->u.ref.target, s, ctx, depth + 1);
+    if (n->ref.target) {
+      s = sdscatfmt(s, " @%s", NodeKindNameTable[n->ref.target->kind]);
+      // s = nodeRepr(n->ref.target, s, ctx, depth + 1);
     }
     break;
 
-  case NType:
-    s = sdscatsds(s, n->u.t.name);
+  case NBasicType:
+    s = sdscatsds(s, n->t.basic.name);
     break;
 
   case NFunType: // TODO
-    if (n->u.tfun.params) {
-      s = nodeRepr(n->u.tfun.params, s, ctx, depth + 1);
+    if (n->t.fun.params) {
+      s = nodeRepr(n->t.fun.params, s, ctx, depth + 1);
     } else {
       s = sdscat(s, "()");
     }
     s = sdscat(s, "->");
-    if (n->u.tfun.result) {
-      s = nodeRepr(n->u.tfun.result, s, ctx, depth + 1);
+    if (n->t.fun.result) {
+      s = nodeRepr(n->t.fun.result, s, ctx, depth + 1);
     } else {
       s = sdscat(s, "()");
     }
@@ -202,13 +200,13 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   case NAssign:
   case NPrefixOp:
   case NReturn:
-    if (n->u.op.op != TNone) {
-      s = sdscat(s, TokName(n->u.op.op));
+    if (n->op.op != TNone) {
+      s = sdscat(s, TokName(n->op.op));
       s = sdscatlen(s, " ", 1);
     }
-    s = nodeRepr(n->u.op.left, s, ctx, depth + 1);
-    if (n->u.op.right) {
-      s = nodeRepr(n->u.op.right, s, ctx, depth + 1);
+    s = nodeRepr(n->op.left, s, ctx, depth + 1);
+    if (n->op.right) {
+      s = nodeRepr(n->op.right, s, ctx, depth + 1);
     }
     break;
 
@@ -218,17 +216,17 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   case NFile:
   {
     sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
-    NodeListForEach(&n->u.array.a, n, {
+    NodeListForEach(&n->array.a, n, {
       s = nodeRepr(n, s, ctx, depth + 1);
     });
     break;
   }
 
-  // uses u.ttuple
+  // uses u.t.tuple
   case NTupleType: {
     s = sdscatlen(s, "(", 1);
     bool first = true;
-    NodeListForEach(&n->u.ttuple.a, n, {
+    NodeListForEach(&n->t.tuple, n, {
       if (first) {
         first = false;
       } else {
@@ -246,7 +244,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   case NConst:
   case NField:
   {
-    auto f = &n->u.field;
+    auto f = &n->field;
     if (f->name) {
       s = sdscatsds(s, f->name);
     } else {
@@ -260,7 +258,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
 
   // uses u.fun
   case NFun: {
-    auto f = &n->u.fun;
+    auto f = &n->fun;
 
     if (f->name) {
       s = sdscatsds(s, f->name);
@@ -287,10 +285,10 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
 
   // uses u.call
   case NCall: {
-    // s = nodeRepr(n->u.call.receiver, s, ctx, depth + 1);
-    auto recv = n->u.call.receiver;
-    if (recv->u.fun.name) {
-      s = sdscatsds(s, recv->u.fun.name);
+    // s = nodeRepr(n->call.receiver, s, ctx, depth + 1);
+    auto recv = n->call.receiver;
+    if (recv->fun.name) {
+      s = sdscatsds(s, recv->fun.name);
     } else {
       s = sdscatlen(s, "_", 1);
     }
@@ -298,16 +296,16 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
     s = sdscatprintf(s, " %p", recv);
     s = TStyleNone(s);
 
-    s = nodeRepr(n->u.call.args, s, ctx, depth + 1);
+    s = nodeRepr(n->call.args, s, ctx, depth + 1);
     break;
   }
 
   // uses u.cond
   case NIf:
-    s = nodeRepr(n->u.cond.cond, s, ctx, depth + 1);
-    s = nodeRepr(n->u.cond.thenb, s, ctx, depth + 1);
-    if (n->u.cond.elseb) {
-      s = nodeRepr(n->u.cond.elseb, s, ctx, depth + 1);
+    s = nodeRepr(n->cond.cond, s, ctx, depth + 1);
+    s = nodeRepr(n->cond.thenb, s, ctx, depth + 1);
+    if (n->cond.elseb) {
+      s = nodeRepr(n->cond.elseb, s, ctx, depth + 1);
     }
     break;
 
@@ -343,17 +341,20 @@ CStr NodeReprShort(const Node* n) {
   // Note: Do not include type information.
   // Instead, in use sites, call NodeReprShort individually for n->type when needed.
 
-  static sds buf;
-  if (buf == NULL) {
-    buf = sdsMakeRoomFor(sdsempty(), 4096);
-  } else {
-    sdssetlen(buf, 0);
-  }
+  // TODO: Rewrite all of this to use TmpData instead of sds
+
   ReprCtx ctx = { 0 };
   ctx.maxdepth = 3;
   ctx.pretty = false;
   PtrMapInit(&ctx.seen, 32);
-  buf = nodeRepr(n, buf, &ctx, /*depth*/ 1);
+
+  auto s = nodeRepr(n, sdsempty(), &ctx, /*depth*/ 1);
+
+  // copy into tmpdata which is safe to return
+  char* buf = TmpData(sdslen(s) + 1);
+  memcpy(buf, s, sdslen(s) + 1);
+  sdsfree(s);
+
   return buf;
 }
 
