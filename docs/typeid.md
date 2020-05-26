@@ -1,6 +1,7 @@
-# typeid
+# Type Identity
 
-typeid manages type identity
+> This document is out of date. `typeid` has been changed to encode types using ASCII characters
+> and to express compound types with both opening and closing tokens.
 
 A type's identity is effectively its shape. Examples:
 
@@ -203,6 +204,8 @@ At the call sites we can generate just the code needed:
 
 
 ## Listing of identities
+
+> Out of date
 
     id(nil)                    = 0
     id(bool)                   = 10
