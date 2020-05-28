@@ -21,8 +21,15 @@ sources=( \
   src/tmpdata.c \
   src/tstyle.c \
   src/typeid.c \
+  src/types.c \
   src/unicode.c \
   src/wp.c \
+  \
+  src/ir/builder.c \
+  src/ir/fun.c \
+  src/ir/value.c \
+  src/ir/constcache.c \
+  src/ir/block.c \
 )
 # sources=src/*.c
 

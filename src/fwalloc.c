@@ -134,6 +134,63 @@ void _FWAllocGrow(FWAllocator* na) {
 }
 
 
+void* FWRealloc(FWAllocator* na, void* ptr, size_t oldsize, size_t newsize) {
+  if (ptr == NULL) {
+    return FWAlloc(na, newsize);
+  }
+  void* dst = FWAlloc(na, newsize);
+  memcpy(dst, ptr, oldsize);
+  return dst;
+}
+
+
+char* FWAllocCStr(FWAllocator* a, const char* pch, size_t len) {
+  auto s = (char*)FWAlloc(a, len + 1);
+  memcpy(s, pch, len);
+  s[len] = 0;
+  return s;
+}
+
+char* FWAllocCStrConcat(FWAllocator* a, const char* s1, ...) {
+  va_list ap;
+
+  size_t len1 = strlen(s1);
+  size_t len = len1;
+  u32 count = 0;
+  va_start(ap, s1);
+  while (1) {
+    const char* s = va_arg(ap,const char*);
+    if (s == NULL || count == 20) { // TODO: warn about limit somehow?
+      break;
+    }
+    len += strlen(s);
+  }
+  va_end(ap);
+
+  char* newstr = (char*)FWAlloc(a, len + 1);
+  char* dstptr = newstr;
+  memcpy(dstptr, s1, len1);
+  dstptr += len1;
+
+  va_start(ap, s1);
+  for (u32 i = 0; i < count; i++) {
+    const char* s = va_arg(ap,const char*);
+    auto len = strlen(s);
+    memcpy(dstptr, s, len);
+    dstptr += len;
+  }
+  va_end(ap);
+
+  *dstptr = 0;
+
+  return newstr;
+}
+
+
+// ——————————————————————————————————————————————————————————————————————————————————————————————
+// unit test
+
+
 W_UNIT_TEST(fwalloc, {
   FWAllocator a = {0};
   assert(a.mfree == NULL);

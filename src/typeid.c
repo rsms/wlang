@@ -43,28 +43,28 @@ static Str buildTypeSymStr(Str s, const Node* n) {
   switch (n->kind) {
 
     case NBasicType:
-      s = sdsPushChar(s, n->t.basic.typeCode);
+      s = sdsPushChar(s, TypeCodeEncoding[n->t.basic.typeCode]);
       break;
 
     case NTupleType:
-      s = sdsPushChar(s, TypeCode_tuple);
+      s = sdsPushChar(s, TypeCodeEncoding[TypeCode_tuple]);
       NodeListForEach(&n->t.tuple, n, {
         s = buildTypeSymStr(s, n);
       });
-      s = sdsPushChar(s, TypeCode_tupleEnd);
+      s = sdsPushChar(s, TypeCodeEncoding[TypeCode_tupleEnd]);
       break;
 
     case NFunType: {
-      s = sdsPushChar(s, TypeCode_fun);
+      s = sdsPushChar(s, TypeCodeEncoding[TypeCode_fun]);
       if (n->t.fun.params) {
         s = buildTypeSymStr(s, n->t.fun.params);
       } else {
-        s = sdsPushChar(s, TypeCode_nil);
+        s = sdsPushChar(s, TypeCodeEncoding[TypeCode_nil]);
       }
       if (n->t.fun.result) {
         s = buildTypeSymStr(s, n->t.fun.result);
       } else {
-        s = sdsPushChar(s, TypeCode_nil);
+        s = sdsPushChar(s, TypeCodeEncoding[TypeCode_nil]);
       }
       break;
     }
@@ -150,17 +150,16 @@ bool TypeEquals(Node* a, Node* b) {
 // ——————————————————————————————————————————————————————————————————————————————————————————————
 // unit test
 
-#ifdef DEBUG
+#if DEBUG
 static void test() {
-  printf("--------------------------------------------------\n");
+  // printf("--------------------------------------------------\n");
 
   FWAllocator mem = {0};
   FWAllocInit(&mem);
   #define mknode(t) NewNode(&mem, (t))
 
-  auto scope = ScopeNew(GetGlobalScope()); // defined in ast.h
-
-  dlog("sizeof(TypeCode_nil) %zu", sizeof(TypeCode_nil));
+  // auto scope = ScopeNew(GetGlobalScope()); // defined in ast.h
+  // dlog("sizeof(TypeCode_nil) %zu", sizeof(TypeCode_nil));
 
   // const u8 data[] = { '\t', 1, 2, 3 };
   // auto id = symgeth(data, sizeof(data));
@@ -176,10 +175,10 @@ static void test() {
   // dlog("ScopeLookup() => foundTypeNode: %p", foundTypeNode);
 
 
-  { // build a type Sym from a basic data type. Type_int is a predefined node (sym.h)
-    auto intType = GetTypeID(Type_int);
-    dlog("int intType: %p %s", intType, strrepr(intType));
-  }
+  // { // build a type Sym from a basic data type. Type_int is a predefined node (sym.h)
+  //   auto intType = GetTypeID(Type_int);
+  //   dlog("int intType: %p %s", intType, strrepr(intType));
+  // }
 
   { // (int, int, bool) => "(iib)"
     Node* tupleType = mknode(NTupleType);
@@ -187,7 +186,8 @@ static void test() {
     NodeListAppend(&mem, &tupleType->t.tuple, Type_int);
     NodeListAppend(&mem, &tupleType->t.tuple, Type_bool);
     auto id = GetTypeID(tupleType);
-    dlog("tuple (int, int, bool) id: %p %s", id, strrepr(id));
+    // dlog("tuple (int, int, bool) id: %p %s", id, strrepr(id));
+    assert(strcmp(id, "(iib)") == 0);
   }
 
   { // ((int, int), (bool, int), int) => "((ii)(bi)i)"
@@ -205,7 +205,7 @@ static void test() {
     NodeListAppend(&mem, &t0->t.tuple, Type_int);
 
     auto id = GetTypeID(t0);
-    dlog("tuple (int, int, bool) id: %p %s", id, strrepr(id));
+    assert(strcmp(id, "((ii)(bi)i)") == 0);
 
     // create second one that has the same shape
     Node* t2b = mknode(NTupleType);
@@ -255,7 +255,7 @@ static void test() {
     f->t.fun.result = result;
 
     auto id = GetTypeID(f);
-    dlog("fun (int,bool) -> int id: %p %s", id, strrepr(id));
+    // dlog("fun (int,bool) -> int id: %p %s", id, strrepr(id));
     assert(strcmp(id, "^(ib)i") == 0);
   }
 
@@ -263,7 +263,7 @@ static void test() {
   { // fun () -> ()
     Node* f = mknode(NFunType);
     auto id = GetTypeID(f);
-    dlog("fun () -> () id: %p %s", id, strrepr(id));
+    // dlog("fun () -> () id: %p %s", id, strrepr(id));
     assert(strcmp(id, "^00") == 0);
   }
 
@@ -294,13 +294,13 @@ static void test() {
     NodeListAppend(&mem, &t1->t.tuple, f3);
 
     auto id = GetTypeID(t1);
-    dlog("t1 id: %p %s", id, strrepr(id));
+    // dlog("t1 id: %p %s", id, strrepr(id));
     assert(strcmp(id, "(^(ib)i^(i)b^0(ib))") == 0);
   }
 
 
   FWAllocFree(&mem);
-  printf("\n--------------------------------------------------\n\n");
+  // printf("--------------------------------------------------\n");
 }
 
 W_UNIT_TEST(TypeCode, { test(); }) // W_UNIT_TEST

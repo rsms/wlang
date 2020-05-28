@@ -1,4 +1,5 @@
 #pragma once
+#include "fwalloc.h"
 
 // very simple array type
 typedef struct {
@@ -10,11 +11,18 @@ typedef struct {
 
 #define Array_INIT { NULL, 0, 0, true }
 
-#define Array_STACK_INIT(cap) (({ \
-  void* __ArrayStackStorage__##__LINE__[cap]; \
-  Array a = { __ArrayStackStorage__##__LINE__, 0, (cap), false }; \
+#define Array_STACK_INIT(capacity) (({ \
+  void* __ArrayStackStorage__##__LINE__[capacity]; \
+  Array a = { __ArrayStackStorage__##__LINE__, 0, (capacity), false }; \
   a; \
 }))
+
+inline static void ArrayInitWithStorage(Array* a, void* storagePtr, u32 storageSize) {
+  a->v = storagePtr;
+  a->len = 0;
+  a->cap = storageSize;
+  a->onheap = false;
+}
 
 // static void ArrayInit(Array* a) {
 //   a->v = NULL;
@@ -31,11 +39,11 @@ typedef struct {
 // }
 
 // cap = align2(len + addl)
-void ArrayGrow(Array*, size_t addl);
+void ArrayGrow(Array*, size_t addl, FWAllocator* allocator /* nullable */);
 
-inline static void ArrayPush(Array* a, void* v) {
+inline static void ArrayPush(Array* a, void* v, FWAllocator* allocator /* nullable */) {
   if (a->len == a->cap) {
-    ArrayGrow(a, 1);
+    ArrayGrow(a, 1, allocator);
   }
   a->v[a->len++] = v;
 }

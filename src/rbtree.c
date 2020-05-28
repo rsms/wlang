@@ -20,6 +20,25 @@
   #endif
 #endif
 
+#ifndef RBKEY_NULL
+  #define RBKEY_NULL NULL
+#endif
+
+// If RBUSERDATA is defined, then a last parameter is added to most functions
+// for threading through a value of this type.
+#ifdef RBUSERDATA
+  #define RB_COMMA ,
+  #define RBUSERDATA_NAME        userdata
+  #define RBUSERDATA_NAME_COMMA  RB_COMMA userdata
+  #define RBUSERDATA_            RBUSERDATA RBUSERDATA_NAME
+  #define RBUSERDATA_COMMA       RB_COMMA RBUSERDATA RBUSERDATA_NAME
+#else
+  #define RBUSERDATA_NAME
+  #define RBUSERDATA_NAME_COMMA
+  #define RBUSERDATA_
+  #define RBUSERDATA_COMMA
+#endif
+
 // The node type
 typedef struct RBNode {
   RBKEY          key;
@@ -34,22 +53,22 @@ typedef struct RBNode {
 // Implement the following functions:
 
 // RBAllocNode allocates memory for a node. It's called by RBSet.
-static RBNode* RBAllocNode();
+static RBNode* RBAllocNode(RBUSERDATA_);
 
 // RBFreeNode frees up a no-longer used node. Called by RBDelete and RBFree.
 //   Invariant: RBNode->left == NULL
 //   Invariant: RBNode->right == NULL
-static void RBFreeNode(RBNode* node);
+static void RBFreeNode(RBNode* node RBUSERDATA_COMMA);
 
 #ifdef RBVALUE
 // RBFreeNode frees up a no-longer used value. Called by RBSet when replacing a value.
-static void RBFreeValue(RBVALUE);
+static void RBFreeValue(RBVALUE RBUSERDATA_COMMA);
 #endif
 
 // RBCmp compares two keys. Return a negative value to indicate that the left
 // key is smaller than the right, a positive value for the inverse and zero
 // to indicate the keys are identical.
-static int RBCmp(RBKEY a, RBKEY b);
+static int RBCmp(RBKEY a, RBKEY b RBUSERDATA_COMMA);
 
 // Example implementation:
 // inline static RBNode* RBAllocNode() {
@@ -71,28 +90,28 @@ static int RBCmp(RBKEY a, RBKEY b);
 // API implemented by the remainder of this file
 
 // RBHas performs a lookup of k. Returns true if found.
-static bool RBHas(const RBNode* n, RBKEY k);
+static bool RBHas(const RBNode* n, RBKEY k RBUSERDATA_COMMA);
 
 #ifdef RBVALUE
   // RBGet performs a lookup of k. Returns value or RBVALUE_NOT_FOUND.
-  static RBVALUE RBGet(const RBNode* n, RBKEY k);
+  static RBVALUE RBGet(const RBNode* n, RBKEY k RBUSERDATA_COMMA);
 
   // RBSet adds or replaces value for k. Returns new n.
-  static RBNode* RBSet(RBNode* n, RBKEY k, RBVALUE v);
+  static RBNode* RBSet(RBNode* n, RBKEY k, RBVALUE v RBUSERDATA_COMMA);
 
   // RBSet adds value for k if it does not exist. Returns new n.
   // "added" is set to true when a new value was added, false otherwise.
-  static RBNode* RBAdd(RBNode* n, RBKEY k, RBVALUE v, bool* added);
+  static RBNode* RBAdd(RBNode* n, RBKEY k, RBVALUE v, bool* added RBUSERDATA_COMMA);
 #else
   // RBInsert adds k. May modify tree even if k exists. Returns new n.
-  static RBNode* RBInsert(RBNode* n, RBKEY k);
+  static RBNode* RBInsert(RBNode* n, RBKEY k RBUSERDATA_COMMA);
 #endif
 
 // RBDelete removes k if found. Returns new n.
-static RBNode* RBDelete(RBNode* n, RBKEY k);
+static RBNode* RBDelete(RBNode* n, RBKEY k RBUSERDATA_COMMA);
 
 // RBClear removes all entries. n is invalid after this operation.
-static void RBClear(RBNode* n);
+static void RBClear(RBNode* n RBUSERDATA_COMMA);
 
 // Iteration. Return true from callback to keep going.
 typedef bool(RBIterator)(const RBNode* n, void* userdata);
@@ -113,8 +132,9 @@ static RBNode* rbNewNode(
 #ifdef RBVALUE
 , RBVALUE value
 #endif
+  RBUSERDATA_COMMA
 ) {
-  RBNode* node = RBAllocNode();
+  RBNode* node = RBAllocNode(RBUSERDATA_NAME);
   if (node) {
     node->key   = key;
     #ifdef RBVALUE
@@ -153,25 +173,25 @@ static RBNode* rotateRight(RBNode* r) {
 
 // -------------------------------------------------------------------------------------
 
-inline static void RBClear(RBNode* node) {
+inline static void RBClear(RBNode* node RBUSERDATA_COMMA) {
   assert(node);
   if (node->left) {
-    RBClear(node->left);
+    RBClear(node->left RBUSERDATA_NAME_COMMA);
   }
   if (node->right) {
-    RBClear(node->right);
+    RBClear(node->right RBUSERDATA_NAME_COMMA);
   }
   node->left = (RBNode*)0;
   node->right = (RBNode*)0;
-  RBFreeNode(node);
+  RBFreeNode(node RBUSERDATA_NAME_COMMA);
 }
 
 // -------------------------------------------------------------------------------------
 
 
-inline static bool RBHas(const RBNode* node, RBKEY key) {
+inline static bool RBHas(const RBNode* node, RBKEY key RBUSERDATA_COMMA) {
   do {
-    int cmp = RBCmp(key, (RBKEY)node->key);
+    int cmp = RBCmp(key, (RBKEY)node->key RBUSERDATA_NAME_COMMA);
     if (cmp == 0) {
       return true;
     }
@@ -181,10 +201,22 @@ inline static bool RBHas(const RBNode* node, RBKEY key) {
 }
 
 
+// inline static const RBNode* RBGetNode(const RBNode* node, RBKEY key RBUSERDATA_COMMA) {
+//   do {
+//     int cmp = RBCmp(key, (RBKEY)node->key RBUSERDATA_NAME_COMMA);
+//     if (cmp == 0) {
+//       return node;
+//     }
+//     node = cmp < 0 ? node->left : node->right;
+//   } while (node);
+//   return NULL;
+// }
+
+
 #ifdef RBVALUE
-inline static RBVALUE RBGet(const RBNode* node, RBKEY key) {
+inline static RBVALUE RBGet(const RBNode* node, RBKEY key RBUSERDATA_COMMA) {
   do {
-    int cmp = RBCmp(key, (RBKEY)node->key);
+    int cmp = RBCmp(key, (RBKEY)node->key RBUSERDATA_NAME_COMMA);
     if (cmp == 0) {
       return (RBVALUE)node->value;
     }
@@ -223,12 +255,14 @@ static RBNode* rbInsert(
 #ifdef RBVALUE
 , RBVALUE value
 #endif
+  RBUSERDATA_COMMA
 ) {
   if (!node) {
     return rbNewNode(key
       #ifdef RBVALUE
       , value
       #endif
+      RBUSERDATA_NAME_COMMA
     );
   }
 
@@ -237,24 +271,24 @@ static RBNode* rbInsert(
   if (isred(node->left) && isred(node->right)) { flipColor(node); }
   #endif
 
-  int cmp = RBCmp(key, node->key);
+  int cmp = RBCmp(key, node->key RBUSERDATA_NAME_COMMA);
 
   #ifdef RBVALUE
-  if (cmp == 0) {
+  if (cmp < 0) {
+    node->left = rbInsert(node->left, key, value RBUSERDATA_NAME_COMMA);
+  } else if (cmp > 0) {
+    node->right = rbInsert(node->right, key, value RBUSERDATA_NAME_COMMA);
+  } else {
     // exists
     auto oldval = node->value;
     node->value = value;
-    RBFreeValue(oldval);
-  } else if (cmp < 0) {
-    node->left = rbInsert(node->left, key, value);
-  } else {
-    node->right = rbInsert(node->right, key, value);
+    RBFreeValue(oldval RBUSERDATA_NAME_COMMA);
   }
   #else
   if (cmp < 0) {
-    node->left = rbInsert(node->left, key);
+    node->left = rbInsert(node->left, key RBUSERDATA_NAME_COMMA);
   } else if (cmp > 0) {
-    node->right = rbInsert(node->right, key);
+    node->right = rbInsert(node->right, key RBUSERDATA_NAME_COMMA);
   } // else: key exists
   #endif
 
@@ -273,8 +307,8 @@ static RBNode* rbInsert(
 
 #ifdef RBVALUE
 
-inline static RBNode* RBSet(RBNode* root, RBKEY key, RBVALUE value) {
-  root = rbInsert(root, key, value);
+inline static RBNode* RBSet(RBNode* root, RBKEY key, RBVALUE value RBUSERDATA_COMMA) {
+  root = rbInsert(root, key, value RBUSERDATA_NAME_COMMA);
   if (root) {
     // Note: rbInsert returns NULL when out of memory (malloc failure)
     root->isred = false;
@@ -282,10 +316,10 @@ inline static RBNode* RBSet(RBNode* root, RBKEY key, RBVALUE value) {
   return root;
 }
 
-inline static RBNode* RBAdd(RBNode* root, RBKEY key, RBVALUE value, bool* added) {
-  if (!RBHas(root, key)) {
+inline static RBNode* RBAdd(RBNode* root, RBKEY key, RBVALUE value, bool* added RBUSERDATA_COMMA) {
+  if (!RBHas(root, key RBUSERDATA_NAME_COMMA)) {
     *added = true;
-    root = rbInsert(root, key, value);
+    root = rbInsert(root, key, value RBUSERDATA_NAME_COMMA);
     if (root) {
       root->isred = false;
     }
@@ -297,8 +331,8 @@ inline static RBNode* RBAdd(RBNode* root, RBKEY key, RBVALUE value, bool* added)
 
 #else
 
-inline static RBNode* RBInsert(RBNode* root, RBKEY key) {
-  root = rbInsert(root, key);
+inline static RBNode* RBInsert(RBNode* root, RBKEY key RBUSERDATA_COMMA) {
+  root = rbInsert(root, key RBUSERDATA_NAME_COMMA);
   if (root) {
     // Note: rbInsert returns NULL when out of memory (malloc failure)
     root->isred = false;
@@ -353,65 +387,65 @@ static RBNode* minNode(RBNode* node) {
   return node;
 }
 
-static RBNode* rbDeleteMin(RBNode* node) {
+static RBNode* rbDeleteMin(RBNode* node RBUSERDATA_COMMA) {
   if (!node->left) {
     // found; delete
     assert(node->right == NULL);
-    RBFreeNode(node);
+    RBFreeNode(node RBUSERDATA_NAME_COMMA);
     return NULL;
   }
   if (!isred(node->left) && !isred(node->left->left)) {
     node = moveRedLeft(node);
   }
-  node->left = rbDeleteMin(node->left);
+  node->left = rbDeleteMin(node->left RBUSERDATA_NAME_COMMA);
   return fixUp(node);
 }
 
-static RBNode* rbDelete(RBNode* node, RBKEY key) {
+static RBNode* rbDelete(RBNode* node, RBKEY key RBUSERDATA_COMMA) {
   assert(node);
-  int cmp = RBCmp(key, node->key);
+  int cmp = RBCmp(key, node->key RBUSERDATA_NAME_COMMA);
   if (cmp < 0) {
     assert(node->left != NULL);
     if (!isred(node->left) && !isred(node->left->left)) {
       node = moveRedLeft(node);
     }
-    node->left = rbDelete(node->left, key);
+    node->left = rbDelete(node->left, key RBUSERDATA_NAME_COMMA);
   } else {
     if (isred(node->left)) {
       node = rotateRight(node);
-      cmp = RBCmp(key, node->key);
+      cmp = RBCmp(key, node->key RBUSERDATA_NAME_COMMA);
     }
     if (cmp == 0 && node->right == NULL) {
       // found; delete
       assert(node->left == NULL);
-      RBFreeNode(node);
+      RBFreeNode(node RBUSERDATA_NAME_COMMA);
       return NULL;
     }
     assert(node->right != NULL);
     if (!isred(node->right) && !isred(node->right->left)) {
       node = moveRedRight(node);
-      cmp = RBCmp(key, node->key);
+      cmp = RBCmp(key, node->key RBUSERDATA_NAME_COMMA);
     }
     if (cmp == 0) {
       assert(node->right);
       auto m = minNode(node->right);
       node->key = m->key;
-      m->key = (RBKEY)NULL; // key moved; signal to RBFreeNode
+      m->key = (RBKEY)(RBKEY_NULL); // key moved; signal to RBFreeNode
       #ifdef RBVALUE
       node->value = m->value;
       #endif
-      node->right = rbDeleteMin(node->right);
+      node->right = rbDeleteMin(node->right RBUSERDATA_NAME_COMMA);
     } else {
-      node->right = rbDelete(node->right, key);
+      node->right = rbDelete(node->right, key RBUSERDATA_NAME_COMMA);
     }
   }
   return fixUp(node);
 }
 
 
-inline static RBNode* RBDelete(RBNode* node, RBKEY key) {
+inline static RBNode* RBDelete(RBNode* node, RBKEY key RBUSERDATA_COMMA) {
   if (node) {
-    node = rbDelete(node, key);
+    node = rbDelete(node, key RBUSERDATA_NAME_COMMA);
     if (node) {
       node->isred = false;
     }

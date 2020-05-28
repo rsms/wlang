@@ -13,30 +13,30 @@ typedef enum {
   /* N<kind>     NClass<class> */ \
   _(None,        Invalid) \
   _(Bad,         Invalid) /* substitute "filler node" for invalid syntax */ \
+  _(Assign,      Expr) \
   _(BasicType,   Type) /* Basic type, e.g. int, bool */ \
-  _(FunType,     Type) /* Function type, e.g. (int,int)->(float,bool) */ \
-  _(TupleType,   Type) /* Tuple type, e.g. (float,bool,int) */ \
-  _(File,        Expr) \
+  _(Block,       Expr) \
+  _(Bool,        Expr) /* boolean literal */ \
+  _(Call,        Expr) \
   _(Comment,     Expr) \
+  _(Const,       Expr) \
+  _(Field,       Expr) \
+  _(File,        Expr) \
+  _(Float,       Expr) /* floating-point literal */ \
+  _(Fun,         Expr) \
+  _(FunType,     Type) /* Function type, e.g. (int,int)->(float,bool) */ \
   _(Ident,       Expr) \
+  _(If,          Expr) \
+  _(Int,         Expr) /* integer literal */ \
+  _(Let,         Expr) \
+  _(Nil,         Expr) /* nil literal */ \
   _(Op,          Expr) \
   _(PrefixOp,    Expr) \
-  _(Nil,         Expr) /* nil literal */ \
-  _(Bool,        Expr) /* boolean literal */ \
-  _(Int,         Expr) /* integer literal */ \
-  _(Float,       Expr) /* floating-point literal */ \
-  _(Const,       Expr) \
-  _(Let,         Expr) \
-  _(Var,         Expr) \
-  _(Assign,      Expr) \
-  _(Fun,         Expr) \
-  _(Field,       Expr) \
-  _(If,          Expr) \
   _(Return,      Expr) \
-  _(Call,        Expr) \
-  _(ZeroInit,    Expr) \
-  _(Block,       Expr) \
   _(Tuple,       Expr) \
+  _(TupleType,   Type) /* Tuple type, e.g. (float,bool,int) */ \
+  _(Var,         Expr) \
+  _(ZeroInit,    Expr) \
 /*END DEF_NODE_KINDS*/
 
 typedef enum {
@@ -153,8 +153,7 @@ Str NodeRepr(const Node* n, Str s); // return human-readable printable text repr
 
 // NodeReprShort returns a short string representation of a node,
 // suitable for use in error messages.
-// Important: The returned string is invalidated on the next call to NodeReprShort,
-// so either copy it into an sds Str or make use of it right away.
+// Note: The returned string is valid until the next call to TmpRecycle.
 const char* NodeReprShort(const Node*);
 
 // NodeIsType returns true if n represents a type (i.e. NBasicType, NFunType, etc.)

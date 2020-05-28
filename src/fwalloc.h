@@ -36,7 +36,7 @@ void FWAllocRecycle(FWAllocator*);  // recycle for reuse
 void FWAllocFree(FWAllocator*);     // free all memory allocated by an allocator
 void _FWAllocGrow(FWAllocator*);    // internal function used by FWAlloc
 
-// TODO: void* FWRealloc(FWAllocator* na, void* ptr, size_t size);
+void* FWRealloc(FWAllocator* na, void* ptr, size_t oldsize, size_t newsize);
 
 // FWAlloc allocates some memory
 static inline void* FWAlloc(FWAllocator* na, size_t size) {
@@ -51,3 +51,9 @@ static inline void* FWAlloc(FWAllocator* na, size_t size) {
   b->offs += size;
   return ptr;
 }
+
+// like strdup
+char* FWAllocCStr(FWAllocator* a, const char* pch, size_t len);
+
+// concatenate up to 20 c-strings together. Arguments must be terminated with NULL.
+char* FWAllocCStrConcat(FWAllocator* a, const char* s1, ...);

@@ -15,6 +15,8 @@
 #define _HM_MAKE_FN_NAME(a, b) a ## b
 #define _HM_FUN(prefix, name) _HM_MAKE_FN_NAME(prefix, name)
 #define HM_FUN(name) _HM_FUN(HASHMAP_NAME, name)
+#define HASHMAP_IS_INIT(m) ((m)->buckets != NULL)
+
 
 typedef struct {
   size_t cap;  // number of buckets

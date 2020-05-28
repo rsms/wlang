@@ -137,6 +137,9 @@ inline static size_t align2(size_t n, size_t w) {
 //   #define W_NO_SANITIZE_ADDRESS
 // #endif
 
+// ZERO zeroes memory of a thing. e.g: Foo foo; ZERO(foo);
+#define ZERO(stackthing) memset(&(stackthing), 0, sizeof(stackthing))
+
 
 // -------------------------------------------------------------------------------------
 
@@ -151,10 +154,10 @@ typedef enum {
 
 // sds, Str
 #include "sds.h"
-#define Str  sds
-#define CStr constsds
+#define Str      sds
+#define ConstStr constsds
 
-inline static bool strhasprefix(CStr s, const char* prefix) {
+inline static bool strhasprefix(ConstStr s, const char* prefix) {
   size_t slen = sdslen(s);
   size_t plen = strlen(prefix);
   return slen < plen ? false : memcmp(s, prefix, plen) == 0;
@@ -168,7 +171,7 @@ inline static Str strgrow(Str s, size_t addlSize) {
 // using sdscatrepr which encodes non-printable ASCII chars for safe printing.
 // E.g. "foo\x00bar" if the string contains a zero byte.
 // Not thread safe! Use sdscatrepr when you need thread safety.
-const char* strrepr(CStr);
+const char* strrepr(ConstStr);
 
 
 // TmpData allocates "size" number of bytes to be used for a short amount of time.
@@ -205,7 +208,7 @@ typedef struct { u32 line; u32 col; } LineCol;
 
 void SourceInit(Source*, Str name, const u8* buf, size_t len);
 void SourceFree(Source*);
-Str SrcPosMsg(Str s, SrcPos, CStr message);
+Str SrcPosMsg(Str s, SrcPos, ConstStr message);
 Str SrcPosFmt(Str s, SrcPos pos); // "<file>:<line>:<col>"
 LineCol SrcPosLineCol(SrcPos);
 
@@ -222,7 +225,7 @@ Rune utf8decode(const u8* buf, size_t len, u32* out_width);
 
 // -----------------------------------------
 
-typedef void(ErrorHandler)(Source*, SrcPos, CStr msg, void* userdata);
+typedef void(ErrorHandler)(const Source*, SrcPos, ConstStr msg, void* userdata);
 
 // -----------------------------------------
 // scanner

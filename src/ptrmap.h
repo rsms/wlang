@@ -1,4 +1,4 @@
-// PtrMap maps void* to void*
+// PtrMap maps void* to void*. sizeof(PtrMap) == 3*sizeof(void*)
 #define HASHMAP_NAME     PtrMap
 #define HASHMAP_KEY      void*
 #define HASHMAP_VALUE    void*
@@ -9,6 +9,9 @@
 
 // PtrMapInit initializes a map structure. initbuckets is the number of initial buckets.
 void PtrMapInit(PtrMap*, size_t initbuckets);
+
+// bool PtrMapIsInit(PtrMap*)
+#define PtrMapIsInit HASHMAP_IS_INIT
 
 // PtrMapFree frees buckets data.
 void PtrMapFree(PtrMap*);
@@ -30,3 +33,4 @@ typedef void(PtrMapIterator)(void* key, void* value, bool* stop, void* userdata)
 
 // PtrMapIter iterates over entries of the map.
 void PtrMapIter(const PtrMap*, PtrMapIterator*, void* userdata);
+

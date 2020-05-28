@@ -43,6 +43,7 @@ typedef struct {
   int    ind;  // indentation level
   int    maxdepth;
   bool   pretty;
+  bool   includeTypes;
   PtrMap seen; // cycle guard
 } ReprCtx;
 
@@ -114,7 +115,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   if (!isType) {
     s = indent(s, ctx);
 
-    if (n->kind != NFile) {
+    if (n->kind != NFile && ctx->includeTypes) {
       s = TStyleBlue(s);
       if (n->type) {
         s = nodeRepr(n->type, s, ctx, depth + 1);
@@ -328,12 +329,13 @@ Str NodeRepr(const Node* n, Str s) {
   ReprCtx ctx = { 0 };
   ctx.maxdepth = 48;
   ctx.pretty = true;
+  ctx.includeTypes = true;
   PtrMapInit(&ctx.seen, 32);
   return nodeRepr(n, s, &ctx, /*depth*/ 1);
 }
 
 
-CStr NodeReprShort(const Node* n) {
+ConstStr NodeReprShort(const Node* n) {
   // return a short string representation of a node, suitable for use in error messages.
   // Important: The returned string is invalidated on the next call to NodeReprShort,
   // so either copy it into an sds Str or make use of it right away.
@@ -344,8 +346,9 @@ CStr NodeReprShort(const Node* n) {
   // TODO: Rewrite all of this to use TmpData instead of sds
 
   ReprCtx ctx = { 0 };
-  ctx.maxdepth = 3;
+  ctx.maxdepth = 1;
   ctx.pretty = false;
+  ctx.includeTypes = false;
   PtrMapInit(&ctx.seen, 32);
 
   auto s = nodeRepr(n, sdsempty(), &ctx, /*depth*/ 1);

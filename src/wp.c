@@ -1,6 +1,7 @@
 #include "wp.h"
+#include "ir/builder.h"
 
-static void errorHandler(Source* src, SrcPos pos, CStr msg, void* userdata) {
+static void errorHandler(const Source* src, SrcPos pos, ConstStr msg, void* userdata) {
   u32* errcount = (u32*)userdata;
   (*errcount)++;
   auto s = SrcPosMsg(sdsempty(), pos, msg);
@@ -49,6 +50,12 @@ void parsefile(Str filename, Scope* pkgscope) {
 
   // print AST
   printAst(file);
+
+  printf("————————————————————————————————————————————————————————————————\n");
+  // build some IR
+  IRBuilder irbuilder = {};
+  IRBuilderInit(&irbuilder, IRBuilderComments); // start a new IRPkg
+  IRBuilderAdd(&irbuilder, &cc, file); // add ast to current IRPkg
 
   CCtxFree(&cc);
   TmpRecycle();

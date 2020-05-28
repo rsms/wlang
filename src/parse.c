@@ -358,7 +358,7 @@ static Node* PLetOrAssign(P* p, const Parselet* e, Node* left) {
   }
   // let
   // common case: let binding. e.g. "x = 3" -> (let (Ident x) (Int 3))
-  dlog("PLetOrAssign/let %s", left->ref.name);
+  // dlog("PLetOrAssign/let %s", left->ref.name);
   next(p); // consume '='
 
   auto name = left;

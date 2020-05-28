@@ -33,7 +33,7 @@
 #undef HASHMAP_KEY_HASH
 
 
-#ifdef DEBUG
+#if DEBUG
 static void testMapIterator(void* key, void* value, bool* stop, void* userdata) {
   // dlog("\"%s\" => %zu", key, (size_t)value);
   size_t* n = (size_t*)userdata;

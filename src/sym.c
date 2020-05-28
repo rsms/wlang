@@ -177,7 +177,7 @@ Node* Const_nil = (Node*)&_Const_nil;
 
 
 // // dumpSymTree functionn
-// #ifdef DEBUG
+// #if DEBUG
 // static Str dumpSymTreeFmtKey(Str s, Sym k) {
 //   s = sdscatrepr(s, k, sdslen(k));
 //   return sdscatprintf(s, " (flags %02X, hash %u)", SYM_HDR(k)->sh.flags, SYM_HDR(k)->hash);
@@ -554,7 +554,7 @@ __attribute__((constructor)) static void debug_check() {
 #undef HASHMAP_VALUE
 
 
-#ifdef DEBUG
+#if DEBUG
 static void testMapIterator(Sym key, const Node* value, bool* stop, void* userdata) {
   // dlog("\"%s\" => %zu", key, (size_t)value);
   size_t* n = (size_t*)userdata;
