@@ -40,35 +40,41 @@ inline static Tok symLangTok(Sym s) {
   return kwindex == 0 ? TIdent : kwindex + TKeywordsStart;
 }
 
-// SymMap maps Sym to const Node*
+// SymMap maps Sym to pointers
 #define HASHMAP_NAME     SymMap
 #define HASHMAP_KEY      Sym
-#define HASHMAP_VALUE    const Node*
+#define HASHMAP_VALUE    void*
 #include "hashmap.h"
 #undef HASHMAP_NAME
 #undef HASHMAP_KEY
 #undef HASHMAP_VALUE
 
-// SymMapInit initializes a map structure. initbuckets is the number of initial buckets.
-void SymMapInit(SymMap*, size_t initbuckets, Memory mem/*null*/);
+// Creates and initializes a new SymMap in mem, or global memory if mem is NULL.
+SymMap* SymMapNew(u32 initbuckets, Memory mem/*null*/);
 
-// SymMapFree frees buckets data.
+// SymMapInit initializes a map structure. initbuckets is the number of initial buckets.
+void SymMapInit(SymMap*, u32 initbuckets, Memory mem/*null*/);
+
+// SymMapFree frees SymMap along with its data.
 void SymMapFree(SymMap*);
 
+// SymMapDealloc frees heap memory used by a map, but leaves SymMap untouched.
+void SymMapDealloc(SymMap*);
+
 // SymMapGet searches for key. Returns value, or NULL if not found.
-const Node* SymMapGet(const SymMap*, Sym key);
+void* SymMapGet(const SymMap*, Sym key);
 
 // SymMapSet inserts key=value into m. Returns the replaced value or NULL if not found.
-const Node* SymMapSet(SymMap*, Sym key, const Node* value);
+void* SymMapSet(SymMap*, Sym key, void* value);
 
 // SymMapDel removes value for key. Returns the removed value or NULL if not found.
-const Node* SymMapDel(SymMap*, Sym key);
+void* SymMapDel(SymMap*, Sym key);
 
 // SymMapClear removes all entries. In contrast to SymMapFree, map remains valid.
 void SymMapClear(SymMap*);
 
 // Iterator function type. Set stop=true to stop iteration.
-typedef void(SymMapIterator)(Sym key, const Node* value, bool* stop, void* userdata);
+typedef void(SymMapIterator)(Sym key, void* value, bool* stop, void* userdata);
 
 // SymMapIter iterates over entries of the map.
 void SymMapIter(const SymMap*, SymMapIterator*, void* userdata);

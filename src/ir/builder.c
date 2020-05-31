@@ -5,19 +5,12 @@
 static bool addTopLevel(IRBuilder* u, Node* n);
 
 
-inline static PtrMap* PtrMapNew(Memory mem, size_t initbuckets) {
-  auto m = (PtrMap*)memalloc(mem, sizeof(PtrMap));
-  PtrMapInit(m, initbuckets, mem);
-  return m;
-}
-
-
 void IRBuilderInit(IRBuilder* u, IRBuilderFlags flags, const char* pkgname) {
   memset(u, 0, sizeof(IRBuilder));
   u->mem = MemoryNew(0);
   u->pkg = IRPkgNew(u->mem, pkgname);
   PtrMapInit(&u->funs, 32, u->mem);
-  u->vars = PtrMapNew(u->mem, 32);
+  u->vars = SymMapNew(8, u->mem);
   u->flags = flags;
   ArrayInitWithStorage(&u->defvars, u->defvarsStorage, sizeof(u->defvarsStorage)/sizeof(void*));
 }
@@ -98,7 +91,7 @@ static IRBlock* endBlock(IRBuilder* u) {
   }
   if (u->vars->len > 0) {
     u->defvars.v[b->id] = u->vars;
-    u->vars = PtrMapNew(u->mem, 32);  // new block-local vars
+    u->vars = SymMapNew(8, u->mem);  // new block-local vars
   }
 
   #if DEBUG
@@ -146,21 +139,33 @@ static TypeCode IntrinsicTypeCode(TypeCode t) {
 // ———————————————————————————————————————————————————————————————————————————————————————————————
 // Phi & variables
 
+#define dlogvar(format, ...) \
+  fprintf(stderr, "VAR " format "\t(%s:%d)\n", ##__VA_ARGS__, __FILE__, __LINE__)
 
-static void writeVariable(IRBuilder* u, Sym name, IRValue* value) {
-  dlog("TODO writeVariable %.*s", (int)symlen(name), name);
+
+static void writeVariable(IRBuilder* u, Sym name, IRValue* value, IRBlock* b) {
+  if (b == u->b) {
+    dlogvar("write %.*s in current block", (int)symlen(name), name);
+    auto oldv = SymMapSet(u->vars, name, value);
+    if (oldv != NULL) {
+      dlogvar("new value replaced old value: %p", oldv);
+    }
+  } else {
+    dlogvar("TODO write %.*s in defvars", (int)symlen(name), name);
+  }
 }
 
 
 static IRValue* readVariable(IRBuilder* u, Sym name, Node* typeNode, IRBlock* b/*null*/) {
-  // if (b == u->b) {
-  //   // current block
-  //   let v = u.vars.get(name)
-  //   if (v) {
-  //     return v
-  //   }
-  //   b = u.b
-  // } else {
+  if (b == u->b) {
+    // current block
+    dlogvar("read %.*s in current block", (int)symlen(name), name);
+    auto v = SymMapGet(u->vars, name);
+    if (v != NULL) {
+      return v;
+    }
+  } else {
+    dlogvar("TODO read %.*s in defvars", (int)symlen(name), name);
   //   let m = u.defvars[b.id]
   //   if (m) {
   //     let v = m.get(name)
@@ -168,7 +173,9 @@ static IRValue* readVariable(IRBuilder* u, Sym name, Node* typeNode, IRBlock* b/
   //       return v
   //     }
   //   }
-  // }
+  }
+
+  dlogvar("read %.*s not found -- falling back to readRecursive", (int)symlen(name), name);
 
   // // global value numbering
   // return u.readVariableRecursive(name, t, b)
@@ -200,7 +207,7 @@ static IRValue* addAssign(IRBuilder* u, Sym name /*nullable*/, IRValue* value) {
 
   // instead of issuing an intermediate "copy", simply associate variable
   // name with the value on the right-hand side.
-  writeVariable(u, name, value);
+  writeVariable(u, name, value, u->b);
 
   if (u->flags & IRBuilderComments) {
     IRValueAddComment(value, u->mem, name);

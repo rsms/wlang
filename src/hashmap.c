@@ -20,7 +20,12 @@
 #define _HM_FUN(prefix, name) _HM_MAKE_FN_NAME(prefix, name)
 #define HM_FUN(name) _HM_FUN(HASHMAP_NAME, name)
 
-static const size_t bucketSize = 6; // entries per bucket
+typedef enum HMFlag {
+  HMFlagNone = 0,
+  HMFlagBucketMemoryDense = 1 << 0,  // bucket memory is inside map memory. used by Free
+} HMFlag;
+
+static const u32 bucketSize = 6; // entries per bucket
 
 typedef struct {
   struct {
@@ -30,14 +35,33 @@ typedef struct {
 } Bucket;
 
 
-void HM_FUN(Init)(HASHMAP_NAME* m, size_t initbuckets, Memory mem) {
+void HM_FUN(Init)(HASHMAP_NAME* m, u32 initbuckets, Memory mem) {
   m->cap = initbuckets;
   m->len = 0;
   m->mem = mem;
   m->buckets = memalloc(mem, m->cap * sizeof(Bucket));
 }
 
-void HM_FUN(Free)(HASHMAP_NAME* m) {
+HASHMAP_NAME* HM_FUN(New)(u32 initbuckets, Memory mem) {
+  // new differs from Init in that it allocates space for itself and the initial
+  // buckets in one go. This is usually a little bit faster and reduces memory
+  // fragmentation in cases where many hashmaps are created.
+  size_t bucketSize = initbuckets * sizeof(Bucket);
+  char* ptr = memalloc(mem, sizeof(HASHMAP_NAME) + bucketSize);
+  auto m = (HASHMAP_NAME*)ptr;
+  m->cap = initbuckets;
+  m->mem = mem;
+  m->flags = HMFlagBucketMemoryDense;
+  if (bucketSize > 0) {
+    m->buckets = ptr + sizeof(HASHMAP_NAME);
+  }
+  return m;
+}
+
+void HM_FUN(Dealloc)(HASHMAP_NAME* m) {
+  // should never call Dealloc on a map created with New
+  assert(!(m->flags & HMFlagBucketMemoryDense));
+
   memfree(m->mem, m->buckets);
   #if DEBUG
   m->buckets = NULL;
@@ -46,13 +70,26 @@ void HM_FUN(Free)(HASHMAP_NAME* m) {
   #endif
 }
 
+void HM_FUN(Free)(HASHMAP_NAME* m) {
+  if (!(m->flags & HMFlagBucketMemoryDense)) {
+    memfree(m->mem, m->buckets);
+  }
+  memfree(m->mem, m);
+  #if DEBUG
+  m->buckets = NULL;
+  m->len = 0;
+  m->cap = 0;
+  #endif
+}
+
+
 static void mapGrow(HASHMAP_NAME* m) {
-  size_t cap = m->cap * 2;
+  u32 cap = m->cap * 2;
   rehash: {
     auto newbuckets = (Bucket*)memalloc(m->mem, cap * sizeof(Bucket));
-    for (size_t bi = 0; bi < m->cap; bi++) {
+    for (u32 bi = 0; bi < m->cap; bi++) {
       auto b = &((Bucket*)m->buckets)[bi];
-      for (size_t i = 0; i < bucketSize; i++) {
+      for (u32 i = 0; i < bucketSize; i++) {
         auto e = &b->entries[i];
         if (e->key == NULL) {
           break;
@@ -61,10 +98,10 @@ static void mapGrow(HASHMAP_NAME* m) {
           // skip deleted entry (compactation)
           continue;
         }
-        size_t index = ((size_t)HASHMAP_KEY_HASH(e->key)) % cap;
+        u32 index = ((u32)HASHMAP_KEY_HASH(e->key)) % cap;
         auto newb = &newbuckets[index];
         bool fit = false;
-        for (size_t i2 = 0; i2 < bucketSize; i2++) {
+        for (u32 i2 = 0; i2 < bucketSize; i2++) {
           auto e2 = &newb->entries[i2];
           if (e2->key == NULL) {
             // found a free slot in newb
@@ -84,6 +121,7 @@ static void mapGrow(HASHMAP_NAME* m) {
     memfree(m->mem, m->buckets);
     m->buckets = newbuckets;
     m->cap = cap;
+    m->flags &= ~HMFlagBucketMemoryDense;
   }
 }
 
@@ -93,10 +131,10 @@ static void mapGrow(HASHMAP_NAME* m) {
 HASHMAP_VALUE HM_FUN(Set)(HASHMAP_NAME* m, HASHMAP_KEY key, HASHMAP_VALUE value) {
   assert(value != NULL);
   while (1) { // grow loop
-    size_t index = ((size_t)HASHMAP_KEY_HASH(key)) % m->cap;
+    u32 index = ((u32)HASHMAP_KEY_HASH(key)) % m->cap;
     auto b = &((Bucket*)m->buckets)[index];
     // dlog("bucket(key=\"%s\") #%u  b=%p e=%p", key, index, b, &b->entries[0]);
-    for (size_t i = 0; i < bucketSize; i++) {
+    for (u32 i = 0; i < bucketSize; i++) {
       auto e = &b->entries[i];
       if (e->value == NULL) {
         // free slot
@@ -121,9 +159,9 @@ HASHMAP_VALUE HM_FUN(Set)(HASHMAP_NAME* m, HASHMAP_KEY key, HASHMAP_VALUE value)
 
 
 HASHMAP_VALUE HM_FUN(Del)(HASHMAP_NAME* m, HASHMAP_KEY key) {
-  size_t index = ((size_t)HASHMAP_KEY_HASH(key)) % m->cap;
+  u32 index = ((u32)HASHMAP_KEY_HASH(key)) % m->cap;
   auto b = &((Bucket*)m->buckets)[index];
-  for (size_t i = 0; i < bucketSize; i++) {
+  for (u32 i = 0; i < bucketSize; i++) {
     auto e = &b->entries[i];
     if (e->key == key) {
       if (!e->value) {
@@ -141,9 +179,9 @@ HASHMAP_VALUE HM_FUN(Del)(HASHMAP_NAME* m, HASHMAP_KEY key) {
 
 
 HASHMAP_VALUE HM_FUN(Get)(const HASHMAP_NAME* m, HASHMAP_KEY key) {
-  size_t index = ((size_t)HASHMAP_KEY_HASH(key)) % m->cap;
+  u32 index = ((u32)HASHMAP_KEY_HASH(key)) % m->cap;
   auto b = &((Bucket*)m->buckets)[index];
-  for (size_t i = 0; i < bucketSize; i++) {
+  for (u32 i = 0; i < bucketSize; i++) {
     auto e = &b->entries[i];
     if (e->key == key) {
       return e->value;
@@ -164,9 +202,9 @@ void HM_FUN(Clear)(HASHMAP_NAME* m) {
 
 void HM_FUN(Iter)(const HASHMAP_NAME* m, HM_FUN(Iterator)* it, void* userdata) {
   bool stop = false;
-  for (size_t bi = 0; bi < m->cap; bi++) {
+  for (u32 bi = 0; bi < m->cap; bi++) {
     auto b = &((Bucket*)m->buckets)[bi];
-    for (size_t i = 0; i < bucketSize; i++) {
+    for (u32 i = 0; i < bucketSize; i++) {
       auto e = &b->entries[i];
       if (e->key == NULL) {
         break;
@@ -182,12 +220,12 @@ void HM_FUN(Iter)(const HASHMAP_NAME* m, HM_FUN(Iterator)* it, void* userdata) {
 }
 
 // static u32* hashmapDebugDistr(const HASHMAP_NAME* m) {
-//   size_t valindex = 0;
+//   u32 valindex = 0;
 //   u32* vals = (u32*)memalloc(m->mem, m->cap * sizeof(u32));
-//   for (size_t bi = 0; bi < m->cap; bi++) {
+//   for (u32 bi = 0; bi < m->cap; bi++) {
 //     auto b = &((Bucket*)m->buckets)[bi];
 //     u32 depth = 0;
-//     for (size_t i = 0; i < bucketSize; i++) {
+//     for (u32 i = 0; i < bucketSize; i++) {
 //       auto e = &b->entries[i];
 //       if (e->key == NULL) {
 //         break;

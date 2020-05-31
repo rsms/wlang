@@ -68,7 +68,7 @@ typedef double                 f64;
 #if DEBUG
   #include <stdio.h>
   #define dlog(format, ...) \
-    fprintf(stderr, "D " format " (%s:%d)\n", ##__VA_ARGS__, __FILE__, __LINE__)
+    fprintf(stderr, "D " format "\t(%s:%d)\n", ##__VA_ARGS__, __FILE__, __LINE__)
   #define logerr(format, ...) \
     fprintf(stderr, format " (%s:%d)\n", ##__VA_ARGS__, __FILE__, __LINE__)
 #else

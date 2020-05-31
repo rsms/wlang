@@ -21,7 +21,7 @@ typedef struct IRBuilder {
   IRBlock* b;     // current block
   IRFun*   f;     // current function
 
-  PtrMap* vars; // Sym => IRValue*
+  SymMap* vars; // Sym => IRValue*
     // variable assignments in the current block (map from variable symbol to ssa value)
     // this PtrMap is moved into defvars when a block ends (internal call to endBlock.)
 

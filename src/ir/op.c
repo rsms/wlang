@@ -162,27 +162,27 @@ const IROpDescr _IROpInfoMap[Op_MAX] = {
     TypeCode_float64,
   },
   { // OpAddI8
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_param1, // i8
   },
   { // OpAddI16
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_param1, // i16
   },
   { // OpAddI32
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_param1, // i32
   },
   { // OpAddI64
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_param1, // i64
   },
   { // OpAddF32
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_float32,
   },
   { // OpAddF64
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_float64,
   },
   { // OpSubI8
@@ -210,27 +210,27 @@ const IROpDescr _IROpInfoMap[Op_MAX] = {
     TypeCode_float64,
   },
   { // OpMulI8
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_param1, // i8
   },
   { // OpMulI16
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_param1, // i16
   },
   { // OpMulI32
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_param1, // i32
   },
   { // OpMulI64
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_param1, // i64
   },
   { // OpMulF32
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_float32,
   },
   { // OpMulF64
-    IROpFlagCommutative|IROpFlagResultInArg0,
+    IROpFlagResultInArg0|IROpFlagCommutative,
     TypeCode_float64,
   },
   { // OpDivS8

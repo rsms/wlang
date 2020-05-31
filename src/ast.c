@@ -335,7 +335,7 @@ Str NodeRepr(const Node* n, Str s) {
   ctx.includeTypes = true;
   PtrMapInit(&ctx.seen, 32, NULL);
   s = nodeRepr(n, s, &ctx, /*depth*/ 1);
-  PtrMapFree(&ctx.seen);
+  PtrMapDealloc(&ctx.seen);
   return s;
 }
 
@@ -358,7 +358,7 @@ ConstStr NodeReprShort(const Node* n) {
 
   auto s = nodeRepr(n, sdsempty(), &ctx, /*depth*/ 1);
 
-  PtrMapFree(&ctx.seen);
+  PtrMapDealloc(&ctx.seen);
 
   // copy into tmpdata which is safe to return
   char* buf = TmpData(sdslen(s) + 1);
@@ -408,7 +408,7 @@ static const Scope* globalScope = NULL;
 
 
 void ScopeFree(Scope* s, Memory mem) {
-  SymMapFree(&s->bindings);
+  SymMapDealloc(&s->bindings);
   memfree(mem, s);
 }
 
