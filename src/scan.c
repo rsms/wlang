@@ -1,34 +1,8 @@
 #include "wp.h"
-
 #include "token.h"
 
 // Enable to print "D >> TOKEN VALUE at SOURCELOC" on each call to SNext
 // #define SCANNER_DEBUG_TOKEN_PRODUCTION
-
-
-const char* TokName(Tok t) {
-  switch (t) {
-    case TNone: return "TNone";
-
-    #define I_ENUM(name, str) case name: return str;
-    TOKEN_TYPES_1_1(I_ENUM)
-    #undef I_ENUM
-
-    case TSymbolicStart: return "TSymbolicStart";
-
-    #define I_ENUM(name, str) case name: return str;
-    TOKEN_TYPES(I_ENUM)
-    #undef I_ENUM
-
-    case TKeywordsStart: return "TKeywordsStart";
-    #define I_ENUM(str, name) case name: return "keyword." #str;
-    TOKEN_KEYWORDS(I_ENUM)
-    #undef I_ENUM
-    case TKeywordsEnd: return "TKeywordsEnd";
-
-    case TMax: return "TMax";
-  }
-}
 
 
 #ifndef NDEBUG
@@ -243,6 +217,9 @@ Tok SNext(S* s) {
         s->tokstart = s->inp;
         s->tokend = s->tokstart;
         s->inp++;
+        #ifdef SCANNER_DEBUG_TOKEN_PRODUCTION
+          dlog(">> %s\t\tat %s", TokName(TSemi), SrcPosFmt(sdsempty(), SSrcPos(s)));
+        #endif
         return s->tok = TSemi;
       }
     }
@@ -267,63 +244,46 @@ Tok SNext(S* s) {
 
   bool insertSemi = false;
 
-  u8 c = *s->inp++;
+  // COND_CHAR includes next char in token if nextc==c. Returns tok1 if nextc==c, else tok2.
+  #define COND_CHAR(c, tok1, tok2) \
+    (nextc == (c)) ? ({ s->inp++; s->tokend++; (tok1); }) : (tok2)
+  // COND_CHAR_SEMIC is like COND_CHAR but sets insertSemi=true if nextc==c
+  #define COND_CHAR_SEMIC(c, tok1, tok2) \
+    (nextc == (c)) ? ({ s->inp++; s->tokend++; insertSemi = true; (tok1); }) : (tok2)
+
+  u8 c = *s->inp++; // current char
+  u8 nextc = (s->inp+1 < s->inend) ? *s->inp : 0; // next char
+
   switch (c) {
 
-  case '+':
-  case '-':
-    if (s->inp < s->inend) {
-      if (*s->inp == c) {
-        s->inp++;
-        s->tok = c == '+' ? TPlusPlus : TMinusMinus;
-        s->tokend++;
-        insertSemi = true;
-        break;
-      } else if (c == '-' && *s->inp == '>') {
-        s->inp++;
-        s->tok = TRArr;
-        s->tokend++;
-        break;
-      }
-    }
-    s->tok = (Tok)c;
-    break;
-
-  // "!=", "==", "<=", ">="
-  case '!':
-  case '=':
-  case '<':
-  case '>':
-    if (s->inp+1 < s->inend && *s->inp == '=') {
+  case '-':  // "-" | "--" | "->"
+    if (nextc == '>') {
       s->inp++;
-      switch (c) {
-        case '=': s->tok = TEqEq; break;
-        case '!': s->tok = TNEq; break;
-        case '<': s->tok = TLEq; break;
-        case '>': s->tok = TGEq; break;
-        default: break;
-      }
       s->tokend++;
-      break;
+      s->tok = TRArr;
+    } else {
+      s->tok = COND_CHAR_SEMIC('-', TMinusMinus, TMinus);
     }
-    s->tok = (Tok)c;
     break;
 
-  case ')':
-  case '}':
-  case ']':
-    insertSemi = true;
-    FALLTHROUGH;
-  case '(':
-  case '{':
-  case '[':
-  case '~':
-  case '*':
-  case '/':
-  case ',':
-  case ';':
-    s->tok = (Tok)c;
-    break;
+  case '+': s->tok = COND_CHAR_SEMIC('+', TPlusPlus, TPlus); break; // "+" | "++"
+
+  case '=': s->tok = COND_CHAR('=', TEqEq, TEq); break;   // "=" | "=="
+  case '!': s->tok = COND_CHAR('=', TNEq,  TBang); break; // "!" | "!="
+  case '<': s->tok = COND_CHAR('=', TLEq,  TLt); break;   // "<" | "<="
+  case '>': s->tok = COND_CHAR('=', TGEq,  TGt); break;   // ">" | ">="
+
+  case '(': s->tok = TLParen; break;
+  case ')': s->tok = TRParen; insertSemi = true; break;
+  case '{': s->tok = TLBrace; break;
+  case '}': s->tok = TRBrace; insertSemi = true; break;
+  case '[': s->tok = TLBrack; break;
+  case ']': s->tok = TRBrack; insertSemi = true; break;
+  case '~': s->tok = TTilde; break;
+  case '*': s->tok = TStar; break;
+  case '/': s->tok = TSlash; break;
+  case ',': s->tok = TComma; break;
+  case ';': s->tok = TSemi; break;
 
   case '#': // line comment
     scomment(s);
@@ -375,15 +335,11 @@ Tok SNext(S* s) {
 
 
   #ifdef SCANNER_DEBUG_TOKEN_PRODUCTION
-  {
-    auto srcpos = SrcPosFmt(sdsempty(), SSrcPos(s));
-    if (s->tok < TSymbolicStart) {
-      dlog(">> %s\t\tat %s", TokName(s->tok), srcpos);
-    } else {
-      dlog(">> %s \"%.*s\"\tat %s",
-        TokName(s->tok), (int)(s->tokend - s->tokstart), s->tokstart, srcpos);
-    }
-  }
+  dlog(">> %s \"%.*s\"\tat %s",
+    TokName(s->tok),
+    (int)(s->tokend - s->tokstart),
+    s->tokstart,
+    SrcPosFmt(sdsempty(), SSrcPos(s)));
   #endif
 
 

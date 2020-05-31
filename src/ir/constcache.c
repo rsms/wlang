@@ -1,11 +1,14 @@
 #include "../wp.h"
 #include "ir.h"
 
-#define RBKEY      intptr_t
+#define RBKEY      u64
 #define RBKEY_NULL 0
 #define RBVALUE    void*
 #define RBUSERDATA void*
 #include "../rbtree.c"
+
+// TODO: Consider a HAMT structure instead of a red-black tree as it would be more compact
+// in memory and faster for 64-bit int keys that are sequential (essentially a sparse array.)
 
 // ———————————————————————————————————————————————————————————————————————————————————————————————
 // RB API
@@ -28,7 +31,7 @@ inline static void RBFreeValue(void* value, void* userdata) {
   // Do nothing since value was allocated by fwalloc and will be gc'd later
 }
 
-inline static int RBCmp(intptr_t a, intptr_t b, void* userdata) {
+inline static int RBCmp(RBKEY a, RBKEY b, void* userdata) {
   if (a < b) { return -1; }
   if (b < a) { return 1; }
   return 0;
@@ -114,7 +117,7 @@ IRValue* IRConstCacheGet(
   const IRConstCache* c,
   FWAllocator* a,
   TypeCode t,
-  intptr_t value,
+  u64 value,
   int* out_addHint
 ) {
   if (c != NULL) {
@@ -139,7 +142,7 @@ IRConstCache* IRConstCacheAdd(
   IRConstCache* c,
   FWAllocator* a,
   TypeCode t,
-  intptr_t value,
+  u64 value,
   IRValue* v,
   int addHint
 ) {
@@ -196,14 +199,13 @@ IRConstCache* IRConstCacheAdd(
 // ——————————————————————————————————————————————————————————————————————————————————————————————
 // unit test
 #if DEBUG
-
 static void test() {
   // printf("--------------------------------------------------\n");
   FWAllocator a = {0};
   FWAllocInit(&a);
 
   IRConstCache* c = NULL;
-  intptr_t testValueGen = 1; // IRValue pointer simulator (generator)
+  u64 testValueGen = 1; // IRValue pointer simulator (generator)
 
   // c is null; get => null
   auto v1 = IRConstCacheGet(c, &a, TypeCode_int8, 1, 0);
@@ -223,11 +225,11 @@ static void test() {
 
   // verify that Get returns the expected values
   v1 = IRConstCacheGet(c, &a, TypeCode_int8, 1, 0);
-  assert((uintptr_t)v1 == expect1);
+  assert((u64)v1 == expect1);
   auto v2 = IRConstCacheGet(c, &a, TypeCode_int16, 1, 0);
-  assert((uintptr_t)v2 == expect2);
+  assert((u64)v2 == expect2);
   auto v3 = IRConstCacheGet(c, &a, TypeCode_int16, 2, 0);
-  assert((uintptr_t)v3 == expect3);
+  assert((u64)v3 == expect3);
 
   // test the addHint, which is an RBNode of the type branch when it exists.
   int addHint = 0;
@@ -237,7 +239,7 @@ static void test() {
   assert(addHint != 0); // since TypeCode_int16 branch should exist
   c = IRConstCacheAdd(c, &a, TypeCode_int16, 3, (IRValue*)expect4, addHint);
   v4 = IRConstCacheGet(c, &a, TypeCode_int16, 3, &addHint);
-  assert((uintptr_t)v4 == expect4);
+  assert((u64)v4 == expect4);
 
 
   FWAllocFree(&a);

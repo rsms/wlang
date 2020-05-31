@@ -20,3 +20,13 @@ IRBlock* IRBlockNew(IRFun* f, IRBlockKind kind, const SrcPos* pos/*?*/) {
 void IRBlockAddValue(IRBlock* b, IRValue* v) {
   ArrayPush(&b->values, v, b->f->mem);
 }
+
+void IRBlockSetControl(IRBlock* b, IRValue* v) {
+  if (b->control) {
+    b->control->uses--;
+  }
+  b->control = v;
+  if (v) {
+    v->uses++;
+  }
+}

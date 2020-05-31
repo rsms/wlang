@@ -49,27 +49,59 @@ static inline Node* resolveConst(Node* n, Scope* scope, ResCtx* ctx) {
 
 
 static const Node* resolveIdent(const Node* n, Scope* scope, ResCtx* ctx) {
+  assert(n->kind == NIdent);
+  auto name = n->ref.name;
+  // dlog("resolveIdent BEGIN %s", name);
   while (1) {
     const Node* target = n->ref.target;
-    // dlog("resolveIdent %s", n->ref.name);
+    // dlog("resolveIdent ITER %s", n->ref.name);
+
     if (target == NULL) {
       target = ScopeLookup(scope, n->ref.name);
       if (target == NULL) {
-        resolveErrorf(ctx, n->pos, "undefined symbol %s", n->ref.name);
+        resolveErrorf(ctx, n->pos, "undefined symbol %s", name);
         ((Node*)n)->ref.target = NodeBad;
         return n;
       }
+      // if (target->kind == NLet) {
+      //   target = target->field.init;
+      // }
       ((Node*)n)->ref.target = target;
-      // dlog("resolveIdent %s => %s", n->ref.name, NodeKindName(target->kind));
+      // dlog("resolveIdent UNWIND %s => %s", n->ref.name, NodeKindName(target->kind));
     }
+
     switch (target->kind) {
       case NIdent:
         n = target;
-        break; // continue loop
+        break; // continue unwind loop
       case NConst:
         return resolveConst((Node*)target, scope, ctx);
+
+      // // Unwind let bindings to constants. Assumes let bindings are immutable!
+      // case NLet:
+      //   assert(target->field.init != NULL);
+      //   if (NodeKindIsConst(target->field.init->kind)) {
+      //     // in the case of a let target with a constant, resolve to the constant.
+      //     // Example:
+      //     //   x = true   # Identifier "true" is resolved to constant Boolean true
+      //     //   y = x      # Identifier x is resolved to constant Boolean true via x
+      //     //
+      //     return target->field.init;
+      //   }
+      //   return n;
+
       default:
-        return target;
+        // dlog("resolveIdent FINAL %s => %s (target %s) type? %d",
+        //   n->ref.name, NodeKindName(n->kind), NodeKindName(target->kind), NodeIsType(target));
+        if (NodeKindIsConst(target->kind)) {
+          // unwind identifier to constant value.
+          // Example:
+          //   x = true   # Identifier "true" is resolved to constant Boolean true
+          //   y = x      # Identifier x is resolved to Let x  (NOT the value of x)
+          //
+          return target;
+        }
+        return n;
     }
   }
 }

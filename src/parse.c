@@ -362,7 +362,7 @@ static Node* PLetOrAssign(P* p, const Parselet* e, Node* left) {
   next(p); // consume '='
 
   auto name = left;
-  auto value = expr(p, PREC_MEMBER);
+  auto value = expr(p, PREC_LOWEST);
 
   auto n = PNewNode(p, NLet);
   n->pos = name->pos;
@@ -415,7 +415,7 @@ static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
     if (hasValues) {
       value = expr(p, PREC_MEMBER);
       valcount++;
-      if (nl->next && !got(p, ',')) {
+      if (nl->next && !got(p, TComma)) {
         // not last item and got something that's not a comma
         hasValues = false;
         syntaxerr(p, "assignment mismatch: %u targets but %u values", namecount, valcount);
@@ -434,7 +434,7 @@ static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
     n->field.init = value;
   }
 
-  if (got(p, ',')) {
+  if (got(p, TComma)) {
     auto extra = ptuple(p, PREC_MEMBER);
     syntaxerrp(p, extra->pos, "assignment mismatch: %u targets but %u values",
       namecount, namecount + extra->array.a.len);
@@ -501,7 +501,7 @@ static Node* PComment(P* p) {
 static Node* PGroup(P* p) {
   next(p); // consume "("
   auto n = exprOrTuple(p, PREC_LOWEST);
-  want(p, ')');
+  want(p, TRParen);
   return n;
 }
 
@@ -510,8 +510,8 @@ static Node* PCall(P* p, const Parselet* e, Node* receiver) {
   auto n = PNewNode(p, NCall);
   next(p); // consume "("
   n->call.receiver = receiver;
-  auto args = tupleTrailingComma(p, PREC_LOWEST, ')');
-  want(p, ')');
+  auto args = tupleTrailingComma(p, PREC_LOWEST, TRParen);
+  want(p, TRParen);
   assert(args->kind == NTuple);
   switch (args->array.a.len) {
     case 0:  break; // leave as-is, i.e. n->call.args=NULL
@@ -529,14 +529,14 @@ static Node* PBlock(P* p) {
 
   pushScope(p);
 
-  while (p->s.tok != TNone && p->s.tok != '}') {
+  while (p->s.tok != TNone && p->s.tok != TRBrace) {
     // nlistPush(n, exprOrTuple(p, PREC_LOWEST));
     NodeListAppend(&p->cc->mem, &n->array.a, exprOrTuple(p, PREC_LOWEST));
-    if (!got(p, ';')) {
+    if (!got(p, TSemi)) {
       break;
     }
   }
-  if (!got(p, '}')) {
+  if (!got(p, TRBrace)) {
     syntaxerr(p, "expecting ; or }");
     next(p);
   }
@@ -613,7 +613,7 @@ static Node* PIf(P* p) {
 static Node* PReturn(P* p) {
   auto n = PNewNode(p, NReturn);
   next(p);
-  if (p->s.tok != ';' && p->s.tok != '}') {
+  if (p->s.tok != TSemi && p->s.tok != TRBrace) {
     n->op.left = exprOrTuple(p, PREC_LOWEST);
   }
   return n;
@@ -635,7 +635,7 @@ static Node* params(P* p) { // => NTuple
   // (T1, T2, T3)
   // (T1, T2, ... T3)
   //
-  want(p, '(');
+  want(p, TLParen);
   auto n = PNewNode(p, NTuple);
   bool hasTypedParam = false; // true when at least one param has type; e.g. "x T"
   NodeList typeq = {0};
@@ -695,7 +695,7 @@ static Node* params(P* p) { // => NTuple
     });
   }
 
-  want(p, ')');
+  want(p, TRParen);
   return n;
 }
 
@@ -728,7 +728,7 @@ static Node* pfun(P* p, bool nameOptional) {
   }*/
   // parameters
   pushScope(p);
-  if (p->s.tok == '(') {
+  if (p->s.tok == TLParen) {
     auto pa = params(p);
     assert(pa->kind == NTuple);
     switch (pa->array.a.len) {
@@ -738,12 +738,12 @@ static Node* pfun(P* p, bool nameOptional) {
     }
   }
   // result type(s)
-  if (p->s.tok != '{' && p->s.tok != ';' && p->s.tok != TRArr) {
+  if (p->s.tok != TLBrace && p->s.tok != TSemi && p->s.tok != TRArr) {
     n->type = exprOrTuple(p, PREC_LOWEST);
   }
   // body
   p->fnest++;
-  if (p->s.tok == '{') {
+  if (p->s.tok == TLBrace) {
     n->fun.body = PBlock(p);
   } else if (got(p, TRArr)) {
     n->fun.body = exprOrTuple(p, PREC_LOWEST);
@@ -803,7 +803,7 @@ inline static Node* prefixExpr(P* p) {
   if (!parselet->fprefix) {
     syntaxerr(p, "expecting expression");
     auto n = bad(p);
-    Tok followlist[] = { ')', '}', ']', ';', 0 };
+    Tok followlist[] = { TRParen, TRBrace, TRBrack, TSemi, 0 };
     advance(p, followlist);
     return n;
   }

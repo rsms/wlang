@@ -4,6 +4,7 @@
 
 typedef enum {
   NodeClassInvalid = 0,
+  NodeClassConst,
   NodeClassExpr,
   NodeClassType,
 } NodeClass;
@@ -16,7 +17,7 @@ typedef enum {
   _(Assign,      Expr) \
   _(BasicType,   Type) /* Basic type, e.g. int, bool */ \
   _(Block,       Expr) \
-  _(Bool,        Expr) /* boolean literal */ \
+  _(Bool,        Const) /* boolean literal */ \
   _(Call,        Expr) \
   _(Comment,     Expr) \
   _(Const,       Expr) \
@@ -27,9 +28,9 @@ typedef enum {
   _(FunType,     Type) /* Function type, e.g. (int,int)->(float,bool) */ \
   _(Ident,       Expr) \
   _(If,          Expr) \
-  _(Int,         Expr) /* integer literal */ \
+  _(Int,         Const) /* integer literal */ \
   _(Let,         Expr) \
-  _(Nil,         Expr) /* nil literal */ \
+  _(Nil,         Const) /* nil literal */ \
   _(Op,          Expr) \
   _(PrefixOp,    Expr) \
   _(Return,      Expr) \
@@ -87,7 +88,6 @@ typedef struct Node {
   NodeKind kind;      // kind of node (e.g. NIdent)
   SrcPos   pos;       // source origin & position
   Node*    type;      // value type. null if unknown.
-  // u.
   union {
     u64    integer;  // Bool, Int
     double real;     // Float
@@ -101,7 +101,7 @@ typedef struct Node {
     } ref;
     struct { // Op, PrefixOp, Return
       Node* left;
-      Node* right;  // null for unary operations
+      Node* right;  // null for PrefixOp. null for Op when its a postfix op.
       Tok   op;
     } op;
     struct { // Tuple, Block, File
@@ -159,6 +159,10 @@ const char* NodeReprShort(const Node*);
 // NodeIsType returns true if n represents a type (i.e. NBasicType, NFunType, etc.)
 static inline bool NodeIsType(const Node* n) {
   return n != NULL && NodeClassTable[n->kind] == NodeClassType;
+}
+
+static inline bool NodeKindIsConst(NodeKind kind) {
+  return NodeClassTable[kind] == NodeClassConst;
 }
 
 

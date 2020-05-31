@@ -27,8 +27,9 @@ const char* NodeKindName(NodeKind t) {
 const char* NodeClassName(NodeClass c) {
   switch (c) {
     case NodeClassInvalid: return "Invalid";
-    case NodeClassExpr: return "Expr";
-    case NodeClassType: return "Type";
+    case NodeClassConst:   return "Const";
+    case NodeClassExpr:    return "Expr";
+    case NodeClassType:    return "Type";
   }
   return "NodeClass?";
 }
@@ -96,6 +97,8 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   //     dlog("    kind:   %s", NodeKindNameTable[n->ref.target->kind]);
   //   }
   // }
+
+  // s = sdscatprintf(s, "[%p] ", n);
 
   if (depth > ctx->maxdepth) {
     s = TStyleYellow(s);

@@ -51,3 +51,10 @@ inline static void ArrayPush(Array* a, void* v, FWAllocator* allocator /* nullab
 inline static void* ArrayPop(Array* a) {
   return a->len > 0 ? a->v[--a->len] : NULL;
 }
+
+
+#define ArrayForEach(a, elemtype, elemname, body)  \
+  do { for (u32 i = 0; i < (a)->len; i++) {        \
+    elemtype elemname = (elemtype)(a)->v[i];       \
+    body;                                          \
+  } } while(0)

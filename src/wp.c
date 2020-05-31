@@ -19,6 +19,14 @@ static void printAst(const Node* n) {
 }
 
 
+static void printIR(const IRPkg* pkg) {
+  auto s = IRReprPkgStr(pkg, sdsempty());
+  s = sdscatlen(s, "\n", 1);
+  fwrite(s, sdslen(s), 1, stdout);
+  sdsfree(s);
+}
+
+
 void parsefile(Str filename, Scope* pkgscope) {
 
   // load file contents
@@ -54,8 +62,11 @@ void parsefile(Str filename, Scope* pkgscope) {
   printf("————————————————————————————————————————————————————————————————\n");
   // build some IR
   IRBuilder irbuilder = {};
-  IRBuilderInit(&irbuilder, IRBuilderComments); // start a new IRPkg
-  IRBuilderAdd(&irbuilder, &cc, file); // add ast to current IRPkg
+  IRBuilderInit(&irbuilder, IRBuilderComments, "foo"); // start a new package
+  IRBuilderAdd(&irbuilder, &cc, file); // add ast to current package
+
+  // print IR SLC
+  printIR(irbuilder.pkg);
 
   CCtxFree(&cc);
   TmpRecycle();

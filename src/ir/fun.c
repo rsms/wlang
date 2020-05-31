@@ -17,89 +17,36 @@ IRFun* IRFunNew(FWAllocator* a, Node* n) {
 }
 
 
-// static IRValue* getConst64(IRFun* f, TypeCode t, u64 value) {
-//   void* addHint = NULL;
-//   auto v = IRConstCacheGet(f->consts, f->mem, t, value, &addHint);
-//   if (!v) {
-//     dlog("TODO IRFunGetConstInt create const IRValue");
-//     v = NULL;
-//     f->consts = IRConstCacheAdd(f->consts, f->mem, t, value, v, addHint);
-//   }
-//   return v;
-// }
-
-
-// OpConstBool,
-// OpConstI8,
-// OpConstI16,
-// OpConstI32,
-// OpConstI64,
-// OpConstF32,
-// OpConstF64,
-
-
-static IROp ConstTypeCodeToIROp(TypeCode t) {
-  switch (t) {
-    case TypeCode_bool:
-      return OpConstBool;
-
-    case TypeCode_int8:
-    case TypeCode_uint8:
-      return OpConstI8;
-
-    case TypeCode_int16:
-    case TypeCode_uint16:
-      return OpConstI16;
-
-    case TypeCode_int:
-    case TypeCode_uint:
-    case TypeCode_int32:
-    case TypeCode_uint32:
-      return OpConstI32;
-
-    case TypeCode_int64:
-    case TypeCode_uint64:
-      return OpConstI64;
-
-    case TypeCode_float32:
-      return OpConstF32;
-
-    case TypeCode_float64:
-      return OpConstF64;
-
-    case TypeCode_str:
-    case TypeCode_nil:
-    case TypeCode_fun:
-    case TypeCode_tuple:
-    case TypeCode_tupleEnd:
-    case TypeCode_list:
-    case TypeCode_listEnd:
-    case TypeCode_struct:
-    case TypeCode_structEnd:
-    case TypeCode_NUM_END:
-    case TypeCode_MAX:
-      return OpInvalid;
-  }
-}
-
-
-// returns a constant IRValue representing n for type t
-IRValue* IRFunGetConstInt(IRFun* f, TypeCode t, u64 value) {
+static IRValue* getConst64(IRFun* f, TypeCode t, u64 value) {
   int addHint = 0;
   auto v = IRConstCacheGet(f->consts, f->mem, t, value, &addHint);
-  if (!v) {
-    auto op = ConstTypeCodeToIROp(t);
-    assert(op != OpInvalid);
-    v = IRValueNew(f, op, t, /*SrcPos*/NULL);
+  if (v == NULL) {
+    auto op = IROpConstFromAST(t);
+    // Create const operation and add it to the entry block of function f
+    v = IRValueNew(f, f->blocks.v[0], op, t, /*SrcPos*/NULL);
     f->consts = IRConstCacheAdd(f->consts, f->mem, t, value, v, addHint);
+    dlog("getConst64 add new const op=%s value=%llX => v%u", IROpNames[op], value, v->id);
+  } else {
+    dlog("getConst64 use cached const op=%s value=%llX => v%u", IROpNames[v->op], value, v->id);
   }
   return v;
 }
 
-IRValue* IRFunGetConstFloat(IRFun* f, TypeCode t, double n) {
-  return NULL; // TODO
+// returns a constant IRValue representing n for type t
+IRValue* IRFunGetConstBool(IRFun* f, bool value) {
+  // TODO: as there are just two values; avoid using the const cache.
+  return getConst64(f, TypeCode_bool, value ? 1 : 0);
 }
 
+// returns a constant IRValue representing n for type t
+IRValue* IRFunGetConstInt(IRFun* f, TypeCode t, u64 value) {
+  assert(TypeCodeIsInt(t));
+  return getConst64(f, t, value);
+}
 
-
-
+IRValue* IRFunGetConstFloat(IRFun* f, TypeCode t, double value) {
+  assert(TypeCodeIsFloat(t));
+  // reintrepret bits (double is IEEE 754 in C11)
+  u64 ivalue = *(u64*)(&value);
+  return getConst64(f, t, ivalue);
+}

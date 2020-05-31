@@ -3,9 +3,9 @@ start = 3  # shadowing
 
 fun main {
   # a, b = 10, 20
-  x = 1
-  y = x + 2
-  y
+  x = 1     # (Let x (Int 1))
+  y = x + 3 # (Let y (Op + (Ref x) (Int 2)))
+  y         # (Ref y)
   # factorial(start)
 }
 

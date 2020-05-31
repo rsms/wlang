@@ -196,6 +196,9 @@ typedef struct {
 } Source;
 
 // SrcPos
+// TODO: considering implementing something like lico and Pos/XPos from go
+//       https://golang.org/src/cmd/internal/src/pos.go
+//       https://golang.org/src/cmd/internal/src/xpos.go
 typedef struct {
   Source* src;   // source
   u32     offs;  // offset into src->buf
@@ -230,9 +233,6 @@ typedef void(ErrorHandler)(const Source*, SrcPos, ConstStr msg, void* userdata);
 // -----------------------------------------
 // scanner
 #include "token.h"
-
-// Get printable name
-const char* TokName(Tok);
 
 // scanner flags
 typedef enum {

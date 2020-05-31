@@ -19,17 +19,21 @@ sources=( \
   src/str.c \
   src/sym.c \
   src/tmpdata.c \
+  src/token.c \
   src/tstyle.c \
   src/typeid.c \
   src/types.c \
   src/unicode.c \
   src/wp.c \
   \
-  src/ir/builder.c \
-  src/ir/fun.c \
-  src/ir/value.c \
-  src/ir/constcache.c \
   src/ir/block.c \
+  src/ir/builder.c \
+  src/ir/constcache.c \
+  src/ir/fun.c \
+  src/ir/op.c \
+  src/ir/pkg.c \
+  src/ir/repr.c \
+  src/ir/value.c \
 )
 # sources=src/*.c
 
