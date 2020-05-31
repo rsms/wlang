@@ -1,8 +1,5 @@
 #include "wp.h"
-#include "fwalloc.h"
-
-static _Thread_local FWAllocator tls_alloc = {0};
-
+#include "memory.h"
 
 // ------------------------------------------------------------------------------------------
 //
@@ -55,18 +52,20 @@ static _Thread_local FWAllocator tls_alloc = {0};
 // here. I.e. TmpRecycle() would swap the active allocator with a secondary one.
 
 
+static __thread Memory tlsMem = NULL;
+
 // allocate size number of bytes to be used for a short amount of time.
 void* TmpData(size_t size) {
-  if (tls_alloc.mfree == NULL) {
-    FWAllocInit(&tls_alloc);
+  if (tlsMem == NULL) {
+    tlsMem = MemoryNew(0);
   }
-  return FWAlloc(&tls_alloc, size);
+  return memalloc(tlsMem, size);
 }
 
 // frees all memory allocated with TmpData
 void TmpRecycle() {
-  if (tls_alloc.mfree != NULL) {
-    FWAllocRecycle(&tls_alloc);
+  if (tlsMem != NULL) {
+    MemoryRecycle(&tlsMem);
   }
 }
 

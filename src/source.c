@@ -14,7 +14,7 @@ void SourceFree(Source* s) {
   sdsfree(s->name);
   s->name = NULL;
   if (s->_lineoffsets) {
-    free(s->_lineoffsets);
+    memfree(NULL, s->_lineoffsets);
     s->_lineoffsets = NULL;
   }
 }
@@ -24,7 +24,7 @@ static void computeLineOffsets(Source* s) {
   assert(s->_lineoffsets == NULL);
 
   size_t cap = 256; // best guess for common line numbers, to allocate up-front
-  s->_lineoffsets = (u32*)malloc(sizeof(u32) * cap);
+  s->_lineoffsets = (u32*)memalloc(NULL, sizeof(u32) * cap);
   s->_lineoffsets[0] = 0;
 
   u32 linecount = 1;
@@ -34,7 +34,7 @@ static void computeLineOffsets(Source* s) {
       if (linecount == cap) {
         // more lines
         cap = cap * 2;
-        s->_lineoffsets = (u32*)realloc(s->_lineoffsets, sizeof(u32) * cap);
+        s->_lineoffsets = (u32*)memrealloc(NULL, s->_lineoffsets, sizeof(u32) * cap);
       }
       s->_lineoffsets[linecount] = i;
       linecount++;

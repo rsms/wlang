@@ -38,10 +38,10 @@
   _( uint64    , '8' ) \
   _( float32   , 'f' ) \
   _( float64   , 'F' ) \
-  _( INTRINSIC_NUM_END, '\0' ) /* sentinel; not a TypeCode */ \
+  _( INTRINSIC_NUM_END, 0 ) /* sentinel; not a TypeCode */ \
   _( int       , 'i' ) /* lowered to a concrete type in IR. e.g. int32 */ \
   _( uint      , 'u' ) /* lowered to a concrete type in IR. e.g. uint32 */ \
-  _( NUM_END, '\0' ) /* sentinel; not a TypeCode */ \
+  _( NUM_END, 0 ) /* sentinel; not a TypeCode */ \
   _( str       , 's' ) \
   /* internal types not directly reachable by names in the language */ \
   _( nil       , '0' ) \
@@ -49,6 +49,9 @@
   _( tuple     , '(' ) _( tupleEnd  , ')' ) \
   _( list      , '[' ) _( listEnd   , ']' ) \
   _( struct    , '{' ) _( structEnd , '}' ) \
+  /* special type codes used in IR */ \
+  _( param1    , 'P' ) /* parameteric. For IR, matches other type, e.g. output == input */ \
+  _( param2    , 'P' )
 /*END TYPE_CODES*/
 
 // TypeCode identifies all basic types
@@ -66,6 +69,10 @@ static_assert(TypeCode_INTRINSIC_NUM_END <= 32,
 // Lookup table TypeCode => string encoding char
 const char TypeCodeEncoding[TypeCode_MAX];
 
+// Symbolic name of type code.
+// In DEBUG mode, returns full name with encoding e.g. TypeCode_float32 => "float32#'f'".
+// Else, returns just the encoding e.g. TypeCode_float32 => "f".
+const char* TypeCodeName(TypeCode);
 
 inline static bool TypeCodeIsInt(TypeCode t) {
   return t >= TypeCode_int8 && t <= TypeCode_uint;

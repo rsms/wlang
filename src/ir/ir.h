@@ -1,5 +1,5 @@
 #pragma once
-#include "../fwalloc.h"
+#include "../memory.h"
 #include "op.h"
 
 
@@ -39,7 +39,7 @@ typedef struct IRValue {
   SrcPos   pos;  // source position
 
   u32 uses; // use count. Each appearance in args or IRBlock.control counts once.
-  const char* comment; // short comment for IR formatting. Likely NULL. (FWAlloc)
+  const char* comment; // short comment for IR formatting. Likely NULL. (memalloc)
 } IRValue;
 
 
@@ -65,7 +65,7 @@ typedef struct IRBlock {
 
 // Fun represents a function
 typedef struct IRFun {
-  FWAllocator* mem; // owning allocator
+  Memory   mem; // owning allocator
   Array    blocks; void* blocksStorage[4]; // IRBlock*[]
   Sym      name;   // may be NULL
   SrcPos   pos;    // source position
@@ -81,32 +81,32 @@ typedef struct IRFun {
 
 // Pkg represents a package with functions and data
 typedef struct IRPkg {
-  FWAllocator* mem; // owning allocator
+  Memory      mem; // owning allocator
   const char* name; // c-string. "_" if NULL is passed for name to IRPkgNew. TODO use Sym?
-  // TODO: Move the PtrMap funs from builder here. Need to make PtrMap use FWAllocator.
+  // TODO: Move the PtrMap funs from builder here. Need to make PtrMap use Memory.
   Array funs; void* funsStorage[4]; // IRFun*[]
 } IRPkg;
 
 IRValue* IRValueNew(IRFun* f, IRBlock* b/*null*/, IROp op, TypeCode type, const SrcPos*/*null*/);
-void     IRValueAddComment(IRValue* v, FWAllocator* a, ConstStr comment);
+void     IRValueAddComment(IRValue* v, Memory, ConstStr comment);
 
 IRBlock* IRBlockNew(IRFun* f, IRBlockKind, const SrcPos*/*nullable*/);
 void     IRBlockAddValue(IRBlock* b, IRValue* v);
 void     IRBlockSetControl(IRBlock* b, IRValue* v);
 
-IRFun*   IRFunNew(FWAllocator* a, Node* n);
+IRFun*   IRFunNew(Memory, Node* n);
 IRValue* IRFunGetConstBool(IRFun* f, bool value);
 IRValue* IRFunGetConstInt(IRFun* f, TypeCode t, u64 n);
 IRValue* IRFunGetConstFloat(IRFun* f, TypeCode t, double n);
 
-IRPkg*   IRPkgNew(FWAllocator* a, const char* name/*null*/);
+IRPkg*   IRPkgNew(Memory, const char* name/*null*/);
 void     IRPkgAddFun(IRPkg* pkg, IRFun* f);
 
 Str IRReprPkgStr(const IRPkg* f, Str init/*null*/);
 
-// Note: Must use the same FWAllocator for all calls to the same IRConstCache.
+// Note: Must use the same Memory for all calls to the same IRConstCache.
 // Note: addHint is only valid until the next call to a mutating function like Add.
 IRValue* IRConstCacheGet(
-  const IRConstCache* c, FWAllocator* a, TypeCode t, u64 value, int* out_addHint);
+  const IRConstCache* c, Memory, TypeCode t, u64 value, int* out_addHint);
 IRConstCache* IRConstCacheAdd(
-  IRConstCache* c, FWAllocator* a, TypeCode t, u64 value, IRValue* v, int addHint);
+  IRConstCache* c, Memory, TypeCode t, u64 value, IRValue* v, int addHint);

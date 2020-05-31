@@ -31,7 +31,7 @@ void parsefile(Str filename, Scope* pkgscope) {
 
   // load file contents
   size_t len;
-  auto buf = os_readfile(filename, &len);
+  auto buf = os_readfile(filename, &len, NULL);
   if (!buf) {
     die("%s: %s", filename, strerror(errno));
   }
@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
   //   exit(1);
   // }
 
-  auto pkgscope = ScopeNew(GetGlobalScope());
+  auto pkgscope = ScopeNew(GetGlobalScope(), NULL);
   parsefile(sdsnew(argv[1]), pkgscope);
 
   return 0;

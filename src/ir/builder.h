@@ -11,7 +11,7 @@ typedef enum IRBuilderFlags {
 
 
 typedef struct IRBuilder {
-  FWAllocator    mem;
+  Memory         mem;
   PtrMap         funs; // Node* => IRFun* -- generated functions
   IRBuilderFlags flags;
   IRPkg*         pkg;
@@ -40,6 +40,7 @@ typedef struct IRBuilder {
 // start a new IRPkg.
 // b must be zeroed memory or a reused builder.
 void IRBuilderInit(IRBuilder* b, IRBuilderFlags flags, const char* pkgname/*null*/);
+void IRBuilderFree(IRBuilder* b);
 
 // add ast to top-level of the current IRPkg. Returns false if any errors occured.
 bool IRBuilderAdd(IRBuilder* b, const CCtx* cc, Node* ast);

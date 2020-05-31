@@ -154,9 +154,8 @@ bool TypeEquals(Node* a, Node* b) {
 static void test() {
   // printf("--------------------------------------------------\n");
 
-  FWAllocator mem = {0};
-  FWAllocInit(&mem);
-  #define mknode(t) NewNode(&mem, (t))
+  Memory mem = MemoryNew(0);
+  #define mknode(t) NewNode(mem, (t))
 
   // auto scope = ScopeNew(GetGlobalScope()); // defined in ast.h
   // dlog("sizeof(TypeCode_nil) %zu", sizeof(TypeCode_nil));
@@ -182,9 +181,9 @@ static void test() {
 
   { // (int, int, bool) => "(iib)"
     Node* tupleType = mknode(NTupleType);
-    NodeListAppend(&mem, &tupleType->t.tuple, Type_int);
-    NodeListAppend(&mem, &tupleType->t.tuple, Type_int);
-    NodeListAppend(&mem, &tupleType->t.tuple, Type_bool);
+    NodeListAppend(mem, &tupleType->t.tuple, Type_int);
+    NodeListAppend(mem, &tupleType->t.tuple, Type_int);
+    NodeListAppend(mem, &tupleType->t.tuple, Type_bool);
     auto id = GetTypeID(tupleType);
     // dlog("tuple (int, int, bool) id: %p %s", id, strrepr(id));
     assert(strcmp(id, "(iib)") == 0);
@@ -192,51 +191,51 @@ static void test() {
 
   { // ((int, int), (bool, int), int) => "((ii)(bi)i)"
     Node* t2 = mknode(NTupleType);
-    NodeListAppend(&mem, &t2->t.tuple, Type_bool);
-    NodeListAppend(&mem, &t2->t.tuple, Type_int);
+    NodeListAppend(mem, &t2->t.tuple, Type_bool);
+    NodeListAppend(mem, &t2->t.tuple, Type_int);
 
     Node* t1 = mknode(NTupleType);
-    NodeListAppend(&mem, &t1->t.tuple, Type_int);
-    NodeListAppend(&mem, &t1->t.tuple, Type_int);
+    NodeListAppend(mem, &t1->t.tuple, Type_int);
+    NodeListAppend(mem, &t1->t.tuple, Type_int);
 
     Node* t0 = mknode(NTupleType);
-    NodeListAppend(&mem, &t0->t.tuple, t1);
-    NodeListAppend(&mem, &t0->t.tuple, t2);
-    NodeListAppend(&mem, &t0->t.tuple, Type_int);
+    NodeListAppend(mem, &t0->t.tuple, t1);
+    NodeListAppend(mem, &t0->t.tuple, t2);
+    NodeListAppend(mem, &t0->t.tuple, Type_int);
 
     auto id = GetTypeID(t0);
     assert(strcmp(id, "((ii)(bi)i)") == 0);
 
     // create second one that has the same shape
     Node* t2b = mknode(NTupleType);
-    NodeListAppend(&mem, &t2b->t.tuple, Type_bool);
-    NodeListAppend(&mem, &t2b->t.tuple, Type_int);
+    NodeListAppend(mem, &t2b->t.tuple, Type_bool);
+    NodeListAppend(mem, &t2b->t.tuple, Type_int);
 
     Node* t1b = mknode(NTupleType);
-    NodeListAppend(&mem, &t1b->t.tuple, Type_int);
-    NodeListAppend(&mem, &t1b->t.tuple, Type_int);
+    NodeListAppend(mem, &t1b->t.tuple, Type_int);
+    NodeListAppend(mem, &t1b->t.tuple, Type_int);
 
     Node* t0b = mknode(NTupleType);
-    NodeListAppend(&mem, &t0b->t.tuple, t1b);
-    NodeListAppend(&mem, &t0b->t.tuple, t2b);
-    NodeListAppend(&mem, &t0b->t.tuple, Type_int);
+    NodeListAppend(mem, &t0b->t.tuple, t1b);
+    NodeListAppend(mem, &t0b->t.tuple, t2b);
+    NodeListAppend(mem, &t0b->t.tuple, Type_int);
 
     // they should be equivalent
     assert(TypeEquals(t0, t0b));
 
     // create third one that has a slightly different shape (bool at end)
     Node* t2c = mknode(NTupleType);
-    NodeListAppend(&mem, &t2c->t.tuple, Type_bool);
-    NodeListAppend(&mem, &t2c->t.tuple, Type_int);
+    NodeListAppend(mem, &t2c->t.tuple, Type_bool);
+    NodeListAppend(mem, &t2c->t.tuple, Type_int);
 
     Node* t1c = mknode(NTupleType);
-    NodeListAppend(&mem, &t1c->t.tuple, Type_int);
-    NodeListAppend(&mem, &t1c->t.tuple, Type_int);
+    NodeListAppend(mem, &t1c->t.tuple, Type_int);
+    NodeListAppend(mem, &t1c->t.tuple, Type_int);
 
     Node* t0c = mknode(NTupleType);
-    NodeListAppend(&mem, &t0c->t.tuple, t1c);
-    NodeListAppend(&mem, &t0c->t.tuple, t2c);
-    NodeListAppend(&mem, &t0c->t.tuple, Type_bool);
+    NodeListAppend(mem, &t0c->t.tuple, t1c);
+    NodeListAppend(mem, &t0c->t.tuple, t2c);
+    NodeListAppend(mem, &t0c->t.tuple, Type_bool);
 
     // they should be different
     assert( ! TypeEquals(t0, t0c));
@@ -245,8 +244,8 @@ static void test() {
 
   { // fun (int,bool) -> int
     Node* params = mknode(NTupleType);
-    NodeListAppend(&mem, &params->t.tuple, Type_int);
-    NodeListAppend(&mem, &params->t.tuple, Type_bool);
+    NodeListAppend(mem, &params->t.tuple, Type_int);
+    NodeListAppend(mem, &params->t.tuple, Type_bool);
 
     Node* result = Type_int;
 
@@ -270,28 +269,28 @@ static void test() {
 
   { // ( fun(int,bool)->int, fun(int)->bool, fun()->(int,bool) )
     Node* params = mknode(NTupleType);
-    NodeListAppend(&mem, &params->t.tuple, Type_int);
-    NodeListAppend(&mem, &params->t.tuple, Type_bool);
+    NodeListAppend(mem, &params->t.tuple, Type_int);
+    NodeListAppend(mem, &params->t.tuple, Type_bool);
     Node* f1 = mknode(NFunType);
     f1->t.fun.params = params;
     f1->t.fun.result = Type_int;
 
     params = mknode(NTupleType);
-    NodeListAppend(&mem, &params->t.tuple, Type_int);
+    NodeListAppend(mem, &params->t.tuple, Type_int);
     Node* f2 = mknode(NFunType);
     f2->t.fun.params = params;
     f2->t.fun.result = Type_bool;
 
     auto result = mknode(NTupleType);
-    NodeListAppend(&mem, &result->t.tuple, Type_int);
-    NodeListAppend(&mem, &result->t.tuple, Type_bool);
+    NodeListAppend(mem, &result->t.tuple, Type_int);
+    NodeListAppend(mem, &result->t.tuple, Type_bool);
     Node* f3 = mknode(NFunType);
     f3->t.fun.result = result;
 
     Node* t1 = mknode(NTupleType);
-    NodeListAppend(&mem, &t1->t.tuple, f1);
-    NodeListAppend(&mem, &t1->t.tuple, f2);
-    NodeListAppend(&mem, &t1->t.tuple, f3);
+    NodeListAppend(mem, &t1->t.tuple, f1);
+    NodeListAppend(mem, &t1->t.tuple, f2);
+    NodeListAppend(mem, &t1->t.tuple, f3);
 
     auto id = GetTypeID(t1);
     // dlog("t1 id: %p %s", id, strrepr(id));
@@ -299,7 +298,7 @@ static void test() {
   }
 
 
-  FWAllocFree(&mem);
+  MemoryFree(mem);
   // printf("--------------------------------------------------\n");
 }
 

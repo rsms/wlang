@@ -43,8 +43,9 @@ static void testMapIterator(void* key, void* value, bool* stop, void* userdata) 
 
 
 W_UNIT_TEST(PtrMap, {
+  auto mem = MemoryNew(0);
   PtrMap m = {0};
-  PtrMapInit(&m, 8);
+  PtrMapInit(&m, 8, mem);
 
   assert(m.len == 0);
 
@@ -113,4 +114,5 @@ W_UNIT_TEST(PtrMap, {
   assert(PtrMapGet(&m, "hello") == (void*)2);
 
   PtrMapFree(&m);
+  MemoryFree(mem);
 }) // W_UNIT_TEST

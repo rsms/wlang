@@ -1,6 +1,6 @@
 #pragma once
 #include "array.h"
-#include "fwalloc.h"
+#include "memory.h"
 
 typedef enum {
   NodeClassInvalid = 0,
@@ -66,8 +66,8 @@ typedef struct Scope {
 } Scope;
 
 typedef struct Node Node;
-Scope* ScopeNew(const Scope* parent);
-void ScopeFree(Scope*);
+Scope* ScopeNew(const Scope* parent, Memory);
+void ScopeFree(Scope*, Memory);
 const Node* ScopeAssoc(Scope*, Sym, const Node* value); // Returns replaced value or NULL
 const Node* ScopeLookup(const Scope*, Sym);
 const Scope* GetGlobalScope();
@@ -189,7 +189,7 @@ static inline bool NodeKindIsConst(NodeKind kind) {
 
 
 // Add node to list
-void NodeListAppend(FWAllocator* na, NodeList*, Node*);
+void NodeListAppend(Memory mem, NodeList*, Node*);
 
 static inline void NodeListClear(NodeList* list) {
   list->len = 0;
@@ -198,12 +198,11 @@ static inline void NodeListClear(NodeList* list) {
 }
 
 
-
 const Node* NodeBad;  // kind==NBad
 
 // allocate a node from an allocator
-static inline Node* NewNode(FWAllocator* na, NodeKind kind) {
-  Node* n = (Node*)FWAlloc(na, sizeof(Node));
+static inline Node* NewNode(Memory mem, NodeKind kind) {
+  Node* n = (Node*)memalloc(mem, sizeof(Node));
   n->kind = kind;
   return n;
 }

@@ -35,7 +35,7 @@ static void errorf(CCtx* cc, SrcPos pos, const char* format, ...) {
 
 
 static Node* resolveFunType(CCtx* cc, Node* n) {
-  Node* ft = NewNode(&cc->mem, NFunType);
+  Node* ft = NewNode(cc->mem, NFunType);
   auto result = n->type;
 
   // Important: To avoid an infinite loop when resolving a function which calls itself,
@@ -139,14 +139,14 @@ static Node* resolveType(CCtx* cc, Node* n) {
     break;
 
   case NTuple: {
-    Node* tt = NewNode(&cc->mem, NTupleType);
+    Node* tt = NewNode(cc->mem, NTupleType);
     NodeListForEach(&n->array.a, n, {
       auto t = resolveType(cc, n);
       if (!t) {
         t = (Node*)NodeBad;
         errorf(cc, n->pos, "unknown type");
       }
-      NodeListAppend(&cc->mem, &tt->t.tuple, t);
+      NodeListAppend(cc->mem, &tt->t.tuple, t);
     });
     n->type = tt;
     break;

@@ -90,6 +90,9 @@ typedef double                 f64;
 #define countof(x) \
   ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
+// division of integer, rounding up
+#define W_IDIV_CEIL(x, y) (1 + (((x) - 1) / (y)))
+
 #define die(format, ...) do { \
   logerr(format, ##__VA_ARGS__); \
   exit(1); \
@@ -137,9 +140,19 @@ inline static size_t align2(size_t n, size_t w) {
 //   #define W_NO_SANITIZE_ADDRESS
 // #endif
 
+
+// -------------------------------------------------------------------------------------
+// memory
+#include "memory.h"
+
+// shadow stdlib functions so that if we try to use them we get an error
+#define malloc()  abort() /* use memalloc instead */
+#define calloc()  abort() /* use memalloc instead */
+#define realloc() abort() /* use memrealloc instead */
+#define free()    abort() /* use memfree instead */
+
 // ZERO zeroes memory of a thing. e.g: Foo foo; ZERO(foo);
 #define ZERO(stackthing) memset(&(stackthing), 0, sizeof(stackthing))
-
 
 // -------------------------------------------------------------------------------------
 
@@ -250,6 +263,7 @@ typedef struct Comment {
 
 // scanner
 typedef struct S {
+  Memory    mem;
   Source*   src;           // input source
   const u8* inp;           // input buffer current pointer
   const u8* inp0;          // input buffer previous pointer
@@ -271,7 +285,7 @@ typedef struct S {
   void*         userdata;
 } S;
 
-void SInit(S*, Source*, ScanFlags, ErrorHandler*, void* userdata);
+void SInit(S*, Memory, Source*, ScanFlags, ErrorHandler*, void* userdata);
 Tok  SNext(S*);
 
 // source position of current token
@@ -295,7 +309,7 @@ typedef struct {
   ErrorHandler* errh;
   void*         userdata; // passed to errh
   Source        src;
-  FWAllocator   mem; // memory used only during compilation, like AST nodes
+  Memory        mem; // memory used only during compilation, like AST nodes
 } CCtx;
 
 // initialize and/or recycle a CCtx
@@ -327,4 +341,4 @@ void ResolveType(CCtx*, Node*);
 
 // os
 size_t os_mempagesize();  // always returns a suitable number
-u8* os_readfile(const char* filename, size_t* bufsize_out);
+u8* os_readfile(const char* filename, size_t* bufsize_out, Memory mem/*null*/);

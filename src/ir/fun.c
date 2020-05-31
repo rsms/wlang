@@ -2,9 +2,9 @@
 #include "ir.h"
 
 
-IRFun* IRFunNew(FWAllocator* a, Node* n) {
-  auto f = (IRFun*)FWAlloc(a, sizeof(IRFun));
-  f->mem = a;
+IRFun* IRFunNew(Memory mem, Node* n) {
+  auto f = (IRFun*)memalloc(mem, sizeof(IRFun));
+  f->mem = mem;
   ArrayInitWithStorage(&f->blocks, f->blocksStorage, sizeof(f->blocksStorage)/sizeof(void*));
   f->type = n->type;
   assert(f->type != NULL);
@@ -18,6 +18,7 @@ IRFun* IRFunNew(FWAllocator* a, Node* n) {
 
 
 static IRValue* getConst64(IRFun* f, TypeCode t, u64 value) {
+  // dlog("getConst64 t=%s value=%llX", TypeCodeName(t), value);
   int addHint = 0;
   auto v = IRConstCacheGet(f->consts, f->mem, t, value, &addHint);
   if (v == NULL) {
@@ -25,9 +26,9 @@ static IRValue* getConst64(IRFun* f, TypeCode t, u64 value) {
     // Create const operation and add it to the entry block of function f
     v = IRValueNew(f, f->blocks.v[0], op, t, /*SrcPos*/NULL);
     f->consts = IRConstCacheAdd(f->consts, f->mem, t, value, v, addHint);
-    dlog("getConst64 add new const op=%s value=%llX => v%u", IROpNames[op], value, v->id);
+    // dlog("getConst64 add new const op=%s value=%llX => v%u", IROpNames[op], value, v->id);
   } else {
-    dlog("getConst64 use cached const op=%s value=%llX => v%u", IROpNames[v->op], value, v->id);
+    // dlog("getConst64 use cached const op=%s value=%llX => v%u", IROpNames[v->op], value, v->id);
   }
   return v;
 }

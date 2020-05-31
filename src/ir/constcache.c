@@ -4,7 +4,7 @@
 #define RBKEY      u64
 #define RBKEY_NULL 0
 #define RBVALUE    void*
-#define RBUSERDATA void*
+#define RBUSERDATA Memory
 #include "../rbtree.c"
 
 // TODO: Consider a HAMT structure instead of a red-black tree as it would be more compact
@@ -13,25 +13,20 @@
 // ———————————————————————————————————————————————————————————————————————————————————————————————
 // RB API
 
-inline static RBNode* RBAllocNode(void* userdata) {
-  auto n = (RBNode*)FWAlloc((FWAllocator*)userdata, sizeof(RBNode));
-  // return (RBNode*)malloc(sizeof(RBNode));
-  // dlog("** RBAllocNode %p  (%zu B)", n, sizeof(RBNode));
-  return n;
+inline static RBNode* RBAllocNode(Memory mem) {
+  return (RBNode*)memalloc(mem, sizeof(RBNode));
 }
 
-inline static void RBFreeNode(RBNode* node, void* userdata) {
-  // Do nothing since node was allocated by fwalloc and will be gc'd later
-  // free(node);
-  // dlog("** RBFreeNode %p", node);
+inline static void RBFreeNode(RBNode* node, Memory mem) {
+  memfree(mem, node);
 }
 
-inline static void RBFreeValue(void* value, void* userdata) {
+inline static void RBFreeValue(void* value, Memory mem) {
   // Called when a value is removed or replaced.
-  // Do nothing since value was allocated by fwalloc and will be gc'd later
+  memfree(mem, value);
 }
 
-inline static int RBCmp(RBKEY a, RBKEY b, void* userdata) {
+inline static int RBCmp(RBKEY a, RBKEY b, Memory mem) {
   if (a < b) { return -1; }
   if (b < a) { return 1; }
   return 0;
@@ -39,29 +34,29 @@ inline static int RBCmp(RBKEY a, RBKEY b, void* userdata) {
 
 #ifdef _DOCUMENTATION_ONLY_
 // RBHas performs a lookup of k. Returns true if found.
-bool RBHas(const RBNode* n, RBKEY k, void* userdata);
+bool RBHas(const RBNode* n, RBKEY k, Memory mem);
 
 // RBGet performs a lookup of k. Returns value or RBVALUE_NOT_FOUND.
-RBVALUE RBGet(const RBNode* n, RBKEY k, void* userdata);
+RBVALUE RBGet(const RBNode* n, RBKEY k, Memory mem);
 
-RBNode* RBGetNode(RBNode* node, RBKEY key, void* userdata);
+RBNode* RBGetNode(RBNode* node, RBKEY key, Memory mem);
 
 // RBSet adds or replaces value for k. Returns new n.
-RBNode* RBSet(RBNode* n, RBKEY k, RBVALUE v, void* userdata);
+RBNode* RBSet(RBNode* n, RBKEY k, RBVALUE v, Memory mem);
 
 // RBSet adds value for k if it does not exist. Returns new n.
 // "added" is set to true when a new value was added, false otherwise.
-RBNode* RBAdd(RBNode* n, RBKEY k, RBVALUE v, bool* added, void* userdata);
+RBNode* RBAdd(RBNode* n, RBKEY k, RBVALUE v, bool* added, Memory mem);
 
 // RBDelete removes k if found. Returns new n.
-RBNode* RBDelete(RBNode* n, RBKEY k, void* userdata);
+RBNode* RBDelete(RBNode* n, RBKEY k, Memory mem);
 
 // RBClear removes all entries. n is invalid after this operation.
-void RBClear(RBNode* n, void* userdata);
+void RBClear(RBNode* n, Memory mem);
 
 // Iteration. Return true from callback to keep going.
-typedef bool(RBIterator)(const RBNode* n, void* userdata);
-bool RBIter(const RBNode* n, RBIterator* f, void* userdata);
+typedef bool(RBIterator)(const RBNode* n, Memory mem);
+bool RBIter(const RBNode* n, RBIterator* f, Memory mem);
 
 // RBCount returns the number of entries starting at n. O(n) time complexity.
 size_t RBCount(const RBNode* n);
@@ -97,8 +92,8 @@ inline static u32 bitindex(u32 bmap, u32 bitpos) {
 }
 
 
-inline static IRConstCache* IRConstCacheAlloc(FWAllocator* a, size_t entryCount) {
-  return (IRConstCache*)FWAlloc(a, sizeof(IRConstCache) + (entryCount * sizeof(void*)));
+inline static IRConstCache* IRConstCacheAlloc(Memory mem, size_t entryCount) {
+  return (IRConstCache*)memalloc(mem, sizeof(IRConstCache) + (entryCount * sizeof(void*)));
 }
 
 // static const char* fmtbin(u32 n) {
@@ -115,10 +110,10 @@ inline static IRConstCache* IRConstCacheAlloc(FWAllocator* a, size_t entryCount)
 
 IRValue* IRConstCacheGet(
   const IRConstCache* c,
-  FWAllocator* a,
-  TypeCode t,
-  u64 value,
-  int* out_addHint
+  Memory              mem,
+  TypeCode            t,
+  u64                 value,
+  int*                out_addHint
 ) {
   if (c != NULL) {
     u32 bitpos = 1 << t;
@@ -129,7 +124,7 @@ IRValue* IRConstCacheGet(
       if (out_addHint != NULL) {
         *out_addHint = (int)(bi + 1);
       }
-      return (IRValue*)RBGet(branch, value, a);
+      return (IRValue*)RBGet(branch, value, mem);
     }
   }
   if (out_addHint != NULL) {
@@ -140,11 +135,11 @@ IRValue* IRConstCacheGet(
 
 IRConstCache* IRConstCacheAdd(
   IRConstCache* c,
-  FWAllocator* a,
-  TypeCode t,
-  u64 value,
-  IRValue* v,
-  int addHint
+  Memory        mem,
+  TypeCode      t,
+  u64           value,
+  IRValue*      v,
+  int           addHint
 ) {
   // Invariant: t>=0 and t<32
   // Note: TypeCode_NUM_END is static_assert to be <= 32
@@ -155,7 +150,7 @@ IRConstCache* IRConstCacheAdd(
   if (addHint > 0) {
     u32 bi = (u32)(addHint - 1);
     auto branch = (RBNode*)c->branches[bi];
-    c->branches[bi] = RBSet(branch, value, v, a);
+    c->branches[bi] = RBSet(branch, value, v, mem);
     return c;
   }
 
@@ -164,31 +159,31 @@ IRConstCache* IRConstCacheAdd(
   if (c == NULL) {
     // first type tree
     // dlog("case A -- initial branch");
-    c = IRConstCacheAlloc(a, 1);
+    c = IRConstCacheAlloc(mem, 1);
     c->bmap = bitpos;
-    c->branches[0] = RBSet(NULL, value, v, a);
+    c->branches[0] = RBSet(NULL, value, v, mem);
   } else {
     u32 bi = bitindex(c->bmap, bitpos); // index in c->buckets
     if ((c->bmap & bitpos) == 0) {
       // dlog("case B -- new branch");
       // no type tree -- copy c into a +1 sized memory slot
       auto nbranches = branchesLen(c);
-      auto c2 = IRConstCacheAlloc(a, nbranches + 1);
+      auto c2 = IRConstCacheAlloc(mem, nbranches + 1);
       c2->bmap = c->bmap | bitpos;
       auto dst = &c2->branches[0];
       auto src = &c->branches[0];
       // copy entries up until bi
       memcpy(dst, src, bi * sizeof(void*));
       // add bi
-      dst[bi] = RBSet(NULL, value, v, a);
+      dst[bi] = RBSet(NULL, value, v, mem);
       // copy entries after bi
       memcpy(dst + (bi + 1), src + bi, (nbranches - bi) * sizeof(void*));
-      // Note: FWAllocator is forward only so no free(c) here
+      // Note: Memory is forward only so no free(c) here
       c = c2;
     } else {
       // dlog("case C -- existing branch");
       auto branch = (RBNode*)c->branches[bi];
-      c->branches[bi] = RBSet(branch, value, v, a);
+      c->branches[bi] = RBSet(branch, value, v, mem);
     }
   }
 
@@ -201,14 +196,13 @@ IRConstCache* IRConstCacheAdd(
 #if DEBUG
 static void test() {
   // printf("--------------------------------------------------\n");
-  FWAllocator a = {0};
-  FWAllocInit(&a);
+  Memory mem = MemoryNew(0);
 
   IRConstCache* c = NULL;
   u64 testValueGen = 1; // IRValue pointer simulator (generator)
 
   // c is null; get => null
-  auto v1 = IRConstCacheGet(c, &a, TypeCode_int8, 1, 0);
+  auto v1 = IRConstCacheGet(c, mem, TypeCode_int8, 1, 0);
   assert(v1 == NULL);
 
   auto expect1 = testValueGen++;
@@ -217,32 +211,32 @@ static void test() {
 
   // add values. This data causes all cases of the IRConstCacheAdd function to be used.
   // 1. initial branch creation, when c is null
-  c = IRConstCacheAdd(c, &a, TypeCode_int8,  1, (IRValue*)expect1, 0);
+  c = IRConstCacheAdd(c, mem, TypeCode_int8,  1, (IRValue*)expect1, 0);
   // 2. new branch on existing c
-  c = IRConstCacheAdd(c, &a, TypeCode_int16, 1, (IRValue*)expect2, 0);
+  c = IRConstCacheAdd(c, mem, TypeCode_int16, 1, (IRValue*)expect2, 0);
   // 3. new value on existing branch
-  c = IRConstCacheAdd(c, &a, TypeCode_int16, 2, (IRValue*)expect3, 0);
+  c = IRConstCacheAdd(c, mem, TypeCode_int16, 2, (IRValue*)expect3, 0);
 
   // verify that Get returns the expected values
-  v1 = IRConstCacheGet(c, &a, TypeCode_int8, 1, 0);
+  v1 = IRConstCacheGet(c, mem, TypeCode_int8, 1, 0);
   assert((u64)v1 == expect1);
-  auto v2 = IRConstCacheGet(c, &a, TypeCode_int16, 1, 0);
+  auto v2 = IRConstCacheGet(c, mem, TypeCode_int16, 1, 0);
   assert((u64)v2 == expect2);
-  auto v3 = IRConstCacheGet(c, &a, TypeCode_int16, 2, 0);
+  auto v3 = IRConstCacheGet(c, mem, TypeCode_int16, 2, 0);
   assert((u64)v3 == expect3);
 
   // test the addHint, which is an RBNode of the type branch when it exists.
   int addHint = 0;
   auto expect4 = testValueGen++;
-  auto v4 = IRConstCacheGet(c, &a, TypeCode_int16, 3, &addHint);
+  auto v4 = IRConstCacheGet(c, mem, TypeCode_int16, 3, &addHint);
   assert(v4 == NULL);
   assert(addHint != 0); // since TypeCode_int16 branch should exist
-  c = IRConstCacheAdd(c, &a, TypeCode_int16, 3, (IRValue*)expect4, addHint);
-  v4 = IRConstCacheGet(c, &a, TypeCode_int16, 3, &addHint);
+  c = IRConstCacheAdd(c, mem, TypeCode_int16, 3, (IRValue*)expect4, addHint);
+  v4 = IRConstCacheGet(c, mem, TypeCode_int16, 3, &addHint);
   assert((u64)v4 == expect4);
 
 
-  FWAllocFree(&a);
+  MemoryFree(mem);
   // printf("--------------------------------------------------\n");
 }
 W_UNIT_TEST(IRConstCache, { test(); }) // W_UNIT_TEST

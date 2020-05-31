@@ -37,6 +37,8 @@
  * the include of your alternate allocator if needed (not needed in order
  * to use the default libc allocator). */
 
-#define s_malloc malloc
-#define s_realloc realloc
-#define s_free free
+// use W's global memory allocator for strings
+#include "memory.h"
+#define s_malloc(z)    memalloc(NULL, (z))
+#define s_realloc(p,z) memrealloc(NULL, (p), (z))
+#define s_free(p)      memfree(NULL, (p))

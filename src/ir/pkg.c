@@ -2,11 +2,11 @@
 #include "ir.h"
 
 
-IRPkg* IRPkgNew(FWAllocator* a, const char* name) {
+IRPkg* IRPkgNew(Memory mem, const char* name) {
   size_t namelen = name == NULL ? 0 : (strlen(name) + 1);
-  auto pkg = (IRPkg*)FWAlloc(a, sizeof(IRPkg) + namelen);
+  auto pkg = (IRPkg*)memalloc(mem, sizeof(IRPkg) + namelen);
 
-  pkg->mem = a;
+  pkg->mem = mem;
 
   ArrayInitWithStorage(&pkg->funs, pkg->funsStorage, sizeof(pkg->funsStorage)/sizeof(void*));
 

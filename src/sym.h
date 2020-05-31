@@ -50,7 +50,7 @@ inline static Tok symLangTok(Sym s) {
 #undef HASHMAP_VALUE
 
 // SymMapInit initializes a map structure. initbuckets is the number of initial buckets.
-void SymMapInit(SymMap*, size_t initbuckets);
+void SymMapInit(SymMap*, size_t initbuckets, Memory mem/*null*/);
 
 // SymMapFree frees buckets data.
 void SymMapFree(SymMap*);

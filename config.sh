@@ -5,8 +5,9 @@ sources=( \
   src/array.c \
   src/ast.c \
   src/cctx.c \
-  src/fwalloc.c \
+  src/dlmalloc.c \
   src/hash.c \
+  src/memory.c \
   src/os.c \
   src/parse.c \
   src/parseint.c \

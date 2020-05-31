@@ -1,5 +1,5 @@
 #pragma once
-#include "fwalloc.h"
+#include "memory.h"
 
 // very simple array type
 typedef struct {
@@ -39,11 +39,11 @@ inline static void ArrayInitWithStorage(Array* a, void* storagePtr, u32 storageS
 // }
 
 // cap = align2(len + addl)
-void ArrayGrow(Array*, size_t addl, FWAllocator* allocator /* nullable */);
+void ArrayGrow(Array*, size_t addl, Memory mem /* nullable */);
 
-inline static void ArrayPush(Array* a, void* v, FWAllocator* allocator /* nullable */) {
+inline static void ArrayPush(Array* a, void* v, Memory mem /* nullable */) {
   if (a->len == a->cap) {
-    ArrayGrow(a, 1, allocator);
+    ArrayGrow(a, 1, mem);
   }
   a->v[a->len++] = v;
 }

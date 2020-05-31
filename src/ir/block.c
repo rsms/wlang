@@ -4,7 +4,7 @@
 
 IRBlock* IRBlockNew(IRFun* f, IRBlockKind kind, const SrcPos* pos/*?*/) {
   assert(f->bid < 0xFFFFFFFF); // too many block IDs generated
-  auto b = (IRBlock*)FWAlloc(f->mem, sizeof(IRBlock));
+  auto b = (IRBlock*)memalloc(f->mem, sizeof(IRBlock));
   b->f = f;
   b->id = f->bid++;
   b->kind = kind;

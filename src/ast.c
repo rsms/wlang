@@ -333,8 +333,10 @@ Str NodeRepr(const Node* n, Str s) {
   ctx.maxdepth = 48;
   ctx.pretty = true;
   ctx.includeTypes = true;
-  PtrMapInit(&ctx.seen, 32);
-  return nodeRepr(n, s, &ctx, /*depth*/ 1);
+  PtrMapInit(&ctx.seen, 32, NULL);
+  s = nodeRepr(n, s, &ctx, /*depth*/ 1);
+  PtrMapFree(&ctx.seen);
+  return s;
 }
 
 
@@ -352,9 +354,11 @@ ConstStr NodeReprShort(const Node* n) {
   ctx.maxdepth = 1;
   ctx.pretty = false;
   ctx.includeTypes = false;
-  PtrMapInit(&ctx.seen, 32);
+  PtrMapInit(&ctx.seen, 32, NULL);
 
   auto s = nodeRepr(n, sdsempty(), &ctx, /*depth*/ 1);
+
+  PtrMapFree(&ctx.seen);
 
   // copy into tmpdata which is safe to return
   char* buf = TmpData(sdslen(s) + 1);
@@ -365,12 +369,12 @@ ConstStr NodeReprShort(const Node* n) {
 }
 
 
-// static void nodeArrayGrow(FWAllocator* na, NodeArray* a, size_t addl) {
+// static void nodeArrayGrow(Memory mem, NodeArray* a, size_t addl) {
 //   u32 reqcap = a->len + addl;
 //   if (a->cap < reqcap) {
 //     u32 cap = align2(reqcap, sizeof(Node) * 4);
 //     // allocate new memory
-//     void* m2 = FWAlloc(na, sizeof(Node) * cap);
+//     void* m2 = memalloc(mem, sizeof(Node) * cap);
 //     memcpy(m2, a->items, sizeof(Node) * a->cap);
 //     a->items = (Node**)m2;
 //     a->cap = cap;
@@ -378,8 +382,8 @@ ConstStr NodeReprShort(const Node* n) {
 // }
 
 
-void NodeListAppend(FWAllocator* na, NodeList* a, Node* n) {
-  auto l = (NodeListLink*)FWAlloc(na, sizeof(NodeListLink));
+void NodeListAppend(Memory mem, NodeList* a, Node* n) {
+  auto l = (NodeListLink*)memalloc(mem, sizeof(NodeListLink));
   l->node = n;
   if (a->tail == NULL) {
     a->head = l;
@@ -391,12 +395,11 @@ void NodeListAppend(FWAllocator* na, NodeList* a, Node* n) {
 }
 
 
-Scope* ScopeNew(const Scope* parent) {
-  // TODO: slab alloc together with AST nodes for cache efficiency
-  auto s = (Scope*)malloc(sizeof(Scope));
+Scope* ScopeNew(const Scope* parent, Memory mem) {
+  auto s = (Scope*)memalloc(mem, sizeof(Scope));
   s->parent = parent;
   s->childcount = 0;
-  SymMapInit(&s->bindings, 8);
+  SymMapInit(&s->bindings, 8, mem);
   return s;
 }
 
@@ -404,15 +407,15 @@ Scope* ScopeNew(const Scope* parent) {
 static const Scope* globalScope = NULL;
 
 
-void ScopeFree(Scope* s) {
+void ScopeFree(Scope* s, Memory mem) {
   SymMapFree(&s->bindings);
-  free(s);
+  memfree(mem, s);
 }
 
 
 const Scope* GetGlobalScope() {
   if (globalScope == NULL) {
-    auto s = ScopeNew(NULL);
+    auto s = ScopeNew(NULL, NULL);
 
     #define X(name) SymMapSet(&s->bindings, sym_##name, (void*)Type_##name);
     TYPE_SYMS(X)

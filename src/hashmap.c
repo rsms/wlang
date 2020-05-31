@@ -29,14 +29,16 @@ typedef struct {
   } entries[bucketSize];
 } Bucket;
 
-void HM_FUN(Init)(HASHMAP_NAME* m, size_t initbuckets) {
+
+void HM_FUN(Init)(HASHMAP_NAME* m, size_t initbuckets, Memory mem) {
   m->cap = initbuckets;
   m->len = 0;
-  m->buckets = calloc(m->cap, sizeof(Bucket));
+  m->mem = mem;
+  m->buckets = memalloc(mem, m->cap * sizeof(Bucket));
 }
 
 void HM_FUN(Free)(HASHMAP_NAME* m) {
-  free(m->buckets);
+  memfree(m->mem, m->buckets);
   #if DEBUG
   m->buckets = NULL;
   m->len = 0;
@@ -47,7 +49,7 @@ void HM_FUN(Free)(HASHMAP_NAME* m) {
 static void mapGrow(HASHMAP_NAME* m) {
   size_t cap = m->cap * 2;
   rehash: {
-    auto newbuckets = (Bucket*)calloc(cap, sizeof(Bucket));
+    auto newbuckets = (Bucket*)memalloc(m->mem, cap * sizeof(Bucket));
     for (size_t bi = 0; bi < m->cap; bi++) {
       auto b = &((Bucket*)m->buckets)[bi];
       for (size_t i = 0; i < bucketSize; i++) {
@@ -73,13 +75,13 @@ static void mapGrow(HASHMAP_NAME* m) {
         }
         if (!fit) {
           // no free slot found in newb; need to grow further.
-          free(newbuckets);
+          memfree(m->mem, newbuckets);
           cap = cap * 2;
           goto rehash;
         }
       }
     }
-    free(m->buckets);
+    memfree(m->mem, m->buckets);
     m->buckets = newbuckets;
     m->cap = cap;
   }
@@ -181,7 +183,7 @@ void HM_FUN(Iter)(const HASHMAP_NAME* m, HM_FUN(Iterator)* it, void* userdata) {
 
 // static u32* hashmapDebugDistr(const HASHMAP_NAME* m) {
 //   size_t valindex = 0;
-//   u32* vals = (u32*)calloc(m->cap, sizeof(u32));
+//   u32* vals = (u32*)memalloc(m->mem, m->cap * sizeof(u32));
 //   for (size_t bi = 0; bi < m->cap; bi++) {
 //     auto b = &((Bucket*)m->buckets)[bi];
 //     u32 depth = 0;

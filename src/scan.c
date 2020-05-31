@@ -57,9 +57,10 @@ static u8 charflags[256] = {
 };
 
 
-void SInit(S* s, Source* src, ScanFlags flags, ErrorHandler* errh, void* userdata) {
+void SInit(S* s, Memory mem, Source* src, ScanFlags flags, ErrorHandler* errh, void* userdata) {
   memset(s, 0, sizeof(S));
 
+  s->mem   = mem;
   s->src   = src;
   s->inp   = src->buf;
   s->inp0  = src->buf;
@@ -107,7 +108,7 @@ static void serr(S* s, const char* format, ...) {
 
 
 static void addComment(S* s) {
-  auto c = (Comment*)malloc(sizeof(Comment));
+  auto c = (Comment*)memalloc(s->mem, sizeof(Comment));
   c->next = NULL;
   c->src = s->src;
   c->ptr = s->tokstart;

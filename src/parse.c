@@ -167,7 +167,7 @@ static void advance(P* p, const Tok* followlist) {
 
 // allocate a new ast node
 inline static Node* PNewNode(P* p, NodeKind kind) {
-  auto n = NewNode(&p->cc->mem, kind);
+  auto n = NewNode(p->cc->mem, kind);
   n->pos.src = p->s.src;
   n->pos.offs = p->s.tokstart - p->s.src->buf;
   n->pos.span = p->s.tokend - p->s.tokstart;  assert(p->s.tokend >= p->s.tokstart);
@@ -188,7 +188,7 @@ static Node* pfun(P* p, bool nameOptional);
 
 // pushScope adds a new scope to the stack. Returns the new scope.
 static Scope* pushScope(P* p) {
-  auto s = ScopeNew(p->scope);
+  auto s = ScopeNew(p->scope, p->cc->mem);
   p->scope = s;
   #ifdef DEBUG_SCOPE_PUSH_POP
   dlog("push scope #%p", s);
@@ -214,7 +214,7 @@ static Scope* popScope(P* p) {
 
   if (s->bindings.len == 0 && s->childcount == 0) {
     // the scope is unused and has no dependants; free it and return null
-    ScopeFree(s);
+    ScopeFree(s, p->cc->mem);
     return NULL;
   }
   if (p->scope) {
@@ -264,7 +264,7 @@ static Node* bad(P* p) {
 static Node* tupleTrailingComma(P* p, int precedence, Tok stoptok) {
   auto tuple = PNewNode(p, NTuple);
   do {
-    NodeListAppend(&p->cc->mem, &tuple->array.a, expr(p, precedence));
+    NodeListAppend(p->cc->mem, &tuple->array.a, expr(p, precedence));
   } while (got(p, TComma) && p->s.tok != stoptok);
   return tuple;
 }
@@ -393,9 +393,9 @@ static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
   auto names = PNewNode(p, NTuple);
   names->pos = ident0->pos;
 
-  NodeListAppend(&p->cc->mem, &names->array.a, ident0);
+  NodeListAppend(p->cc->mem, &names->array.a, ident0);
   do {
-    NodeListAppend(&p->cc->mem, &names->array.a, pident(p));
+    NodeListAppend(p->cc->mem, &names->array.a, pident(p));
   } while (got(p, TComma));
 
   Node* type = p->s.tok != TEq ? ptype(p) : NULL;
@@ -531,7 +531,7 @@ static Node* PBlock(P* p) {
 
   while (p->s.tok != TNone && p->s.tok != TRBrace) {
     // nlistPush(n, exprOrTuple(p, PREC_LOWEST));
-    NodeListAppend(&p->cc->mem, &n->array.a, exprOrTuple(p, PREC_LOWEST));
+    NodeListAppend(p->cc->mem, &n->array.a, exprOrTuple(p, PREC_LOWEST));
     if (!got(p, TSemi)) {
       break;
     }
@@ -657,13 +657,13 @@ static Node* params(P* p) { // => NTuple
           NodeListClear(&typeq);
         }
       } else {
-        NodeListAppend(&p->cc->mem, &typeq, field);
+        NodeListAppend(p->cc->mem, &typeq, field);
       }
     } else {
       // definitely just type, e.g. "fun(int)int"
       field->type = expr(p, PREC_LOWEST);
     }
-    NodeListAppend(&p->cc->mem, &n->array.a, field);
+    NodeListAppend(p->cc->mem, &n->array.a, field);
     if (!got(p, TComma)) {
       if (p->s.tok != TRParen) {
         syntaxerr(p, "expecting comma or )");
@@ -855,9 +855,9 @@ static Node* exprOrTuple(P* p, int precedence) {
   // them into an List.
   if (got(p, TComma)) {
     auto g = PNewNode(p, NTuple);
-    NodeListAppend(&p->cc->mem, &g->array.a, left);
+    NodeListAppend(p->cc->mem, &g->array.a, left);
     do {
-      NodeListAppend(&p->cc->mem, &g->array.a, prefixExpr(p));
+      NodeListAppend(p->cc->mem, &g->array.a, prefixExpr(p));
     } while (got(p, TComma));
     left = g;
   }
@@ -870,7 +870,7 @@ static Node* exprOrTuple(P* p, int precedence) {
 static Node* ptuple(P* p, int precedence) {
   auto tuple = PNewNode(p, NTuple);
   do {
-    NodeListAppend(&p->cc->mem, &tuple->array.a, expr(p, precedence));
+    NodeListAppend(p->cc->mem, &tuple->array.a, expr(p, precedence));
   } while (got(p, TComma));
   return tuple;
 }
@@ -878,7 +878,7 @@ static Node* ptuple(P* p, int precedence) {
 
 Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
   // initialize scanner
-  SInit(&p->s, &cc->src, sflags, cc->errh, cc->userdata);
+  SInit(&p->s, cc->mem, &cc->src, sflags, cc->errh, cc->userdata);
   p->fnest = 0;
   p->scope = pkgscope;
   p->cc = cc;
@@ -891,7 +891,7 @@ Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
 
   while (p->s.tok != TNone) {
     Node* n = exprOrTuple(p, PREC_LOWEST);
-    NodeListAppend(&p->cc->mem, &file->array.a, n);
+    NodeListAppend(p->cc->mem, &file->array.a, n);
 
     // // print associated comments
     // auto c = p->s.comments;

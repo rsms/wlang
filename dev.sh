@@ -53,6 +53,21 @@ if [ -f "$pidfile" ]; then
 fi
 
 
+function dev_run_exec {
+  set +e
+  ASAN_OPTIONS=detect_stack_use_after_return=1 ./build/wp.g "$@"
+  DEV_RUN_STATUS=$?
+  set -e
+  # if [ $DEV_RUN_STATUS -ne 0 ] && [ $DEV_RUN_STATUS -ne 1 ]; then
+  #   echo "—————————————————————————————————————————————————————————————————————"
+  #   echo "CRASH ($DEV_RUN_STATUS) -- starting debugger"
+  #   echo lldb -bo r ./build/wp.g "$@"
+  #   ASAN_OPTIONS=detect_stack_use_after_return=1 \
+  #     lldb -bo r ./build/wp.g "$@"
+  # fi
+}
+
+
 function dev_run {
   set +e
   pid=
@@ -60,10 +75,8 @@ function dev_run {
     time ./build/wp "$@" >/dev/null 2>&1 &
     pid=$!
   else
-    # echo lldb -bo r ./build/wp.g "$@"
-    # ASAN_OPTIONS=detect_stack_use_after_return=1 \
-    #   lldb -bo r ./build/wp.g "$@" &
-    ASAN_OPTIONS=detect_stack_use_after_return=1 ./build/wp.g "$@" &
+    dev_run_exec "$@" &
+    # dev_run_exec "$@"
     pid=$!
   fi
   echo $pid > "$pidfile"

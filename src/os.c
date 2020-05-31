@@ -18,7 +18,7 @@ size_t os_mempagesize() {
 }
 
 
-u8* os_readfile(const char* filename, size_t* bufsize_out) {
+u8* os_readfile(const char* filename, size_t* bufsize_out, Memory mem) {
   // TODO: use mmap
 
   int fd = open(filename, O_RDONLY);
@@ -32,7 +32,7 @@ u8* os_readfile(const char* filename, size_t* bufsize_out) {
   }
 
   size_t bufsize = (size_t)st.st_size;
-  u8* buf = (u8*)malloc(bufsize); // TODO use feelist
+  u8* buf = (u8*)memalloc(mem, bufsize); // TODO use feelist
 
   auto nread = read(fd, buf, bufsize);
   close(fd);
@@ -40,7 +40,7 @@ u8* os_readfile(const char* filename, size_t* bufsize_out) {
     die("TODO: parsefile read() partial");
   }
   if (nread < 0) {
-    free(buf);
+    memfree(mem, buf);
     return NULL;
   }
 

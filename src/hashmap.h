@@ -1,3 +1,4 @@
+#include "memory.h"
 // example:
 // #define HASHMAP_NAME     FooMap
 // #define HASHMAP_KEY      Foo
@@ -17,11 +18,11 @@
 #define HM_FUN(name) _HM_FUN(HASHMAP_NAME, name)
 #define HASHMAP_IS_INIT(m) ((m)->buckets != NULL)
 
-
 typedef struct {
-  size_t cap;  // number of buckets
-  size_t len;  // number of key-value entries
+  size_t cap;     // number of buckets
+  size_t len;     // number of key-value entries
   void*  buckets; // internal
+  Memory mem;    // memory allocator. NULL = use global allocator
 } HASHMAP_NAME;
 
 #ifdef HASHMAP_INCLUDE_DECLARATIONS
@@ -29,7 +30,7 @@ typedef struct {
 // Normally these are copy-pasted and hand-converted in the user-level header.
 
 // Init initializes a map structure. initbuckets is the number of initial buckets.
-void HM_FUN(Init)(HASHMAP_NAME*, size_t initbuckets);
+void HM_FUN(Init)(HASHMAP_NAME*, size_t initbuckets, Memory);
 
 // Free frees buckets data.
 void HM_FUN(Free)(HASHMAP_NAME*);

@@ -4,27 +4,26 @@
 
 static bool addTopLevel(IRBuilder* u, Node* n);
 
-// inline static PtrMap* PtrMapNew(size_t initbuckets) {
-//   auto m = (PtrMap*)malloc(sizeof(PtrMap));
-//   PtrMapInit(m, initbuckets);
-//   return m;
-// }
 
-inline static PtrMap* PtrMapNew(FWAllocator* a, size_t initbuckets) {
-  auto m = (PtrMap*)FWAlloc(a, sizeof(PtrMap));
-  PtrMapInit(m, initbuckets);
+inline static PtrMap* PtrMapNew(Memory mem, size_t initbuckets) {
+  auto m = (PtrMap*)memalloc(mem, sizeof(PtrMap));
+  PtrMapInit(m, initbuckets, mem);
   return m;
 }
 
 
 void IRBuilderInit(IRBuilder* u, IRBuilderFlags flags, const char* pkgname) {
   memset(u, 0, sizeof(IRBuilder));
-  FWAllocInit(&u->mem);
-  u->pkg = IRPkgNew(&u->mem, pkgname);
-  PtrMapInit(&u->funs, 32);
-  u->vars = PtrMapNew(&u->mem, 32);
+  u->mem = MemoryNew(0);
+  u->pkg = IRPkgNew(u->mem, pkgname);
+  PtrMapInit(&u->funs, 32, u->mem);
+  u->vars = PtrMapNew(u->mem, 32);
   u->flags = flags;
   ArrayInitWithStorage(&u->defvars, u->defvarsStorage, sizeof(u->defvarsStorage)/sizeof(void*));
+}
+
+void IRBuilderFree(IRBuilder* u) {
+  MemoryFree(u->mem);
 }
 
 bool IRBuilderAdd(IRBuilder* u, const CCtx* cc, Node* n) {
@@ -95,11 +94,11 @@ static IRBlock* endBlock(IRBuilder* u) {
   // Move block-local vars to long-term definition data.
   // First we fill any holes in defvars.
   while (u->defvars.len <= b->id) {
-    ArrayPush(&u->defvars, NULL, &u->mem);
+    ArrayPush(&u->defvars, NULL, u->mem);
   }
   if (u->vars->len > 0) {
     u->defvars.v[b->id] = u->vars;
-    u->vars = PtrMapNew(&u->mem, 32);  // new block-local vars
+    u->vars = PtrMapNew(u->mem, 32);  // new block-local vars
   }
 
   #if DEBUG
@@ -125,11 +124,6 @@ static void endFun(IRBuilder* u) {
 }
 
 
-static void writeVariable(IRBuilder* u, Sym name, IRValue* value) {
-  dlog("TODO writeVariable %.*s", (int)symlen(name), name);
-}
-
-
 static IRValue* TODO_Value(IRBuilder* u) {
   return IRValueNew(u->f, u->b, OpNil, TypeCode_nil, /*SrcPos*/NULL);
 }
@@ -150,9 +144,44 @@ static TypeCode IntrinsicTypeCode(TypeCode t) {
 
 
 // ———————————————————————————————————————————————————————————————————————————————————————————————
+// Phi & variables
+
+
+static void writeVariable(IRBuilder* u, Sym name, IRValue* value) {
+  dlog("TODO writeVariable %.*s", (int)symlen(name), name);
+}
+
+
+static IRValue* readVariable(IRBuilder* u, Sym name, Node* typeNode, IRBlock* b/*null*/) {
+  // if (b == u->b) {
+  //   // current block
+  //   let v = u.vars.get(name)
+  //   if (v) {
+  //     return v
+  //   }
+  //   b = u.b
+  // } else {
+  //   let m = u.defvars[b.id]
+  //   if (m) {
+  //     let v = m.get(name)
+  //     if (v) {
+  //       return v
+  //     }
+  //   }
+  // }
+
+  // // global value numbering
+  // return u.readVariableRecursive(name, t, b)
+
+  return TODO_Value(u);
+}
+
+
+// ———————————————————————————————————————————————————————————————————————————————————————————————
 // add functions. Most atomic at top, least at bottom. I.e. let -> block -> fun -> file.
 
 static IRValue* addExpr(IRBuilder* u, Node* n);
+
 
 static IRValue* addInt(IRBuilder* u, Node* n) {
   assert(n->kind == NInt);
@@ -174,37 +203,27 @@ static IRValue* addAssign(IRBuilder* u, Sym name /*nullable*/, IRValue* value) {
   writeVariable(u, name, value);
 
   if (u->flags & IRBuilderComments) {
-    IRValueAddComment(value, &u->mem, name);
+    IRValueAddComment(value, u->mem, name);
   }
 
   return value;
 }
 
 
-// static IRValue* addBinOp(IRBuilder* u, Node* n, IRValue* left, IRValue* right) {
-//   assert(n->type->kind == NBasicType);
-//   IROp op = IROpFromAST(n->op.op, left->type, right->type);
-//   assert(op != OpNil);
-//   TypeCode rtype = IROpInfo(op)->outputType;
-//   // ensure that the type we think n will have is actually the type of the resulting value.
-//   assert(IntrinsicTypeCode(n->type->t.basic.typeCode) == rtype);
-//   return IRValueNew(u->f, u->b, op, rtype, /*SrcPos*/NULL);
-// }
-
-
-// static IRValue* addPostfixOp(IRBuilder* u, Node* n, IRValue* subject) {
-//   assert(n->type->kind == NBasicType);
-//   IROp op = IROpFromAST(n->op.op, subject->type, TypeCode_nil);
-//   assert(op != OpNil);
-//   TypeCode rtype = IntrinsicTypeCode(n->type->t.basic.typeCode);
-//   // // TODO: verify result type
-//   // assert(IROpInfo(op)->outputType == rtype);
-//   return IRValueNew(u->f, u->b, op, rtype, &n->pos);
-// }
+static IRValue* addIdent(IRBuilder* u, Node* n) {
+  assert(n->kind == NIdent);
+  return readVariable(u, n->ref.name, n->type, u->b);
+}
 
 
 static IRValue* addOp(IRBuilder* u, Node* n) {
   assert(n->kind == NOp);
+
+  dlog("addOp %s %s = %s",
+    TokName(n->op.op),
+    NodeReprShort(n->op.left),
+    n->op.right != NULL ? NodeReprShort(n->op.right) : "nil"
+  );
 
   // gen left operand
   auto left = addExpr(u, n->op.left);
@@ -221,10 +240,26 @@ static IRValue* addOp(IRBuilder* u, Node* n) {
   // lookup IROp
   IROp op = IROpFromAST(n->op.op, left->type, type2);
   assert(op != OpNil);
-  TypeCode rtype = IROpInfo(op)->outputType;
+
+  // read result type
+  #if DEBUG
   // ensure that the type we think n will have is actually the type of the resulting value.
-  assert(IntrinsicTypeCode(n->type->t.basic.typeCode) == rtype);
-  return IRValueNew(u->f, u->b, op, rtype, /*SrcPos*/NULL);
+  TypeCode restype = IROpInfo(op)->outputType;
+  if (restype > TypeCode_INTRINSIC_NUM_END) {
+    // result type is parametric; is the same as an input type.
+    assert(restype == TypeCode_param1 || restype == TypeCode_param2);
+    if (restype == TypeCode_param1) {
+      restype = left->type;
+    } else {
+      restype = type2;
+    }
+  }
+  assert(IntrinsicTypeCode(n->type->t.basic.typeCode) == restype);
+  #else
+  TypeCode restype = IntrinsicTypeCode(n->type->t.basic.typeCode);
+  #endif
+
+  return IRValueNew(u->f, u->b, op, restype, /*SrcPos*/NULL);
 }
 
 
@@ -258,6 +293,7 @@ static IRValue* addExpr(IRBuilder* u, Node* n) {
     case NLet:   return addLet(u, n);
     case NInt:   return addInt(u, n);
     case NOp:    return addOp(u, n);
+    case NIdent: return addIdent(u, n);
 
     case NNone:
     case NBad:
@@ -272,7 +308,6 @@ static IRValue* addExpr(IRBuilder* u, Node* n) {
     case NFloat:
     case NFun:
     case NFunType:
-    case NIdent:
     case NIf:
     case NNil:
     case NPrefixOp:
@@ -302,7 +337,7 @@ static IRFun* addFun(IRBuilder* u, Node* n) {
   dlog("addFun %s", NodeReprShort(n));
 
   // allocate a new function and its entry block
-  f = IRFunNew(&u->mem, n);
+  f = IRFunNew(u->mem, n);
   auto entryb = IRBlockNew(f, IRBlockPlain, &n->pos);
 
   // Since functions can be anonymous and self-referential, short-circuit using a PtrMap

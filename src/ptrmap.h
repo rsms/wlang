@@ -8,7 +8,7 @@
 #undef HASHMAP_VALUE
 
 // PtrMapInit initializes a map structure. initbuckets is the number of initial buckets.
-void PtrMapInit(PtrMap*, size_t initbuckets);
+void PtrMapInit(PtrMap*, size_t initbuckets, Memory mem/*nullable*/);
 
 // bool PtrMapIsInit(PtrMap*)
 #define PtrMapIsInit HASHMAP_IS_INIT
