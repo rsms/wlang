@@ -118,7 +118,9 @@ static void mapGrow(HASHMAP_NAME* m) {
         }
       }
     }
-    memfree(m->mem, m->buckets);
+    if (!(m->flags & HMFlagBucketMemoryDense)) {
+      memfree(m->mem, m->buckets);
+    }
     m->buckets = newbuckets;
     m->cap = cap;
     m->flags &= ~HMFlagBucketMemoryDense;

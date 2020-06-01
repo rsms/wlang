@@ -128,402 +128,502 @@ const IROpDescr _IROpInfoMap[Op_MAX] = {
   { // OpNil
     IROpFlagZeroWidth,
     TypeCode_nil,
+    IRAuxNone,
   },
   { // OpPhi
     IROpFlagZeroWidth,
     TypeCode_nil,
+    IRAuxNone,
   },
   { // OpConstBool
     IROpFlagConstant,
     TypeCode_bool,
+    IRAuxBool,
   },
   { // OpConstI8
     IROpFlagConstant,
     TypeCode_param1, // i8
+    IRAuxI8,
   },
   { // OpConstI16
     IROpFlagConstant,
     TypeCode_param1, // i16
+    IRAuxI16,
   },
   { // OpConstI32
     IROpFlagConstant,
     TypeCode_param1, // i32
+    IRAuxI32,
   },
   { // OpConstI64
     IROpFlagConstant,
     TypeCode_param1, // i64
+    IRAuxI64,
   },
   { // OpConstF32
     IROpFlagConstant,
     TypeCode_float32,
+    IRAuxI32,
   },
   { // OpConstF64
     IROpFlagConstant,
     TypeCode_float64,
+    IRAuxI64,
   },
   { // OpAddI8
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_param1, // i8
+    IRAuxNone,
   },
   { // OpAddI16
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_param1, // i16
+    IRAuxNone,
   },
   { // OpAddI32
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_param1, // i32
+    IRAuxNone,
   },
   { // OpAddI64
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_param1, // i64
+    IRAuxNone,
   },
   { // OpAddF32
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_float32,
+    IRAuxNone,
   },
   { // OpAddF64
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_float64,
+    IRAuxNone,
   },
   { // OpSubI8
     IROpFlagResultInArg0,
     TypeCode_param1, // i8
+    IRAuxNone,
   },
   { // OpSubI16
     IROpFlagResultInArg0,
     TypeCode_param1, // i16
+    IRAuxNone,
   },
   { // OpSubI32
     IROpFlagResultInArg0,
     TypeCode_param1, // i32
+    IRAuxNone,
   },
   { // OpSubI64
     IROpFlagResultInArg0,
     TypeCode_param1, // i64
+    IRAuxNone,
   },
   { // OpSubF32
     IROpFlagResultInArg0,
     TypeCode_float32,
+    IRAuxNone,
   },
   { // OpSubF64
     IROpFlagResultInArg0,
     TypeCode_float64,
+    IRAuxNone,
   },
   { // OpMulI8
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_param1, // i8
+    IRAuxNone,
   },
   { // OpMulI16
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_param1, // i16
+    IRAuxNone,
   },
   { // OpMulI32
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_param1, // i32
+    IRAuxNone,
   },
   { // OpMulI64
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_param1, // i64
+    IRAuxNone,
   },
   { // OpMulF32
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_float32,
+    IRAuxNone,
   },
   { // OpMulF64
-    IROpFlagResultInArg0|IROpFlagCommutative,
+    IROpFlagCommutative|IROpFlagResultInArg0,
     TypeCode_float64,
+    IRAuxNone,
   },
   { // OpDivS8
     IROpFlagResultInArg0,
     TypeCode_int8,
+    IRAuxNone,
   },
   { // OpDivU8
     IROpFlagResultInArg0,
     TypeCode_uint8,
+    IRAuxNone,
   },
   { // OpDivS16
     IROpFlagResultInArg0,
     TypeCode_int16,
+    IRAuxNone,
   },
   { // OpDivU16
     IROpFlagResultInArg0,
     TypeCode_uint16,
+    IRAuxNone,
   },
   { // OpDivS32
     IROpFlagResultInArg0,
     TypeCode_int32,
+    IRAuxNone,
   },
   { // OpDivU32
     IROpFlagResultInArg0,
     TypeCode_uint32,
+    IRAuxNone,
   },
   { // OpDivS64
     IROpFlagResultInArg0,
     TypeCode_int64,
+    IRAuxNone,
   },
   { // OpDivU64
     IROpFlagResultInArg0,
     TypeCode_uint64,
+    IRAuxNone,
   },
   { // OpDivF32
     IROpFlagResultInArg0,
     TypeCode_float32,
+    IRAuxNone,
   },
   { // OpDivF64
     IROpFlagResultInArg0,
     TypeCode_float64,
+    IRAuxNone,
   },
   { // OpEqB
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpEqI8
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpEqI16
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpEqI32
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpEqI64
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpEqF32
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpEqF64
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpNEqB
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpNEqI8
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpNEqI16
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpNEqI32
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpNEqI64
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpNEqF32
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpNEqF64
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLessS8
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLessU8
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLessS16
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLessU16
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLessS32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLessU32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLessS64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLessU64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLessF32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLessF64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGreaterS8
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGreaterU8
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGreaterS16
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGreaterU16
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGreaterS32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGreaterU32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGreaterS64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGreaterU64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGreaterF32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGreaterF64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLEqS8
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLEqU8
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLEqS16
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLEqU16
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLEqS32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLEqU32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLEqS64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLEqU64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLEqF32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpLEqF64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGEqS8
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGEqU8
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGEqS16
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGEqU16
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGEqS32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGEqU32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGEqS64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGEqU64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGEqF32
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpGEqF64
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpAndB
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpOrB
     IROpFlagCommutative,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpNotB
     IROpFlagNone,
     TypeCode_bool,
+    IRAuxNone,
   },
   { // OpNegI8
     IROpFlagNone,
     TypeCode_param1, // i8
+    IRAuxNone,
   },
   { // OpNegI16
     IROpFlagNone,
     TypeCode_param1, // i16
+    IRAuxNone,
   },
   { // OpNegI32
     IROpFlagNone,
     TypeCode_param1, // i32
+    IRAuxNone,
   },
   { // OpNegI64
     IROpFlagNone,
     TypeCode_param1, // i64
+    IRAuxNone,
   },
   { // OpNegF32
     IROpFlagNone,
     TypeCode_float32,
+    IRAuxNone,
   },
   { // OpNegF64
     IROpFlagNone,
     TypeCode_float64,
+    IRAuxNone,
   },
 };
 

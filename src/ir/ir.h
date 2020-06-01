@@ -19,6 +19,7 @@ typedef enum IRBranchPrediction {
 
 
 typedef struct IRFun IRFun;
+typedef struct IRValue IRValue;
 
 
 // Edge represents a CFG edge
@@ -37,7 +38,10 @@ typedef struct IRValue {
   IROp     op;   // operation that computes this value
   TypeCode type;
   SrcPos   pos;  // source position
-
+  IRValue* args[3]; u8 argslen; // arguments
+  union {
+    i64 auxInt; // floats are stored as reinterpreted bits
+  };
   u32 uses; // use count. Each appearance in args or IRBlock.control counts once.
   const char* comment; // short comment for IR formatting. Likely NULL. (memalloc)
 } IRValue;
@@ -70,11 +74,11 @@ typedef struct IRFun {
   Sym      name;   // may be NULL
   SrcPos   pos;    // source position
   u32      nargs;  // number of arguments
+  Sym      typeid; // TypeCode encoding
 
   // internal; valid only during building
   u32    bid;    // block ID allocator
   u32    vid;    // value ID allocator
-  Node*  type;   // .kind=NFunType
   IRConstCache* consts; // constants cache maps type+value => IRValue
 } IRFun;
 
@@ -89,6 +93,7 @@ typedef struct IRPkg {
 
 IRValue* IRValueNew(IRFun* f, IRBlock* b/*null*/, IROp op, TypeCode type, const SrcPos*/*null*/);
 void     IRValueAddComment(IRValue* v, Memory, ConstStr comment);
+void     IRValueAddArg(IRValue* v, IRValue* arg);
 
 IRBlock* IRBlockNew(IRFun* f, IRBlockKind, const SrcPos*/*nullable*/);
 void     IRBlockAddValue(IRBlock* b, IRValue* v);

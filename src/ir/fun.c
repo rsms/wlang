@@ -3,15 +3,15 @@
 
 
 IRFun* IRFunNew(Memory mem, Node* n) {
+  assert(n->type != NULL);
+  assert(n->type->kind == NFunType);
   auto f = (IRFun*)memalloc(mem, sizeof(IRFun));
   f->mem = mem;
   ArrayInitWithStorage(&f->blocks, f->blocksStorage, sizeof(f->blocksStorage)/sizeof(void*));
-  f->type = n->type;
-  assert(f->type != NULL);
-  assert(f->type->kind == NFunType);
+  f->typeid = n->type->t.id;
   f->name = n->fun.name; // may be NULL
   f->pos = n->pos; // copy
-  auto params = f->type->fun.params;
+  auto params = n->type->fun.params;
   f->nargs = params == NULL ? 0 : params->kind == NTuple ? params->array.a.len : 1;
   return f;
 }
@@ -23,8 +23,10 @@ static IRValue* getConst64(IRFun* f, TypeCode t, u64 value) {
   auto v = IRConstCacheGet(f->consts, f->mem, t, value, &addHint);
   if (v == NULL) {
     auto op = IROpConstFromAST(t);
+    assert(IROpInfo(op)->aux != IRAuxNone);
     // Create const operation and add it to the entry block of function f
     v = IRValueNew(f, f->blocks.v[0], op, t, /*SrcPos*/NULL);
+    v->auxInt = value;
     f->consts = IRConstCacheAdd(f->consts, f->mem, t, value, v, addHint);
     // dlog("getConst64 add new const op=%s value=%llX => v%u", IROpNames[op], value, v->id);
   } else {

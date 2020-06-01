@@ -266,7 +266,12 @@ static IRValue* addOp(IRBuilder* u, Node* n) {
   TypeCode restype = IntrinsicTypeCode(n->type->t.basic.typeCode);
   #endif
 
-  return IRValueNew(u->f, u->b, op, restype, /*SrcPos*/NULL);
+  auto v = IRValueNew(u->f, u->b, op, restype, &n->pos);
+  IRValueAddArg(v, left);
+  if (right != NULL) {
+    IRValueAddArg(v, right);
+  }
+  return v;
 }
 
 

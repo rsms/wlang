@@ -31,3 +31,9 @@ void IRValueAddComment(IRValue* v, Memory mem, ConstStr comment) {
     }
   }
 }
+
+void IRValueAddArg(IRValue* v, IRValue* arg) {
+  assert(v->argslen < countof(v->args));
+  v->args[v->argslen++] = arg;
+  arg->uses ++;
+}

@@ -51,8 +51,8 @@
   (ConstI16   () -> i16   Constant  (aux i16)) ; aux is sign-extended 16 bits
   (ConstI32   () -> i32   Constant  (aux i32)) ; aux is sign-extended 32 bits
   (ConstI64   () -> i64   Constant  (aux i64)) ; aux is Int64
-  (ConstF32   () -> f32   Constant  (aux f32))
-  (ConstF64   () -> f64   Constant  (aux f64))
+  (ConstF32   () -> f32   Constant  (aux i32))
+  (ConstF64   () -> f64   Constant  (aux i64))
   ;
   ; ---------------------------------------------------------------------
   ; 2-input arithmetic. Types must be consistent.
