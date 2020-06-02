@@ -935,14 +935,14 @@ W_UNIT_TEST(IROp, {
   Memory mem = MemoryNew(0);
   #define mknode(t) NewNode(mem, (t))
 
-  TypeCode type1 = TypeCode_int32;
-  TypeCode type2 = TypeCode_int16;
-  dlog("type1: 0x%X", type1);
-  dlog("type2: 0x%X", type2);
-  u32 key = ((u32)type1 << 16) | (u32)type2;
-  dlog("key: 0x%X", key);
-  dlog("t1 0x%X", key >> 16);
-  dlog("t2 0x%X", key & 0xFFFF);
+  // TypeCode type1 = TypeCode_int32;
+  // TypeCode type2 = TypeCode_int16;
+  // dlog("type1: 0x%X", type1);
+  // dlog("type2: 0x%X", type2);
+  // u32 key = ((u32)type1 << 16) | (u32)type2;
+  // dlog("key: 0x%X", key);
+  // dlog("t1 0x%X", key >> 16);
+  // dlog("t2 0x%X", key & 0xFFFF);
 
   // TODO: rewrite these tests to use the new matrix table:
   //

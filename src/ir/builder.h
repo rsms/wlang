@@ -15,6 +15,7 @@ typedef struct IRBuilder {
   PtrMap         funs; // Node* => IRFun* -- generated functions
   IRBuilderFlags flags;
   IRPkg*         pkg;
+  bool           optimize;  // apply construction-pass [optimization]s
 
   // state used during building
   const CCtx* cc; // current source context (source-file specific)

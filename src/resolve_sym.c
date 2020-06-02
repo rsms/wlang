@@ -48,32 +48,36 @@ static inline Node* resolveConst(Node* n, Scope* scope, ResCtx* ctx) {
 }
 
 
-static const Node* resolveIdent(const Node* n, Scope* scope, ResCtx* ctx) {
+static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
   assert(n->kind == NIdent);
   auto name = n->ref.name;
   // dlog("resolveIdent BEGIN %s", name);
   while (1) {
-    const Node* target = n->ref.target;
-    // dlog("resolveIdent ITER %s", n->ref.name);
+    auto target = n->ref.target;
+    // dlog("  ITER %s", n->ref.name);
 
     if (target == NULL) {
+      // dlog("  LOOKUP %s", n->ref.name);
       target = ScopeLookup(scope, n->ref.name);
+
       if (target == NULL) {
         resolveErrorf(ctx, n->pos, "undefined symbol %s", name);
         ((Node*)n)->ref.target = NodeBad;
         return n;
       }
-      // if (target->kind == NLet) {
-      //   target = target->field.init;
-      // }
+
       ((Node*)n)->ref.target = target;
-      // dlog("resolveIdent UNWIND %s => %s", n->ref.name, NodeKindName(target->kind));
+      // dlog("  UNWIND %s => %s", n->ref.name, NodeKindName(target->kind));
     }
 
+    // dlog("  SWITCH target %s", NodeKindName(target->kind));
     switch (target->kind) {
       case NIdent:
-        n = target;
+        // note: all built-ins which are const have targets, meaning the code above will
+        // not mutate those nodes.
+        n = (Node*)target;
         break; // continue unwind loop
+
       case NConst:
         return resolveConst((Node*)target, scope, ctx);
 
@@ -90,17 +94,24 @@ static const Node* resolveIdent(const Node* n, Scope* scope, ResCtx* ctx) {
       //   }
       //   return n;
 
+      // constants
+      case NBool:
+      case NInt:
+      case NNil:
+        // unwind identifier to constant value.
+        // Example:
+        //   (Ident true #user) -> (Ident true #builtin) -> (Bool true #builtin)
+        //
+        // dlog("  RET target %s -> %s", NodeKindName(target->kind), NodeReprShort(target));
+        return target;
+
       default:
+        assert(!NodeKindIsConst(target->kind)); // should be covered in case-statements above
+
         // dlog("resolveIdent FINAL %s => %s (target %s) type? %d",
         //   n->ref.name, NodeKindName(n->kind), NodeKindName(target->kind), NodeIsType(target));
-        if (NodeKindIsConst(target->kind)) {
-          // unwind identifier to constant value.
-          // Example:
-          //   x = true   # Identifier "true" is resolved to constant Boolean true
-          //   y = x      # Identifier x is resolved to Let x  (NOT the value of x)
-          //
-          return target;
-        }
+
+        // dlog("  RET n %s -> %s", NodeKindName(n->kind), NodeReprShort(n));
         return n;
     }
   }
@@ -124,7 +135,7 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
 
   // uses u.ref
   case NIdent: {
-    return (Node*)resolveIdent(n, scope, ctx);
+    return resolveIdent(n, scope, ctx);
   }
 
   // uses u.array
@@ -135,7 +146,7 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
       scope = n->array.scope;
     }
     NodeListMap(&n->array.a, n,
-      resolve(n, scope, ctx)
+      /* n = */ resolve(n, scope, ctx)
     );
     break;
   }
@@ -144,17 +155,17 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   case NFun: {
     ctx->fnest++;
     if (n->fun.params) {
-      resolve(n->fun.params, scope, ctx);
+      n->fun.params = resolve(n->fun.params, scope, ctx);
     }
     if (n->type) {
-      resolve(n->type, scope, ctx);
+      n->type = resolve(n->type, scope, ctx);
     }
     auto body = n->fun.body;
     if (body) {
       if (n->fun.scope) {
         scope = n->fun.scope;
       }
-      resolve(body, scope, ctx);
+      n->fun.body = resolve(body, scope, ctx);
     }
     ctx->fnest--;
     break;
@@ -198,10 +209,10 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
 
   // uses u.cond
   case NIf:
-    resolve(n->cond.cond, scope, ctx);
-    resolve(n->cond.thenb, scope, ctx);
+    n->cond.cond = resolve(n->cond.cond, scope, ctx);
+    n->cond.thenb = resolve(n->cond.thenb, scope, ctx);
     if (n->cond.elseb) {
-      resolve(n->cond.elseb, scope, ctx);
+      n->cond.elseb = resolve(n->cond.elseb, scope, ctx);
     }
     break;
 

@@ -18,6 +18,10 @@ IRFun* IRFunNew(Memory mem, Node* n) {
 
 
 static IRValue* getConst64(IRFun* f, TypeCode t, u64 value) {
+
+  // TODO: simplify const cache to just hold int32 and int64 since we can store all
+  // values in these.
+
   // dlog("getConst64 t=%s value=%llX", TypeCodeName(t), value);
   int addHint = 0;
   auto v = IRConstCacheGet(f->consts, f->mem, t, value, &addHint);
@@ -52,4 +56,13 @@ IRValue* IRFunGetConstFloat(IRFun* f, TypeCode t, double value) {
   // reintrepret bits (double is IEEE 754 in C11)
   u64 ivalue = *(u64*)(&value);
   return getConst64(f, t, ivalue);
+}
+
+
+void IRFunInvalidateCFG(IRFun* f) {
+  // TODO
+  // f->cachedPostorder = NULL;
+  // f->cachedLoopnest = NULL;
+  // f->cachedIdom = NULL;
+  // f->cachedSdom = NULL;
 }

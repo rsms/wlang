@@ -5,8 +5,8 @@
 (regSize  4)
 (intSize  4)
 ;
-; Available operator attributes:
-;   ZeroWidth           dummy op; no actual I/O.
+; Available operator flags:
+;   ZeroWidth           purely symbolic; no actual I/O.
 ;   Constant            true if the value is a constant. Value in aux
 ;   Commutative         commutative on its first 2 arguments (e.g. addition; x+y==y+x)
 ;   ResultInArg0        output of v and v.args[0] must be allocated to the same register.

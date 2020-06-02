@@ -69,10 +69,13 @@ static_assert(TypeCode_INTRINSIC_NUM_END <= 32,
 // Lookup table TypeCode => string encoding char
 const char TypeCodeEncoding[TypeCode_MAX];
 
-// Symbolic name of type code.
-// In DEBUG mode, returns full name with encoding e.g. TypeCode_float32 => "float32#'f'".
-// Else, returns just the encoding e.g. TypeCode_float32 => "f".
-const char* TypeCodeName(TypeCode);
+// Symbolic name of type code. Eg "int32"
+static const char* TypeCodeName(TypeCode);
+const char* _TypeCodeName[TypeCode_MAX];
+inline static const char* TypeCodeName(TypeCode tc) {
+  assert(tc >= 0 && tc < TypeCode_MAX);
+  return _TypeCodeName[tc];
+}
 
 inline static bool TypeCodeIsInt(TypeCode t) {
   return t >= TypeCode_int8 && t <= TypeCode_uint;

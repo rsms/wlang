@@ -356,7 +356,7 @@ static Node* PLetOrAssign(P* p, const Parselet* e, Node* left) {
   if (left->kind != NIdent) {
     return pAssign(p, e, left);
   }
-  // let
+  // let or var assignment
   // common case: let binding. e.g. "x = 3" -> (let (Ident x) (Int 3))
   // dlog("PLetOrAssign/let %s", left->ref.name);
   next(p); // consume '='
@@ -364,13 +364,30 @@ static Node* PLetOrAssign(P* p, const Parselet* e, Node* left) {
   auto name = left;
   auto value = expr(p, PREC_LOWEST);
 
+  // lookup target, which might yield NULL, which is fine.
+  auto target = left->ref.target;
+  if (target == NULL) {
+    target = ScopeLookup(p->scope, name->ref.name);
+  }
+
+  // if target is a var within the scope, treat "x = y" as updating that var
+  // instead of a let binding.
+  if (target != NULL && target->kind == NVar) {
+    left->ref.target = target; // in case it was looked up before
+    auto n = PNewNode(p, NAssign);
+    n->op.op = TEq;
+    n->op.left = left;
+    n->op.right = value;
+    return n;
+  }
+
+  // new let binding
   auto n = PNewNode(p, NLet);
   n->pos = name->pos;
   n->type = value->type;
   n->field.init = value;
   n->field.name = name->ref.name;
   defsym(p, name->ref.name, n);
-
   return n;
 }
 

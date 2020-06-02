@@ -53,7 +53,9 @@ if $OPT_CONFIG || [ config.sh -nt build.ninja ] || [ build.in.ninja -nt build.ni
   ./config.sh
 fi
 
-python3 misc/gen_parselet_map.py
+python3 misc/gen_parselet_map.py &  # patches src/parse.c
+python3 misc/gen_ops.py # patches src/ir/op.{h,c}, src/token.h, src/types.h
+wait
 
 if $OPT_G; then
   ninja debug

@@ -63,15 +63,17 @@ static Node* resolveFunType(CCtx* cc, Node* n) {
 
 static Node* resolveBinOpType(CCtx* cc, Node* n, Tok op, Node* ltype, Node* rtype) {
   switch (op) {
-    case TEqEq:
-    case TNEq:
-    case TLEq:
-    case TGEq:
+    case TGt:   // >
+    case TLt:   // <
+    case TEqEq: // ==
+    case TNEq:  // !=
+    case TLEq:  // <=
+    case TGEq:  // >=
       return Type_bool;
-    case TPlus:
-    case TMinus:
-    case TSlash:
-    case TStar:
+    case TPlus:  // +
+    case TMinus: // -
+    case TSlash: // /
+    case TStar:  // *
       return rtype;
     default:
       dlog("TODO resolveBinOpType %s", TokName(op));
@@ -158,9 +160,23 @@ static Node* resolveType(CCtx* cc, Node* n) {
     break;
 
   // uses u.op
+  case NAssign: {
+    assert(n->op.right != NULL);
+    auto ltype = resolveType(cc, n->op.left);
+    auto rtype = resolveType(cc, n->op.right);
+    n->type = ltype;
+    if (!TypeEquals(ltype, rtype)) {
+      if (n->op.right->kind == NInt) {
+        // attempt to fit the constant literal into the destination type
+        dlog("TODO intlit");
+      }
+      errorf(cc, n->pos, "operation %s on incompatible types %s %s",
+        TokName(n->op.op), NodeReprShort(ltype), NodeReprShort(rtype));
+    }
+    break;
+  }
   case NOp:
   case NPrefixOp:
-  case NAssign:
   case NReturn: {
     auto ltype = resolveType(cc, n->op.left);
     if (n->op.right == NULL) {

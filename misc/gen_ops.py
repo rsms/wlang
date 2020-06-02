@@ -1,5 +1,13 @@
 #!/usr/bin/env python
 # encoding: utf8
+#
+# This script reads from ir/arch_*.lisp file and patches the following source files:
+# - src/ir/op.h
+# - src/ir/op.c
+# - src/token.h
+# - src/types.h
+#
+#
 import re, sys, os, os.path
 from functools import reduce
 import pprint
@@ -13,7 +21,7 @@ os.chdir(os.path.dirname(os.path.dirname(scriptfile)))
 scriptname = os.path.relpath(scriptfile)  # e.g. "misc/gen_ops.py"
 
 DRY_RUN = False  # don't actually write files
-DEBUG = True     # log stuff to stdout
+DEBUG = False    # log stuff to stdout
 
 # S-expression types
 Symbol = str              # A Scheme Symbol is implemented as a Python str
@@ -268,7 +276,7 @@ def gen_IROpInfo(baseArch :Arch, typeCodes :[str]):
         if len(op.flags) == 0:
           value = "IROpFlagNone"
         else:
-          value = "|".join([ "IROpFlag" + flag for flag in op.flags ])
+          value = "|".join([ "IROpFlag" + flag for flag in sorted(op.flags) ])
 
       elif name == "aux":
         aux = op.attributes.get("aux")

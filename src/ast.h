@@ -99,7 +99,7 @@ typedef struct Node {
       Sym   name;
       const Node* target;
     } ref;
-    struct { // Op, PrefixOp, Return
+    struct { // Op, PrefixOp, Return, Assign
       Node* left;
       Node* right;  // null for PrefixOp. null for Op when its a postfix op.
       Tok   op;

@@ -1,10 +1,14 @@
-start = true
-start = 3  # shadowing
 
 fun main {
-  # a, b = 10, 20
+  var a int32
+  a = 1
+  # a, b = 1, 2
+
+  # z = 9 as int32
+
   x = 1     # (Let x (Int 1))
   y = x + 3 # (Let y (Op + (Ref x) (Int 2)))
+  if true y = x + 4
   y         # (Ref y)
   # factorial(start)
 }

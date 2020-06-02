@@ -43,11 +43,15 @@ void parsefile(Str filename, Scope* pkgscope) {
   CCtx cc = {0}; // TODO: share across individual, non-overlapping compile sessions
   CCtxInit(&cc, errorHandler, &errcount, filename, buf, len);
 
+  printf("————————————————————————————————————————————————————————————————\n");
+  printf("PARSE\n");
   // parse input
   static P parser; // shared parser (zero-initialized since it's static)
   auto file = Parse(&parser, &cc, SCAN_COMMENTS, pkgscope);
   // printAst(file);
 
+  printf("————————————————————————————————————————————————————————————————\n");
+  printf("RESOLVE AST\n");
   // resolve symbols and types
   if (errcount == 0) {
     ResolveSym(&cc, file, pkgscope);
@@ -55,16 +59,16 @@ void parsefile(Str filename, Scope* pkgscope) {
       ResolveType(&cc, file);
     }
   }
-
-  // print AST
   printAst(file);
 
   printf("————————————————————————————————————————————————————————————————\n");
+  printf("BUILD IR\n");
   // build some IR
   IRBuilder irbuilder = {};
   IRBuilderInit(&irbuilder, IRBuilderComments, "foo"); // start a new package
   IRBuilderAdd(&irbuilder, &cc, file); // add ast to current package
 
+  printf("————————————————————————————————————————————————————————————————\n");
   // print IR SLC
   printIR(irbuilder.pkg);
 

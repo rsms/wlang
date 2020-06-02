@@ -219,7 +219,14 @@ static IRValue* addAssign(IRBuilder* u, Sym name /*nullable*/, IRValue* value) {
 
 static IRValue* addIdent(IRBuilder* u, Node* n) {
   assert(n->kind == NIdent);
-  return readVariable(u, n->ref.name, n->type, u->b);
+  assert(n->ref.target != NULL); // never unresolved
+  // dlog("addIdent \"%s\" target = %s", n->ref.name, NodeReprShort(n->ref.target));
+  if (n->ref.target->kind == NLet) {
+    // variable
+    return readVariable(u, n->ref.name, n->type, u->b);
+  }
+  // else: type or builtin etc
+  return addExpr(u, n->ref.target);
 }
 
 
@@ -288,6 +295,56 @@ static IRValue* addLet(IRBuilder* u, Node* n) {
 }
 
 
+// addIf reads an "if" expression, e.g.
+//  (If (Op > (Ident x) (Int 1)) ; condition
+//      (Let x (Int 1))          ; then block
+//      (Let x (Int 2)) )        ; else block
+// Returns a new empty block that's the block after the if.
+static IRValue* addIf(IRBuilder* u, Node* n) {
+  assert(n->kind == NIf);
+  //
+  // if..end has the following semantics:
+  //
+  //   if cond b1 b2
+  //   b1:
+  //     <then-block>
+  //   goto b2
+  //   b2:
+  //     <continuation-block>
+  //
+  // if..else..end has the following semantics:
+  //
+  //   if cond b1 b2
+  //   b1:
+  //     <then-block>
+  //   goto b3
+  //   b2:
+  //     <else-block>
+  //   goto b3
+  //   b3:
+  //     <continuation-block>
+  //
+  // TODO
+
+  // generate control condition
+  auto control = addExpr(u, n->cond.cond);
+  if (control->type != TypeCode_bool) {
+    // AST should not contain conds that are non-bool
+    // dlog("n->cond.cond->pos")
+    errorf(u, NoSrcPos,
+      "invalid non-bool type in condition %s", NodeReprShort(n->cond.cond));
+  }
+
+  // [optimization] Early optimization of constant conditions
+  if (u->optimize && IROpInfo(control->op)->flags & IROpFlagConstant) {
+    dlog("[if] [optimize] short-circuit constant cond");
+    // TODO
+  }
+
+  return TODO_Value(u);
+}
+
+
 static IRValue* addBlock(IRBuilder* u, Node* n) {  // language block, not IR block.
   assert(n->kind == NBlock);
   IRValue* v = NULL;
@@ -306,9 +363,8 @@ static IRValue* addExpr(IRBuilder* u, Node* n) {
     case NInt:   return addInt(u, n);
     case NOp:    return addOp(u, n);
     case NIdent: return addIdent(u, n);
+    case NIf:    return addIf(u, n);
 
-    case NNone:
-    case NBad:
     case NAssign:
     case NBasicType:
     case NBool:
@@ -320,7 +376,6 @@ static IRValue* addExpr(IRBuilder* u, Node* n) {
     case NFloat:
     case NFun:
     case NFunType:
-    case NIf:
     case NNil:
     case NPrefixOp:
     case NReturn:
@@ -328,11 +383,16 @@ static IRValue* addExpr(IRBuilder* u, Node* n) {
     case NTupleType:
     case NVar:
     case NZeroInit:
-    case _NodeKindMax:
       dlog("TODO addExpr kind %s", NodeKindName(n->kind));
-      return TODO_Value(u);
+      break;
+
+    case NNone:
+    case NBad:
+    case _NodeKindMax:
+      errorf(u, n->pos, "invalid AST node %s", NodeKindName(n->kind));
+      break;
   }
-  return NULL;
+  return TODO_Value(u);
 }
 
 
@@ -350,7 +410,7 @@ static IRFun* addFun(IRBuilder* u, Node* n) {
 
   // allocate a new function and its entry block
   f = IRFunNew(u->mem, n);
-  auto entryb = IRBlockNew(f, IRBlockPlain, &n->pos);
+  auto entryb = IRBlockNew(f, IRBlockCont, &n->pos);
 
   // Since functions can be anonymous and self-referential, short-circuit using a PtrMap
   PtrMapSet(&u->funs, n, f);
@@ -363,15 +423,10 @@ static IRFun* addFun(IRBuilder* u, Node* n) {
   // build body
   auto bodyval = addExpr(u, n->fun.body);
 
-  // end last block (if not already ended)
+  // end last block, if not already ended
   if (u->b != NULL) {
     u->b->kind = IRBlockRet;
-    if (n->fun.body->kind != NBlock) {
-      // body is a single expression -- control value is that expression
-      IRBlockSetControl(u->b, bodyval);
-    }
-    // when body is a block and it didn't end, it was empty and thus
-    // the return type is nil (no control value.)
+    IRBlockSetControl(u->b, bodyval);
     endBlock(u);
   }
 

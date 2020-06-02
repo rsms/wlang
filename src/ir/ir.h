@@ -5,10 +5,10 @@
 
 typedef enum IRBlockKind {
   IRBlockInvalid = 0,
-  IRBlockPlain,    // a single successor
+  IRBlockCont,     // plain block with a single successor
+  IRBlockFirst,    // 2 successors, always takes the first one (second is dead)
   IRBlockIf,       // 2 successors, if control goto succs[0] else goto succs[1]
   IRBlockRet,      // no successors, control value is memory result
-  IRBlockFirst,    // 2 successors, always takes the first one (second is dead)
 } IRBlockKind;
 
 typedef enum IRBranchPrediction {
@@ -18,7 +18,9 @@ typedef enum IRBranchPrediction {
 } IRBranchPrediction;
 
 
-typedef struct IRFun IRFun;
+typedef struct IRPkg   IRPkg;
+typedef struct IRFun   IRFun;
+typedef struct IRBlock IRBlock;
 typedef struct IRValue IRValue;
 
 
@@ -49,12 +51,14 @@ typedef struct IRValue {
 
 // Block represents a basic block
 typedef struct IRBlock {
-  IRFun*      f;       // owning function
-  u32         id;      // block ID
-  IRBlockKind kind;    // kind of block
-  bool        sealed;  // true if no further predecessors will be added
-  SrcPos      pos;     // source position
-  Str         comment; // short comment for IR formatting. May be NULL.
+  IRFun*      f;        // owning function
+  u32         id;       // block ID
+  IRBlockKind kind;     // kind of block
+  bool        sealed;   // true if no further predecessors will be added
+  SrcPos      pos;      // source position
+  Str         comment;  // short comment for IR formatting. May be NULL.
+  IRBlock*    succs[2]; // Successor/subsequent blocks (CFG)
+  IRBlock*    preds[2]; // Predecessors (CFG)
 
   // three-address code values
   Array values; void* valuesStorage[8]; // IRValue*[]
@@ -91,23 +95,35 @@ typedef struct IRPkg {
   Array funs; void* funsStorage[4]; // IRFun*[]
 } IRPkg;
 
+
 IRValue* IRValueNew(IRFun* f, IRBlock* b/*null*/, IROp op, TypeCode type, const SrcPos*/*null*/);
-void     IRValueAddComment(IRValue* v, Memory, ConstStr comment);
-void     IRValueAddArg(IRValue* v, IRValue* arg);
+void IRValueAddComment(IRValue* v, Memory, ConstStr comment);
+void IRValueAddArg(IRValue* v, IRValue* arg);
+
 
 IRBlock* IRBlockNew(IRFun* f, IRBlockKind, const SrcPos*/*nullable*/);
-void     IRBlockAddValue(IRBlock* b, IRValue* v);
-void     IRBlockSetControl(IRBlock* b, IRValue* v);
+void IRBlockAddValue(IRBlock* b, IRValue* v);
+void IRBlockSetControl(IRBlock* b, IRValue* v/*pass null to clear*/);
+void IRBlockAddEdgeTo(IRBlock* b1, IRBlock* b2); // add an edge from b1 to successor block b2
+void IRBlockSetPred(IRBlock* b, u32 index, IRBlock* pred);
+void IRBlockDelPred(IRBlock* b, u32 index);
+void IRBlockSetSucc(IRBlock* b, u32 index, IRBlock* succ);
+void IRBlockDelSucc(IRBlock* b, u32 index);
+
 
 IRFun*   IRFunNew(Memory, Node* n);
 IRValue* IRFunGetConstBool(IRFun* f, bool value);
 IRValue* IRFunGetConstInt(IRFun* f, TypeCode t, u64 n);
 IRValue* IRFunGetConstFloat(IRFun* f, TypeCode t, double n);
+void     IRFunInvalidateCFG(IRFun*);
+
 
 IRPkg*   IRPkgNew(Memory, const char* name/*null*/);
 void     IRPkgAddFun(IRPkg* pkg, IRFun* f);
 
+
 Str IRReprPkgStr(const IRPkg* f, Str init/*null*/);
+
 
 // Note: Must use the same Memory for all calls to the same IRConstCache.
 // Note: addHint is only valid until the next call to a mutating function like Add.

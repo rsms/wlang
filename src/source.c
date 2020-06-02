@@ -47,6 +47,12 @@ static void computeLineOffsets(Source* s) {
 
 LineCol SrcPosLineCol(SrcPos pos) {
   Source* s = pos.src;
+  if (s == NULL) {
+    // NoSrcPos
+    LineCol lico = { 0, 0 };
+    return lico;
+  }
+
   if (!s->_lineoffsets) {
     computeLineOffsets(s);
   }
@@ -67,8 +73,8 @@ LineCol SrcPosLineCol(SrcPos pos) {
       count = step;
     }
   }
-  LineCol r = { line - 1, line > 0 ? pos.offs - s->_lineoffsets[line - 1] : pos.offs };
-  return r;
+  LineCol lico = { line - 1, line > 0 ? pos.offs - s->_lineoffsets[line - 1] : pos.offs };
+  return lico;
 }
 
 
