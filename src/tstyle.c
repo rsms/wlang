@@ -22,3 +22,4 @@ const char* TStyleTable[_TStyle_MAX] = {
 };
 
 const char* TStyle_none = "\x1b[0m";
+const char* TStyle_noColor = "\x1b[39m";

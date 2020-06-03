@@ -135,17 +135,15 @@ static void advance(P* p, const Tok* followlist) {
       switch (p->s.tok) {
         case TNone:
         case TBreak:
-        case TConst:
         case TContinue:
         case TDefer:
         case TFor:
-        case TGo:
         case TIf:
+        case TMutable:
         case TReturn:
         case TSelect:
         case TSwitch:
         case TType:
-        case TVar:
           return;
         default:
           break;
@@ -177,11 +175,9 @@ inline static Node* PNewNode(P* p, NodeKind kind) {
 // precedence should match the calling parselet's own precedence
 static Node* expr(P* p, int precedence);
 
-// Tuple = Expr ("," Expr)+
-static Node* ptuple(P* p, int precedence);
-
-// exprOrTuple = Expr | Tuple
-static Node* exprOrTuple(P* p, int precedence);
+// {rvalue,lvalue}ExprOrTuple = Expr | Tuple
+static Node* rvalueExprOrTuple(P* p, int precedence);
+static Node* lvalueExprOrTuple(P* p, int precedence);
 
 // Fun = "fun" Ident Params? Type? Block?
 static Node* pfun(P* p, bool nameOptional);
@@ -281,36 +277,13 @@ static Node* PIdent(P* p) {
   return n;
 }
 
-// parses an identifier and attempts to resolve it in an efficient way.
-// This should only be used in contexts where the identifier is only referenced.
-// I.e. only where the identifier is an rvalue, never an lvalue.
-static Node* pidentWithLookup(P* p) {
-  assert(p->s.tok == TIdent);
-  auto n = (Node*)ScopeLookup(p->scope, p->s.name);
-  if (n == NULL) {
-    n = PNewNode(p, NIdent);
-    n->ref.name = p->s.name;
-  }
-  next(p);
-  return n;
-}
-
-static Node* pident(P* p) {
-  if (p->s.tok != TIdent) {
-    syntaxerr(p, "expecting identifier");
-    next(p);
-    return bad(p);
-  }
-  return PIdent(p);
-}
-
 
 // assignment to fields, e.g. "x.y = 3" -> (assign (Field (Ident x) (Ident y)) (Int 3))
 static Node* pAssign(P* p, const Parselet* e, Node* left) {
   auto n = PNewNode(p, NAssign);
   n->op.op = p->s.tok;
   next(p); // consume '='
-  auto right = exprOrTuple(p, e->prec);
+  auto right = rvalueExprOrTuple(p, e->prec);
   n->op.left = left;
   n->op.right = right;
 
@@ -320,7 +293,7 @@ static Node* pAssign(P* p, const Parselet* e, Node* left) {
       syntaxerrp(p, left->pos, "assignment mismatch: %u targets but 1 value",
         left->array.a.len);
     } else {
-      auto lnodes  = &left->array.a;
+      auto lnodes = &left->array.a;
       auto rnodes = &right->array.a;
       if (lnodes->len != rnodes->len) {
         syntaxerrp(p, left->pos, "assignment mismatch: %u targets but %u values",
@@ -333,7 +306,7 @@ static Node* pAssign(P* p, const Parselet* e, Node* left) {
             defsym(p, l->node->ref.name, r->node);
           } else {
             // e.g. foo.bar = 3
-            dlog("TODO PAssign l->node->kind != NIdent");
+            dlog("TODO pAssign l->node->kind != NIdent");
           }
           l = l->next;
           r = r->next;
@@ -364,23 +337,6 @@ static Node* PLetOrAssign(P* p, const Parselet* e, Node* left) {
   auto name = left;
   auto value = expr(p, PREC_LOWEST);
 
-  // lookup target, which might yield NULL, which is fine.
-  auto target = left->ref.target;
-  if (target == NULL) {
-    target = ScopeLookup(p->scope, name->ref.name);
-  }
-
-  // if target is a var within the scope, treat "x = y" as updating that var
-  // instead of a let binding.
-  if (target != NULL && target->kind == NVar) {
-    left->ref.target = target; // in case it was looked up before
-    auto n = PNewNode(p, NAssign);
-    n->op.op = TEq;
-    n->op.left = left;
-    n->op.right = value;
-    return n;
-  }
-
   // new let binding
   auto n = PNewNode(p, NLet);
   n->pos = name->pos;
@@ -388,117 +344,6 @@ static Node* PLetOrAssign(P* p, const Parselet* e, Node* left) {
   n->field.init = value;
   n->field.name = name->ref.name;
   defsym(p, name->ref.name, n);
-  return n;
-}
-
-
-// ptype = Type
-//
-static Node* ptype(P* p) {
-  if (p->s.tok == TIdent) {
-    return pidentWithLookup(p);
-  } else if (p->s.tok == TFun) {
-    return pfun(p, /*nameOptional*/true);
-  }
-  syntaxerr(p, "expecting type");
-  return bad(p);
-}
-
-
-// helper for PVar to parse a multi-name definition
-static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
-  auto names = PNewNode(p, NTuple);
-  names->pos = ident0->pos;
-
-  NodeListAppend(p->cc->mem, &names->array.a, ident0);
-  do {
-    NodeListAppend(p->cc->mem, &names->array.a, pident(p));
-  } while (got(p, TComma));
-
-  Node* type = p->s.tok != TEq ? ptype(p) : NULL;
-  bool hasValues = got(p, TEq);
-
-  if (!hasValues && nkind == NConst) {
-    // no values. e.g. "var x, y, z int"
-    syntaxerr(p, "expecting =expression");
-  }
-
-  // parse values
-  u32 valcount = 0;
-  auto namecount = names->array.a.len;
-  for (auto nl = names->array.a.head; nl; nl = nl->next) {
-    auto n = nl->node;
-    Node* value;
-    if (hasValues) {
-      value = expr(p, PREC_MEMBER);
-      valcount++;
-      if (nl->next && !got(p, TComma)) {
-        // not last item and got something that's not a comma
-        hasValues = false;
-        syntaxerr(p, "assignment mismatch: %u targets but %u values", namecount, valcount);
-      }
-    } else {
-      value = PNewNode(p, NZeroInit);
-      value->type = type;
-    }
-    auto namekind = n->kind;
-    n->kind = nkind; // repurpose node as NVar|NConst node
-    if (namekind == NIdent) {
-      auto name = n->ref.name; // copy since u.ref.name and u.field.name might overlap in memory
-      n->field.name = name;
-      defsym(p, name, n);
-    }
-    n->field.init = value;
-  }
-
-  if (got(p, TComma)) {
-    auto extra = ptuple(p, PREC_MEMBER);
-    syntaxerrp(p, extra->pos, "assignment mismatch: %u targets but %u values",
-      namecount, namecount + extra->array.a.len);
-  }
-
-  return names;
-}
-
-
-// VarDecl   = "var" identList (Type? "=" ptuple | Type)
-// ConstDecl = "const" identList Type? "=" ptuple
-//
-// e.g. "var x, y u32 = 3, 45"
-//
-//!PrefixParselet TConst TVar
-static Node* PVar(P* p) {
-  auto nkind = p->s.tok == TConst ? NConst : NVar;
-  next(p); // consume "var" or "const"
-
-  auto name = pident(p);
-  if (got(p, TComma)) {
-    return pVarMulti(p, nkind, name);
-  }
-
-  Node* type = p->s.tok != TEq ? ptype(p) : NULL;
-
-  Node* value = NULL;
-  if (got(p, TEq)) {
-    value = expr(p, PREC_MEMBER);
-    if (type == NULL) {
-      type = value->type;
-    }
-  } else {
-    if (nkind == NConst) {
-      syntaxerr(p, "expecting =expression");
-    }
-    value = PNewNode(p, NZeroInit);
-    value->type = type;
-  }
-  auto n = PNewNode(p, nkind);
-  n->pos = name->pos;
-  n->type = type;
-  n->field.init = value;
-  if (name->kind == NIdent) {
-    n->field.name = name->ref.name;
-    defsym(p, name->ref.name, n);
-  }
   return n;
 }
 
@@ -517,7 +362,7 @@ static Node* PComment(P* p) {
 //!PrefixParselet TLParen
 static Node* PGroup(P* p) {
   next(p); // consume "("
-  auto n = exprOrTuple(p, PREC_LOWEST);
+  auto n = rvalueExprOrTuple(p, PREC_LOWEST);
   want(p, TRParen);
   return n;
 }
@@ -547,8 +392,7 @@ static Node* PBlock(P* p) {
   pushScope(p);
 
   while (p->s.tok != TNone && p->s.tok != TRBrace) {
-    // nlistPush(n, exprOrTuple(p, PREC_LOWEST));
-    NodeListAppend(p->cc->mem, &n->array.a, exprOrTuple(p, PREC_LOWEST));
+    NodeListAppend(p->cc->mem, &n->array.a, lvalueExprOrTuple(p, PREC_LOWEST));
     if (!got(p, TSemi)) {
       break;
     }
@@ -631,7 +475,7 @@ static Node* PReturn(P* p) {
   auto n = PNewNode(p, NReturn);
   next(p);
   if (p->s.tok != TSemi && p->s.tok != TRBrace) {
-    n->op.left = exprOrTuple(p, PREC_LOWEST);
+    n->op.left = rvalueExprOrTuple(p, PREC_LOWEST);
   }
   return n;
 }
@@ -756,14 +600,14 @@ static Node* pfun(P* p, bool nameOptional) {
   }
   // result type(s)
   if (p->s.tok != TLBrace && p->s.tok != TSemi && p->s.tok != TRArr) {
-    n->type = exprOrTuple(p, PREC_LOWEST);
+    n->type = rvalueExprOrTuple(p, PREC_LOWEST);
   }
   // body
   p->fnest++;
   if (p->s.tok == TLBrace) {
     n->fun.body = PBlock(p);
   } else if (got(p, TRArr)) {
-    n->fun.body = exprOrTuple(p, PREC_LOWEST);
+    n->fun.body = rvalueExprOrTuple(p, PREC_LOWEST); // TODO: is lvalueEx.. func better here?
   }
   p->fnest--;
   n->fun.scope = popScope(p);
@@ -786,8 +630,6 @@ static Node* PFun(P* p) {
 // automatically generated by misc/gen_parselet_map.py; do not edit
 static const Parselet parselets[TMax] = {
   [TIdent] = {PIdent, NULL, PREC_MEMBER},
-  [TConst] = {PVar, NULL, PREC_MEMBER},
-  [TVar] = {PVar, NULL, PREC_MEMBER},
   [TComment] = {PComment, NULL, PREC_MEMBER},
   [TLParen] = {PGroup, PCall, PREC_MEMBER},
   [TLBrace] = {PBlock, NULL, PREC_MEMBER},
@@ -853,23 +695,56 @@ static Node* expr(P* p, int precedence) {
 }
 
 
-// exprOrTuple = Expr | Tuple
-static Node* exprOrTuple(P* p, int precedence) {
-  // // skip semicolons
-  // while (got(p, TSemi)) {
-  //   next(p);
-  // }
-
-  // auto srcpos = SrcPosFmt(sdsempty(), SSrcPos(&p->s));
-  // dlog("%s exprOrTuple: start at token %s", srcpos, TokName(p->s.tok));
-
-  // parse prefix
-  auto left = prefixExpr(p);
-
-  // dlog("exprOrTuple: After left, got token %s", TokName(p->s.tok));
-
-  // if a comma appears after a primary expression, read more primary expressions and group
-  // them into an List.
+// lvalueExprOrTuple = Expr | Tuple
+// rvalueExprOrTuple = Expr | Tuple
+//
+// Differences between the two related functions rvalueExprOrTuple and lvalueExprOrTuple:
+//
+//   lvalueExprOrTuple consumes a prefixExpr, then a possible tuple and finally calls
+//   infixExpr to include the tuple in an infix expression like t + y.
+//
+//   - lvalueExprOrTuple is "conservative" used for lvalues, e.g. (a b c) in a,b,c=1,2,3
+//   - rvalueExprOrTuple is "greedy" and used for rvalues, e.g. (x (y + z)) in _,_=x,y+z
+//
+//   Consider the following source code:
+//     a, b + c, d
+//   Parsing this with the different functions yields:
+//   - lvalueExprOrTuple => (+ (a b) c)
+//   - rvalueExprOrTuple => (a (+ b c) d)
+//
+//   Explanation of lvalueExprOrTuple:
+//   • lvalueExprOrTuple calls prefixExpr => a
+//   • lvalueExprOrTuple sees a comma and begins tuple-parsing mode:
+//   • lvalueExprOrTuple calls prefixExpr => b
+//   • lvalueExprOrTuple end tuple => (a b)
+//   • infixExpr with tuple as the LHS:
+//     • infixExpr calls '+' parselet
+//       • '+' parselet reads RHS by calling expr:
+//         • expr calls prefixExpr (which in turn calls 'ident' parselet) => c
+//         • expr returns the c identifier (NIdent)
+//       • '+' parselet produces LHS + RHS => (+ (a b) c)
+//     • return
+//   • return
+//
+//   Explanation of rvalueExprOrTuple:
+//   • rvalueExprOrTuple calls expr => a
+//   • rvalueExprOrTuple sees a comma and begins tuple-parsing mode:
+//   • rvalueExprOrTuple calls expr
+//     • expr calls prefixExpr => b
+//     • expr calls infixExpr with b as LHS:
+//       • infixExpr calls '+' parselet
+//         • '+' parselet reads RHS by calling expr:
+//           • expr calls prefixExpr => c
+//           • expr returns the c identifier (NIdent)
+//         • '+' parselet produces LHS + RHS => (+ b c)
+//       • return
+//     • return
+//   • rvalueExprOrTuple calls expr after another comma
+//     • calls prefixExpr => b
+//   • rvalueExprOrTuple see no more comma; ends the tuple => (a (+ b c) d)
+//
+static Node* lvalueExprOrTuple(P* p, int precedence) {
+  auto left = prefixExpr(p); // read a prefix expression, like an identifier
   if (got(p, TComma)) {
     auto g = PNewNode(p, NTuple);
     NodeListAppend(p->cc->mem, &g->array.a, left);
@@ -878,18 +753,24 @@ static Node* exprOrTuple(P* p, int precedence) {
     } while (got(p, TComma));
     left = g;
   }
-
+  // wrap in possible infix expression, e.g. "left + right"
   return infixExpr(p, precedence, left);
 }
 
-
-// ptuple = Expr ("," Expr)+
-static Node* ptuple(P* p, int precedence) {
-  auto tuple = PNewNode(p, NTuple);
-  do {
-    NodeListAppend(p->cc->mem, &tuple->array.a, expr(p, precedence));
-  } while (got(p, TComma));
-  return tuple;
+static Node* rvalueExprOrTuple(P* p, int precedence) {
+  // dlog("%s rvalueExprOrTuple: start at token %s",
+  //   SrcPosFmt(sdsempty(), SSrcPos(&p->s)), TokName(p->s.tok));
+  auto left = expr(p, precedence);
+  // dlog("rvalueExprOrTuple: After left, got token %s", TokName(p->s.tok));
+  if (got(p, TComma)) {
+    auto g = PNewNode(p, NTuple);
+    NodeListAppend(p->cc->mem, &g->array.a, left);
+    do {
+      NodeListAppend(p->cc->mem, &g->array.a, expr(p, precedence));
+    } while (got(p, TComma));
+    left = g;
+  }
+  return left;
 }
 
 
@@ -907,7 +788,7 @@ Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
   pushScope(p);
 
   while (p->s.tok != TNone) {
-    Node* n = exprOrTuple(p, PREC_LOWEST);
+    Node* n = lvalueExprOrTuple(p, PREC_LOWEST);
     NodeListAppend(p->cc->mem, &file->array.a, n);
 
     // // print associated comments
@@ -926,7 +807,7 @@ Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
     // check that we either got a semicolon or EOF
     if (p->s.tok != TNone && !got(p, TSemi)) {
       syntaxerr(p, "after top level declaration");
-      Tok followlist[] = { TType, TFun, TConst, TVar, TSemi, 0 };
+      Tok followlist[] = { TType, TFun, TSemi, 0 };
       advance(p, followlist);
     }
   }
@@ -958,3 +839,150 @@ Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
 //   }
 //   return n;
 // }
+
+
+
+
+/*
+// helper for PVar to parse a multi-name definition
+static Node* pVarMulti(P* p, NodeKind nkind, Node* ident0) {
+  auto names = PNewNode(p, NTuple);
+  names->pos = ident0->pos;
+
+  NodeListAppend(p->cc->mem, &names->array.a, ident0);
+  do {
+    NodeListAppend(p->cc->mem, &names->array.a, pident(p));
+  } while (got(p, TComma));
+
+  Node* type = p->s.tok != TEq ? ptype(p) : NULL;
+  bool hasValues = got(p, TEq);
+
+  if (!hasValues && nkind == NConst) {
+    // no values. e.g. "var x, y, z int"
+    syntaxerr(p, "expecting =expression");
+  }
+
+  // parse values
+  u32 valcount = 0;
+  auto namecount = names->array.a.len;
+  for (auto nl = names->array.a.head; nl; nl = nl->next) {
+    auto n = nl->node;
+    Node* value;
+    if (hasValues) {
+      value = expr(p, PREC_MEMBER);
+      valcount++;
+      if (nl->next && !got(p, TComma)) {
+        // not last item and got something that's not a comma
+        hasValues = false;
+        syntaxerr(p, "assignment mismatch: %u targets but %u values", namecount, valcount);
+      }
+    } else {
+      value = PNewNode(p, NZeroInit);
+      value->type = type;
+    }
+    auto namekind = n->kind;
+    n->kind = nkind; // repurpose node as NVar|NConst node
+    if (namekind == NIdent) {
+      auto name = n->ref.name; // copy since u.ref.name and u.field.name might overlap in memory
+      n->field.name = name;
+      defsym(p, name, n);
+    }
+    n->field.init = value;
+  }
+
+  if (got(p, TComma)) {
+    auto extra = ptuple(p, PREC_MEMBER);
+    syntaxerrp(p, extra->pos, "assignment mismatch: %u targets but %u values",
+      namecount, namecount + extra->array.a.len);
+  }
+
+  return names;
+}
+
+// VarDecl   = "var" identList (Type? "=" ptuple | Type)
+// ConstDecl = "const" identList Type? "=" ptuple
+//
+// e.g. "var x, y u32 = 3, 45"
+//
+static Node* PVar(P* p) {
+  auto nkind = p->s.tok == TConst ? NConst : NVar;
+  next(p); // consume "var" or "const"
+
+  auto name = pident(p);
+  if (got(p, TComma)) {
+    return pVarMulti(p, nkind, name);
+  }
+
+  Node* type = p->s.tok != TEq ? ptype(p) : NULL;
+
+  Node* value = NULL;
+  if (got(p, TEq)) {
+    value = expr(p, PREC_MEMBER);
+    if (type == NULL) {
+      type = value->type;
+    }
+  } else {
+    if (nkind == NConst) {
+      syntaxerr(p, "expecting =expression");
+    }
+    value = PNewNode(p, NZeroInit);
+    value->type = type;
+  }
+  auto n = PNewNode(p, nkind);
+  n->pos = name->pos;
+  n->type = type;
+  n->field.init = value;
+  if (name->kind == NIdent) {
+    n->field.name = name->ref.name;
+    defsym(p, name->ref.name, n);
+  }
+  return n;
+}
+
+
+// Tuple = Expr ("," Expr)+
+static Node* ptuple(P* p, int precedence) {
+  auto tuple = PNewNode(p, NTuple);
+  do {
+    NodeListAppend(p->cc->mem, &tuple->array.a, expr(p, precedence));
+  } while (got(p, TComma));
+  return tuple;
+}
+
+
+// ptype = Type
+//
+static Node* ptype(P* p) {
+  if (p->s.tok == TIdent) {
+    return pidentWithLookup(p);
+  } else if (p->s.tok == TFun) {
+    return pfun(p, true); // true=nameOptional
+  }
+  syntaxerr(p, "expecting type");
+  return bad(p);
+}
+
+static Node* pident(P* p) {
+  if (p->s.tok != TIdent) {
+    syntaxerr(p, "expecting identifier");
+    next(p);
+    return bad(p);
+  }
+  return PIdent(p);
+}
+
+// parses an identifier and attempts to resolve it in an efficient way.
+// This should only be used in contexts where the identifier is only referenced.
+// I.e. only where the identifier is an rvalue, never an lvalue.
+static Node* pidentWithLookup(P* p) {
+  assert(p->s.tok == TIdent);
+  auto n = (Node*)ScopeLookup(p->scope, p->s.name);
+  if (n == NULL) {
+    n = PNewNode(p, NIdent);
+    n->ref.name = p->s.name;
+  }
+  next(p);
+  return n;
+}
+
+*/

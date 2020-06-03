@@ -176,10 +176,61 @@
   (NotB  bool -> bool)
   ;
   ; -arg0 ; negation
-  (NegI8  i8 -> i8)
+  (NegI8  i8  -> i8)
   (NegI16 i16 -> i16)
   (NegI32 i32 -> i32)
   (NegI64 i64 -> i64)
   (NegF32 f32 -> f32)
   (NegF64 f64 -> f64)
+  ;
+  ; ---------------------------------------------------------------------
+  ; Conversions
+  ; Note: For the generic "base" arch, all conversion ops must start with "Conv" in
+  ;       order for the gen_opts.py program to map them in the conversion table.
+  ; Note: Sign conversion, i.e. i32 -> u32 happens by simply interpreting the number
+  ;       differently. There are no signed conversion ops.
+  ;
+  ; extensions
+  (ConvS8to16     s8  -> s16)
+  (ConvS8to32     s8  -> s32)
+  (ConvS8to64     s8  -> s64)
+  (ConvU8to16     u8  -> u16)
+  (ConvU8to32     u8  -> u32)
+  (ConvU8to64     u8  -> u64)
+  (ConvS16to32    s16 -> s32)
+  (ConvS16to64    s16 -> s64)
+  (ConvU16to32    u16 -> u32)
+  (ConvU16to64    u16 -> u64)
+  (ConvS32to64    s32 -> s64)
+  (ConvU32to64    u32 -> u64)
+  ;
+  ; truncations
+  (ConvI16to8     i16 -> i8    Lossy)
+  (ConvI32to8     i32 -> i8    Lossy)
+  (ConvI32to16    i32 -> i16   Lossy)
+  (ConvI64to8     i64 -> i8    Lossy)
+  (ConvI64to16    i64 -> i16   Lossy)
+  (ConvI64to32    i64 -> i32   Lossy)
+  ;
+  ; conversions
+  (ConvS32toF32  s32 -> f32    Lossy)
+  (ConvS32toF64  s32 -> f64)
+  (ConvS64toF32  s64 -> f32    Lossy)
+  (ConvS64toF64  s64 -> f64    Lossy)
+  (ConvU32toF32  u32 -> f32    Lossy)
+  (ConvU32toF64  u32 -> f64)
+  (ConvU64toF32  u64 -> f32    Lossy)
+  (ConvU64toF64  u64 -> f64    Lossy)
+  (ConvF32toF64  f32 -> f64)
+  (ConvF32toS32  f32 -> s32    Lossy)
+  (ConvF32toS64  f32 -> s64    Lossy)
+  (ConvF32toU32  f32 -> u32    Lossy)
+  (ConvF32toU64  f32 -> u64    Lossy)
+  (ConvF64toF32  f64 -> f32    Lossy)
+  (ConvF64toS32  f64 -> s32    Lossy)
+  (ConvF64toS64  f64 -> s64    Lossy)
+  (ConvF64toU32  f64 -> u32    Lossy)
+  (ConvF64toU64  f64 -> u64    Lossy)
+
+
 ) ; ops

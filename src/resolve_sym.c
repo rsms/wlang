@@ -4,7 +4,8 @@
 
 typedef struct {
   CCtx* cc;
-  uint  fnest;  // level of function nesting. 0 at file level
+  u32   funNest;    // level of function nesting. 0 at file level
+  u32   assignNest; // level of assignment. Used to avoid early constant folding in assignments.
 } ResCtx;
 
 
@@ -12,7 +13,7 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx);
 
 
 Node* ResolveSym(CCtx* cc, Node* n, Scope* scope) {
-  ResCtx ctx = { cc, 0 };
+  ResCtx ctx = { cc, 0, 0 };
   return resolve(n, scope, &ctx);
 }
 
@@ -31,20 +32,6 @@ static void resolveErrorf(ResCtx* ctx, SrcPos pos, const char* format, ...) {
   va_end(ap);
   ctx->cc->errh(&ctx->cc->src, pos, msg, ctx->cc->userdata);
   sdsfree(msg);
-}
-
-
-static inline Node* resolveConst(Node* n, Scope* scope, ResCtx* ctx) {
-  assert(n->field.init != NULL);
-  auto value = resolve(n->field.init, scope, ctx);
-  // short-circuit constants inside functions
-  if (value != n) {
-    if (ctx->fnest > 0) {
-      return value;
-    }
-    n->field.init = value;
-  }
-  return n;
 }
 
 
@@ -78,39 +65,45 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
         n = (Node*)target;
         break; // continue unwind loop
 
-      case NConst:
-        return resolveConst((Node*)target, scope, ctx);
+      case NLet:
+        // Unwind let bindings
+        assert(target->field.init != NULL);
+        if (NodeKindIsConst(target->field.init->kind)) {
+          // in the case of a let target with a constant, resolve to the constant.
+          // Example:
+          //   x = true   # Identifier "true" is resolved to constant Boolean true
+          //   y = x      # Identifier x is resolved to constant Boolean true via x
+          //
+          return target->field.init;
+        }
+        return n;
 
-      // // Unwind let bindings to constants. Assumes let bindings are immutable!
-      // case NLet:
-      //   assert(target->field.init != NULL);
-      //   if (NodeKindIsConst(target->field.init->kind)) {
-      //     // in the case of a let target with a constant, resolve to the constant.
-      //     // Example:
-      //     //   x = true   # Identifier "true" is resolved to constant Boolean true
-      //     //   y = x      # Identifier x is resolved to constant Boolean true via x
-      //     //
-      //     return target->field.init;
-      //   }
-      //   return n;
-
-      // constants
       case NBool:
       case NInt:
       case NNil:
-        // unwind identifier to constant value.
+      case NFun:
+      case NBasicType:
+      case NTupleType:
+      case NFunType:
+        // unwind identifier to constant/immutable value.
         // Example:
         //   (Ident true #user) -> (Ident true #builtin) -> (Bool true #builtin)
         //
         // dlog("  RET target %s -> %s", NodeKindName(target->kind), NodeReprShort(target));
-        return target;
+        if (ctx->assignNest > 0) {
+          // assignNest is >0 when resolving the LHS of an assignment.
+          // In this case we do not unwind constants as that would lead to things like this:
+          //   (assign (tuple (ident a) (ident b)) (tuple (int 1) (int 2))) =>
+          //   (assign (tuple (int 1) (int 2)) (tuple (int 1) (int 2)))
+          return n;
+        }
+        return (Node*)target;
 
       default:
         assert(!NodeKindIsConst(target->kind)); // should be covered in case-statements above
-
         // dlog("resolveIdent FINAL %s => %s (target %s) type? %d",
-        //   n->ref.name, NodeKindName(n->kind), NodeKindName(target->kind), NodeIsType(target));
-
+        //   n->ref.name, NodeKindName(n->kind), NodeKindName(target->kind),
+        //   NodeKindIsType(target->kind));
         // dlog("  RET n %s -> %s", NodeKindName(n->kind), NodeReprShort(n));
         return n;
     }
@@ -123,11 +116,11 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
 
   if (n->type != NULL && n->type->kind != NBasicType) {
     if (n->kind == NFun) {
-      ctx->fnest++;
+      ctx->funNest++;
     }
     n->type = resolve((Node*)n->type, scope, ctx);
     if (n->kind == NFun) {
-      ctx->fnest--;
+      ctx->funNest--;
     }
   }
 
@@ -153,7 +146,7 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
 
   // uses u.fun
   case NFun: {
-    ctx->fnest++;
+    ctx->funNest++;
     if (n->fun.params) {
       n->fun.params = resolve(n->fun.params, scope, ctx);
     }
@@ -167,17 +160,24 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
       }
       n->fun.body = resolve(body, scope, ctx);
     }
-    ctx->fnest--;
+    ctx->funNest--;
     break;
   }
 
   // uses u.op
+  case NAssign: {
+    ctx->assignNest++;
+    resolve(n->op.left, scope, ctx);
+    ctx->assignNest--;
+    assert(n->op.right != NULL);
+    n->op.right = resolve(n->op.right, scope, ctx);
+    break;
+  }
   case NOp:
   case NPrefixOp:
-  case NAssign:
   case NReturn: {
     auto newleft = resolve(n->op.left, scope, ctx);
-    if (n->kind != NAssign || n->op.left->kind != NIdent) {
+    if (n->op.left->kind != NIdent) {
       // note: in case of assignment where the left side is an identifier,
       // avoid replacing the identifier with its value.
       // This branch is taken in all other cases.
@@ -190,13 +190,41 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   }
 
   // uses u.call
-  case NCall:
+  case NTypeCast:
     n->call.args = resolve(n->call.args, scope, ctx);
     n->call.receiver = resolve(n->call.receiver, scope, ctx);
+    assert(NodeKindIsType(n->call.receiver->kind));
+    break;
+
+  case NCall:
+    n->call.args = resolve(n->call.args, scope, ctx);
+    auto recv = resolve(n->call.receiver, scope, ctx);
+    n->call.receiver = recv;
+    if (recv->kind != NFun) {
+      // convert to type cast, if receiver is a type. e.g. "x = uint8(4)"
+      // TODO: when type alises are implemented, add NTuple here to support:
+      //       type Foo = (int, int); x = Foo(1,2)
+      if (recv->kind == NBasicType) {
+        if (NodeKindIsConst(n->call.args->kind)) {
+          // TODO figure out a simple and elegant way to parse stuff like this:
+          //
+          //   x = int32(7)    =>  int32:(Let int32:(Ident x) int32:(Int 7))
+          //   x = 7 as int32  =>  int32:(Let int32:(Ident x) int32:(Int 7))
+          //
+          // Currently;
+          //   x = int32(7)    =>  int:(Let int:(Ident x) int32:(TypeCast int32 int32:(Int 7)))
+          //   x = 7 as int32  =>  (not implemented)
+          //
+          dlog("type cast const. n->call.args = %s", NodeReprShort(n->call.args));
+        }
+        n->kind = NTypeCast;
+      } else {
+        resolveErrorf(ctx, n->pos, "cannot call %s", NodeReprShort(recv));
+      }
+    }
     break;
 
   // uses u.field
-  case NVar:
   case NLet:
   case NField: {
     if (n->field.init) {
@@ -204,8 +232,6 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
     }
     break;
   }
-  case NConst:
-    return resolveConst(n, scope, ctx);
 
   // uses u.cond
   case NIf:

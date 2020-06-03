@@ -4,7 +4,7 @@
 
 typedef enum {
   NodeClassInvalid = 0,
-  NodeClassConst,
+  NodeClassConst,  // literals like 123, true, nil.
   NodeClassExpr,
   NodeClassType,
 } NodeClass;
@@ -13,14 +13,13 @@ typedef enum {
 #define DEF_NODE_KINDS(_) \
   /* N<kind>     NClass<class> */ \
   _(None,        Invalid) \
-  _(Bad,         Invalid) /* substitute "filler node" for invalid syntax */ \
   _(Assign,      Expr) \
+  _(Bad,         Invalid) /* substitute "filler node" for invalid syntax */ \
   _(BasicType,   Type) /* Basic type, e.g. int, bool */ \
   _(Block,       Expr) \
   _(Bool,        Const) /* boolean literal */ \
   _(Call,        Expr) \
   _(Comment,     Expr) \
-  _(Const,       Expr) \
   _(Field,       Expr) \
   _(File,        Expr) \
   _(Float,       Expr) /* floating-point literal */ \
@@ -36,7 +35,7 @@ typedef enum {
   _(Return,      Expr) \
   _(Tuple,       Expr) \
   _(TupleType,   Type) /* Tuple type, e.g. (float,bool,int) */ \
-  _(Var,         Expr) \
+  _(TypeCast,    Expr) \
   _(ZeroInit,    Expr) \
 /*END DEF_NODE_KINDS*/
 
@@ -115,12 +114,12 @@ typedef struct Node {
       Node*  body;   // null for fun-type and fun-declaration
     } fun;
     struct { // Call
-      Node* receiver;
+      Node* receiver; // either an NFun or a type (e.g. NBasicType)
       Node* args;
     } call;
-    struct { // Field, Var, Const, Let
+    struct { // Field, Let
       Sym   name;
-      Node* init;  // initial value (final value for Let)
+      Node* init;  // Field: initial value (may be NULL). Let: final value (never NULL).
     } field;
     struct { // If
       Node* cond;
@@ -156,9 +155,9 @@ Str NodeRepr(const Node* n, Str s); // return human-readable printable text repr
 // Note: The returned string is valid until the next call to TmpRecycle.
 const char* NodeReprShort(const Node*);
 
-// NodeIsType returns true if n represents a type (i.e. NBasicType, NFunType, etc.)
-static inline bool NodeIsType(const Node* n) {
-  return n != NULL && NodeClassTable[n->kind] == NodeClassType;
+// NodeKindIsType returns true if kind represents a type (i.e. NBasicType, NFunType, etc.)
+static inline bool NodeKindIsType(NodeKind kind) {
+  return NodeClassTable[kind] == NodeClassType;
 }
 
 static inline bool NodeKindIsConst(NodeKind kind) {

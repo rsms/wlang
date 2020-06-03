@@ -35,9 +35,9 @@
   _( TComment    , "comment") \
 /*END TOKENS*/
 #define TOKEN_KEYWORDS(_) \
+  _( as,          TAs)          \
   _( break,       TBreak)       \
   _( case,        TCase)        \
-  _( const,       TConst)       \
   _( continue,    TContinue)    \
   _( default,     TDefault)     \
   _( defer,       TDefer)       \
@@ -45,12 +45,12 @@
   _( enum,        TEnum)        \
   _( for,         TFor)         \
   _( fun,         TFun)         \
-  _( go,          TGo)          \
   _( if,          TIf)          \
   _( import,      TImport)      \
   _( in,          TIn)          \
   _( interface,   TInterface)   \
   _( is,          TIs)          \
+  _( mutable,     TMutable)     \
   _( nil,         TNil)         \
   _( return,      TReturn)      \
   _( select,      TSelect)      \
@@ -58,7 +58,6 @@
   _( switch,      TSwitch)      \
   _( symbol,      TSymbol)      \
   _( type,        TType)        \
-  _( var,         TVar)         \
   _( while,       TWhile)       \
 // Limited to a total of 31 keywords. See scan.c
 //END TOKEN_KEYWORDS

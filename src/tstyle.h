@@ -23,6 +23,7 @@ typedef enum {
 
 const char* TStyleTable[_TStyle_MAX];
 const char* TStyle_none;
+const char* TStyle_noColor;
 
 static inline Str TStyleBold(Str s) { return sdscat(s, TStyleTable[TStyle_bold]); }
 static inline Str TStyleItalic(Str s) { return sdscat(s, TStyleTable[TStyle_italic]); }
@@ -43,3 +44,4 @@ static inline Str TStyleLightyellow(Str s) { return sdscat(s, TStyleTable[TStyle
 static inline Str TStyleOrange(Str s) { return sdscat(s, TStyleTable[TStyle_orange]); }
 
 static inline Str TStyleNone(Str s) { return sdscat(s, TStyle_none); }
+static inline Str TStyleNoColor(Str s) { return sdscat(s, TStyle_noColor); }

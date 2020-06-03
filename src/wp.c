@@ -55,6 +55,7 @@ void parsefile(Str filename, Scope* pkgscope) {
   // resolve symbols and types
   if (errcount == 0) {
     ResolveSym(&cc, file, pkgscope);
+    // printAst(file);
     if (errcount == 0) {
       ResolveType(&cc, file);
     }

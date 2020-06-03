@@ -13,7 +13,7 @@ static const char* const NodeKindNameTable[] = {
 };
 
 // Lookup table N<kind> => NClass<class>
-const NodeClass NodeClassTable[] = {
+const NodeClass NodeClassTable[_NodeKindMax] = {
   #define I_ENUM(_name, cls) NodeClass##cls,
   DEF_NODE_KINDS(I_ENUM)
   #undef  I_ENUM
@@ -101,9 +101,9 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   // s = sdscatprintf(s, "[%p] ", n);
 
   if (depth > ctx->maxdepth) {
-    s = TStyleYellow(s);
+    s = TStyleGrey(s);
     s = sdscat(s, "...");
-    s = TStyleNone(s);
+    s = TStyleNoColor(s);
     return s;
   }
 
@@ -114,7 +114,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
     return s;
   }
 
-  auto isType = NodeIsType(n);
+  auto isType = NodeKindIsType(n->kind);
   if (!isType) {
     s = indent(s, ctx);
 
@@ -122,11 +122,12 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
       s = TStyleBlue(s);
       if (n->type) {
         s = nodeRepr(n->type, s, ctx, depth + 1);
+        s = TStyleBlue(s); // in case nodeRepr changed color
         s = sdscatlen(s, ":", 1);
       } else {
         s = sdscatlen(s, "?:", 2);
       }
-      s = TStyleNone(s);
+      s = TStyleNoColor(s);
     }
     s = sdscatfmt(s, "(%s ", NodeKindNameTable[n->kind]);
   }
@@ -173,29 +174,12 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   // uses u.ref
   case NIdent:
     s = TStyleRed(s);
+    assert(n->ref.name != NULL);
     s = sdscatsds(s, n->ref.name);
-    s = TStyleNone(s);
+    s = TStyleNoColor(s);
     if (n->ref.target) {
       s = sdscatfmt(s, " @%s", NodeKindNameTable[n->ref.target->kind]);
       // s = nodeRepr(n->ref.target, s, ctx, depth + 1);
-    }
-    break;
-
-  case NBasicType:
-    s = sdscatsds(s, n->t.basic.name);
-    break;
-
-  case NFunType: // TODO
-    if (n->t.fun.params) {
-      s = nodeRepr(n->t.fun.params, s, ctx, depth + 1);
-    } else {
-      s = sdscat(s, "()");
-    }
-    s = sdscat(s, "->");
-    if (n->t.fun.result) {
-      s = nodeRepr(n->t.fun.result, s, ctx, depth + 1);
-    } else {
-      s = sdscat(s, "()");
     }
     break;
 
@@ -219,33 +203,17 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   case NTuple:
   case NFile:
   {
-    sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
+    // sdssetlen(s, sdslen(s)-1); // trim away trailing " " from s
     NodeListForEach(&n->array.a, n, {
       s = nodeRepr(n, s, ctx, depth + 1);
+      // TODO: detect if line breaks were added.
+      // I.e. (Tuple int int) is currently printed as "(Tuple intint)" (missing space).
     });
-    break;
-  }
-
-  // uses u.t.tuple
-  case NTupleType: {
-    s = sdscatlen(s, "(", 1);
-    bool first = true;
-    NodeListForEach(&n->t.tuple, n, {
-      if (first) {
-        first = false;
-      } else {
-        s = sdscatlen(s, " ", 1);
-      }
-      s = nodeRepr(n, s, ctx, depth + 1);
-    });
-    s = sdscatlen(s, ")", 1);
     break;
   }
 
   // uses u.field
   case NLet:
-  case NVar:
-  case NConst:
   case NField:
   {
     auto f = &n->field;
@@ -272,7 +240,7 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
 
     s = TStyleRed(s);
     s = sdscatprintf(s, " %p", n);
-    s = TStyleNone(s);
+    s = TStyleNoColor(s);
 
     if (f->params) {
       s = nodeRepr(f->params, s, ctx, depth + 1);
@@ -288,17 +256,33 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
   }
 
   // uses u.call
+  case NTypeCast: // TODO
   case NCall: {
-    // s = nodeRepr(n->call.receiver, s, ctx, depth + 1);
     auto recv = n->call.receiver;
-    if (recv->fun.name) {
-      s = sdscatsds(s, recv->fun.name);
+
+    const Node* funTarget = (
+      recv->kind == NFun ? recv :
+      (recv->kind == NIdent && recv->ref.target != NULL && recv->ref.target->kind == NFun) ?
+        recv->ref.target :
+      NULL
+    );
+
+    if (funTarget != NULL) {
+      // print receiver function when we know it
+      if (funTarget->fun.name) {
+        s = sdscatsds(s, funTarget->fun.name);
+      } else {
+        s = sdscatlen(s, "_", 1);
+      }
+      s = TStyleRed(s);
+      s = sdscatprintf(s, " %p", funTarget);
+      s = TStyleNoColor(s);
+    } else if (recv->kind == NIdent && recv->ref.target == NULL) {
+      // when the receiver is an ident without a resolved target, print its name
+      s = sdscatsds(s, recv->ref.name);
     } else {
-      s = sdscatlen(s, "_", 1);
+      s = nodeRepr(recv, s, ctx, depth + 1);
     }
-    s = TStyleRed(s);
-    s = sdscatprintf(s, " %p", recv);
-    s = TStyleNone(s);
 
     s = nodeRepr(n->call.args, s, ctx, depth + 1);
     break;
@@ -312,6 +296,42 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
       s = nodeRepr(n->cond.elseb, s, ctx, depth + 1);
     }
     break;
+
+  case NBasicType:
+    s = TStyleBlue(s);
+    s = sdscatsds(s, n->t.basic.name);
+    s = TStyleNoColor(s);
+    break;
+
+  case NFunType: // TODO
+    if (n->t.fun.params) {
+      s = nodeRepr(n->t.fun.params, s, ctx, depth + 1);
+    } else {
+      s = sdscat(s, "()");
+    }
+    s = sdscat(s, "->");
+    if (n->t.fun.result) {
+      s = nodeRepr(n->t.fun.result, s, ctx, depth + 1);
+    } else {
+      s = sdscat(s, "()");
+    }
+    break;
+
+  // uses u.t.tuple
+  case NTupleType: {
+    s = sdscatlen(s, "(", 1);
+    bool first = true;
+    NodeListForEach(&n->t.tuple, n, {
+      if (first) {
+        first = false;
+      } else {
+        s = sdscatlen(s, " ", 1);
+      }
+      s = nodeRepr(n, s, ctx, depth + 1);
+    });
+    s = sdscatlen(s, ")", 1);
+    break;
+  }
 
   case _NodeKindMax: break;
   // Note: No default case, so that the compiler warns us about missing cases.
@@ -351,7 +371,7 @@ ConstStr NodeReprShort(const Node* n) {
   // TODO: Rewrite all of this to use TmpData instead of sds
 
   ReprCtx ctx = { 0 };
-  ctx.maxdepth = 1;
+  ctx.maxdepth = 2;
   ctx.pretty = false;
   ctx.includeTypes = false;
   PtrMapInit(&ctx.seen, 32, NULL);
@@ -432,7 +452,7 @@ const Scope* GetGlobalScope() {
 
 
 const Node* ScopeAssoc(Scope* s, Sym key, const Node* value) {
-  return SymMapSet(&s->bindings, key, value);
+  return SymMapSet(&s->bindings, key, (Node*)value);
 }
 
 

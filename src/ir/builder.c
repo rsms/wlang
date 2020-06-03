@@ -226,7 +226,7 @@ static IRValue* addIdent(IRBuilder* u, Node* n) {
     return readVariable(u, n->ref.name, n->type, u->b);
   }
   // else: type or builtin etc
-  return addExpr(u, n->ref.target);
+  return addExpr(u, (Node*)n->ref.target);
 }
 
 
@@ -370,7 +370,6 @@ static IRValue* addExpr(IRBuilder* u, Node* n) {
     case NBool:
     case NCall:
     case NComment:
-    case NConst:
     case NField:
     case NFile:
     case NFloat:
@@ -381,7 +380,7 @@ static IRValue* addExpr(IRBuilder* u, Node* n) {
     case NReturn:
     case NTuple:
     case NTupleType:
-    case NVar:
+    case NTypeCast:
     case NZeroInit:
       dlog("TODO addExpr kind %s", NodeKindName(n->kind));
       break;
@@ -467,7 +466,6 @@ static bool addTopLevel(IRBuilder* u, Node* n) {
     case NBool:
     case NCall:
     case NComment:
-    case NConst:
     case NField:
     case NFloat:
     case NFunType:
@@ -480,7 +478,7 @@ static bool addTopLevel(IRBuilder* u, Node* n) {
     case NReturn:
     case NTuple:
     case NTupleType:
-    case NVar:
+    case NTypeCast:
     case NZeroInit:
     case _NodeKindMax:
       errorf(u, n->pos, "invalid top-level AST node %s", NodeKindName(n->kind));

@@ -1,9 +1,7 @@
 
 fun main {
-  var a int32
-  a = 1
-  # a, b = 1, 2
-
+  # a, b = 1, 2 + 1
+  z = int16(9)
   # z = 9 as int32
 
   x = 1     # (Let x (Int 1))
@@ -12,6 +10,8 @@ fun main {
   y         # (Ref y)
   # factorial(start)
 }
+
+# fun foo(i int) -> i
 
 # # Factorial function
 # fun factorial(n int) int {

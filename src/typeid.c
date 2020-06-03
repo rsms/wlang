@@ -1,7 +1,41 @@
 #include "wp.h"
 #include "types.h"
+#include "typeid.h"
 
 // See docs/typeid.md
+
+//
+// Operations needed:
+//   typeEquals(a,b) -- a and b are of the same, identical type
+//   typeFitsIn(a,b) -- b is subset of a (i.e. b fits in a)
+//
+//   Note: We do NOT need fast indexing for switches, since a variant is required
+//   for switches over variable types:
+//     type Thing = Error(str) | Result(u32)
+//     switch thing {
+//       Error("hello") => ...
+//       Error(msg) => ...
+//       Result(code) => ...
+//     }
+//
+//   But hey, maybe we do for function dispatch:
+//     fun log(msg str) { ... }
+//     fun log(level int, msg str) { ... }
+//
+//   Also, some sort of matching...
+//     v = (1, 2.0, true)  // typeof(v) = (int, float, bool)
+//     switch v {
+//       (id, _, ok) => doThing
+//            ^
+//          Wildcard
+//     }
+//     v can also be (1, "lol", true) // => (int, str, bool)
+//
+// To solve for all of this we use a "type symbol" — a Sym which describes the shape of a type.
+//   ((int,float),(bool,int)) = "((23)(12))"
+// Syms interned: testing for equality is just a pointer equality check.
+// Syms are hashed and can be stored and looked-up in a Scope very effectively.
+//
 
 
 // // TypeSymStr returns a human-readable representation of a type symbol.
@@ -71,7 +105,7 @@ static Str buildTypeSymStr(Str s, const Node* n) {
 
     default:
       dlog("TODO buildTypeSymStr handle %s", NodeKindName(n->kind));
-      assert(!NodeIsType(n)); // unhandled type
+      assert(!NodeKindIsType(n->kind)); // unhandled type
       break;
   }
   return s;
@@ -103,59 +137,94 @@ Sym GetTypeID(Node* n) {
 
 
 bool TypeEquals(Node* a, Node* b) {
-  assert(NodeIsType(a));
+  assert(a != NULL);
+  assert(b != NULL);
+  assert(NodeKindIsType(a->kind));
+  if (a == b) {
+    return true;
+  }
   if (a->kind != b->kind) {
     return false;
   }
-  if (a->kind == NBasicType) { // common case
-    return a->t.id == b->t.id;
-  }
+  // if (a->kind == NBasicType) {
+  //   return a->t.id == b->t.id;
+  // }
   return GetTypeID(a) == GetTypeID(b);
 }
 
 
-//
-// Operations needed:
-//   typeEquals(a,b) -- a and b are of the same, identical type
-//   typeFitsIn(a,b) -- b is subset of a (i.e. b fits in a)
-//
-//   Note: We do NOT need fast indexing for switches, since a variant is required
-//   for switches over variable types:
-//     type Thing = Error(str) | Result(u32)
-//     switch thing {
-//       Error("hello") => ...
-//       Error(msg) => ...
-//       Result(code) => ...
-//     }
-//
-//   But hey, maybe we do for function dispatch:
-//     fun log(msg str) { ... }
-//     fun log(level int, msg str) { ... }
-//
-//   Also, some sort of matching...
-//     v = (1, 2.0, true)  // typeof(v) = (int, float, bool)
-//     switch v {
-//       (id, _, ok) => doThing
-//            ^
-//          Wildcard
-//     }
-//     v can also be (1, "lol", true) // => (int, str, bool)
-//
-// To solve for all of this we use a "type symbol" — a Sym which describes the shape of a type.
-//   ((int,float),(bool,int)) = "((23)(12))"
-// Syms interned: testing for equality is just a pointer equality check.
-// Syms are hashed and can be stored and looked-up in a Scope very effectively.
-//
+// index = to TypeCode * from TypeCode
+static TypeConv const basicTypeConvTable[TypeCode_NUM_END * 2] = {
+  0
+};
+
+
+TypeConv CheckTypeConversion(Node* fromType, Node* toType, u32 intsize) {
+  assert(toType != NULL);
+  assert(fromType != NULL);
+  assert(NodeKindIsType(toType->kind));
+  assert(NodeKindIsType(fromType->kind));
+  if (TypeEquals(toType, fromType)) {
+    return TypeConvLossless;
+  }
+
+  // TODO
+  return TypeConvImpossible;
+}
+
+
+
 
 // ——————————————————————————————————————————————————————————————————————————————————————————————
 // unit test
 
 #if DEBUG
+
+static const char* TypeConvName(TypeConv c) {
+  switch (c) {
+  case TypeConvLossless:   return "Lossless";
+  case TypeConvLossy:      return "Lossy";
+  case TypeConvImpossible: return "Impossible";
+  default:                 return "?";
+  }
+}
+
+static void assertConv(const Node* toType, const Node* fromType, TypeConv expected) {
+  u32 intsize = 4; // int=int32, uint=uint32
+  auto actual = CheckTypeConversion((Node*)fromType, (Node*)toType, intsize);
+  if (actual != expected) {
+    printf("CheckTypeConversion(%s <- %s) => %s; expected %s\n",
+      NodeReprShort(toType), NodeReprShort(fromType),
+      TypeConvName(actual), TypeConvName(expected));
+    assert(actual == expected);
+  }
+}
+
 static void test() {
   // printf("--------------------------------------------------\n");
-
   Memory mem = MemoryNew(0);
   #define mknode(t) NewNode(mem, (t))
+
+  // same types
+  #define X(name) assertConv(Type_##name, Type_##name, TypeConvLossless);
+  TYPE_SYMS(X)
+  #undef X
+
+  // //   fromType -> toType
+  // #define LOSSLESS(_) \
+  //   _( uint8, int32 ) \
+  //   _( int, int64 ) \
+  //   _( int, float64 ) \
+  //   \
+  //   _( int, int32 ) \
+  //   _( int, int64 ) \
+  //   _( int, float64 ) \
+  // /* end LOSSLESS */
+  // #define X(fromType,toType)  assertConv(Type_##fromType, Type_##toType, TypeConvLossless);
+  // LOSSLESS(X)
+  // #undef X
+  // #undef LOSSLESS
+
 
   // auto scope = ScopeNew(GetGlobalScope()); // defined in ast.h
   // dlog("sizeof(TypeCode_nil) %zu", sizeof(TypeCode_nil));

@@ -86,18 +86,19 @@ static bool isTyped(const Node* n) {
   if (n->kind == NFun) {
     return n->type && n->type->kind == NFunType;
   }
-  return NodeIsType(n->type);
+  return n->type != NULL && NodeKindIsType(n->type->kind);
 }
 
 
 static Node* resolveType(CCtx* cc, Node* n) {
+  assert(n != NULL);
 
   #if DEBUG_TYPE_RESOLUTION
   auto nc = NodeClassTable[n->kind];
   dlog("resolveType %s %s", NodeKindName(n->kind), NodeClassName(nc));
   #endif
 
-  if (NodeIsType(n)) {
+  if (NodeKindIsType(n->kind)) {
     return n;
   }
 
@@ -200,33 +201,46 @@ static Node* resolveType(CCtx* cc, Node* n) {
   }
 
   // uses u.call
+  case NTypeCast: {
+    assert(n->call.receiver != NULL);
+    assert(NodeKindIsType(n->call.receiver->kind));
+    auto argstype = resolveType(cc, n->call.args);
+    n->type = resolveType(cc, n->call.receiver);
+
+    // // if (n->type != )NodeKindIsConst
+    // dlog("TODO NTypeCast check argstype <> target type. %d", n->type == argstype);
+    // dlog("CheckTypeConversion() => %d", CheckTypeConversion(argstype, n->type, 4));
+
+    // if (CheckTypeConversion(argstype, n->type, 4) == TypeConvImpossible) {
+    //   errorf(cc, n->pos, "cannot convert %s (type %s) to type %s",
+    //     NodeReprShort(n->call.args),
+    //     NodeReprShort(argstype),
+    //     NodeReprShort(n->type));
+    // }
+    break;
+  }
   case NCall: {
     auto argstype = resolveType(cc, n->call.args);
-
     // Note: resolveFunType breaks handles cycles where a function calls itself,
     // making this safe (i.e. will not cause an infinite loop.)
-    auto ftype = resolveType(cc, n->call.receiver);
-    assert(ftype != NULL);
-
-    // Input type is at ftype->t.fun.params
-    // Output type is at ftype->t.fun.result
-
-    dlog("TODO NCall check argstype <> receiver type");
+    auto recvt = resolveType(cc, n->call.receiver);
+    assert(recvt != NULL);
+    if (recvt->kind != NFunType) {
+      errorf(cc, n->pos, "cannot call %s", NodeReprShort(n->call.receiver));
+      break;
+    }
     // Note: Consider arguments with defaults:
     // fun foo(a, b int, c int = 0)
     // foo(1, 2) == foo(1, 2, 0)
-
-    if (!TypeEquals(ftype->t.fun.params, argstype)) {
+    if (!TypeEquals(recvt->t.fun.params, argstype)) {
       errorf(cc, n->pos, "incompatible arguments %s in function call. Expected %s",
-        NodeReprShort(argstype), NodeReprShort(ftype->t.fun.params));
+        NodeReprShort(argstype), NodeReprShort(recvt->t.fun.params));
     }
-
-    n->type = ftype->t.fun.result;
+    n->type = recvt->t.fun.result;
     break;
   }
 
   // uses u.field
-  case NVar:
   case NLet:
   case NField: {
     if (n->field.init) {
@@ -271,7 +285,6 @@ static Node* resolveType(CCtx* cc, Node* n) {
   case NBad:
   case NBool:
   case NComment:
-  case NConst:
   case NFloat:
   case NFunType:
   case NInt:

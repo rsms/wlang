@@ -3,6 +3,7 @@ cd "$(dirname "$0")"
 
 OPT_HELP=false
 OPT_TIME=false
+OPT_LLDB=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -16,6 +17,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   -time|--time)
     OPT_TIME=true
+    shift
+    ;;
+  -lldb|--lldb)
+    OPT_LLDB=true
     shift
     ;;
   -*)
@@ -35,6 +40,7 @@ if $OPT_HELP; then
   echo "  -h, -help   Show help"
   echo "  -time       Run release-build program with performance timer."
   echo "              Redirects stdio to /dev/null."
+  echo "  -lldb       Run debug build in lldb."
   echo "<runarg>s are passed to the program"
   exit 1
 fi
@@ -75,9 +81,13 @@ function dev_run {
     time ./build/wp "$@" >/dev/null 2>&1 &
     pid=$!
   else
-    dev_run_exec "$@" &
-    # dev_run_exec "$@"
-    pid=$!
+    if $OPT_LLDB; then
+      echo lldb -bo r ./build/wp.g "$@"
+      ASAN_OPTIONS=detect_stack_use_after_return=1 lldb -bo r ./build/wp.g "$@"
+    else
+      dev_run_exec "$@" &
+      pid=$!
+    fi
   fi
   echo $pid > "$pidfile"
   wait $pid
