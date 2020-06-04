@@ -4,6 +4,7 @@ cd "$(dirname "$0")"
 OPT_HELP=false
 OPT_TIME=false
 OPT_LLDB=false
+OPT_ANALYZE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -21,6 +22,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   -lldb|--lldb)
     OPT_LLDB=true
+    shift
+    ;;
+  -a|-analyze|--analyze)
+    OPT_ANALYZE=true
     shift
     ;;
   -*)
@@ -41,6 +46,7 @@ if $OPT_HELP; then
   echo "  -time       Run release-build program with performance timer."
   echo "              Redirects stdio to /dev/null."
   echo "  -lldb       Run debug build in lldb."
+  echo "  -analyze    Run './build.sh -analyze', watching source files."
   echo "<runarg>s are passed to the program"
   exit 1
 fi
@@ -53,9 +59,18 @@ fi
 
 
 pidfile=build/dev-pidfile
-if [ -f "$pidfile" ]; then
-  kill "$(cat "$pidfile")" 2>/dev/null
-  rm "$pidfile"
+analyze_pidfile=build/dev_analyze-pidfile
+
+if $OPT_ANALYZE; then
+  if [ -f "$analyze_pidfile" ]; then
+    kill "$(cat "$analyze_pidfile")" 2>/dev/null
+    rm -f "$analyze_pidfile"
+  fi
+else
+  if [ -f "$pidfile" ]; then
+    kill "$(cat "$pidfile")" 2>/dev/null
+    rm -f "$pidfile"
+  fi
 fi
 
 
@@ -72,7 +87,6 @@ function dev_run_exec {
   #     lldb -bo r ./build/wp.g "$@"
   # fi
 }
-
 
 function dev_run {
   set +e
@@ -95,7 +109,6 @@ function dev_run {
   set -e
 }
 
-
 function dev_start {
   if $OPT_TIME; then
     if ./build.sh; then
@@ -108,30 +121,128 @@ function dev_start {
   fi
 }
 
-
 function dev_stop {
+  set +e
   if [ -f "$pidfile" ]; then
-    set +e
     pid=$(cat "$pidfile")
     kill "$pid" 2>/dev/null
     wait "$pid"
-    set -e
     rm -f "$pidfile"
   fi
+  set -e
+}
+
+function dev_analyze_stop {
+  set +e
+  if [ -f "$analyze_pidfile" ]; then
+    pid=$(cat "$analyze_pidfile")
+    kill "$pid" 2>/dev/null
+    wait "$pid"
+    rm -f "$analyze_pidfile"
+  fi
+  set -e
+}
+
+function dev_analyze_fswatch {
+  set +e
+  while true; do  # outer loop since sometimes fswatch just dies
+    fswatch \
+      -0 \
+      --extended \
+      --exclude='.*' --include='\.(c|h)$' \
+      --recursive \
+      src \
+    | while read -d "" filename
+    do
+      # echo "file changed: ${filename}"
+      echo $filename >> build/analyze_changed_files.txt
+    done
+  done
+  set -e
+}
+
+function dev_analyze_start {
+  dev_analyze_fswatch &
+  ANALYZE_PID=$!
+  mkdir -p build
+  echo $ANALYZE_PID > "$analyze_pidfile"
+  # wait $ANALYZE_PID  # wait for analyze to finish
+  # rm -f "$analyze_pidfile"
 }
 
 
 function dev_cleanup {
-  dev_stop
+  if $OPT_ANALYZE; then
+    dev_analyze_stop
+  else
+    dev_stop
+  fi
+  echo ""
 }
 trap dev_cleanup EXIT
 trap exit SIGINT  # make sure we can ctrl-c in the while loop
 
 
-while true; do
-  echo -e "\x1bc"  # clear screen ("scroll to top" style)
-  dev_start "$@"
-  fswatch -1 -l 0.2 -E --exclude='.*' --include='\.(c|h|w|sh)$' src example config.sh
-  echo "———————————————————— restarting ————————————————————"
-  dev_stop
-done
+if $OPT_ANALYZE; then
+  ninja debug
+  echo "Running analyzer, starting with an analysis of all uncommitted files."
+  echo "Run 'infer explore' in a separate shell to explore issues."
+
+  rm -f build/analyze_changed_files.txt
+  echo -n "" > build/analyze_changed_files.txt
+
+  dev_analyze_start
+
+  ninja -t compdb compile_obj > build/debug-compilation-database.json
+  git status --porcelain | sed 's/^...//' > build/git-dirty-files.txt
+  infer capture --reactive --changed-files-index build/git-dirty-files.txt \
+                --no-progress-bar --compilation-database build/debug-compilation-database.json
+  infer analyze --reactive --changed-files-index build/git-dirty-files.txt
+  # echo "Analyzer watching for file changes..."
+
+  while true; do
+    while true; do
+      # echo "checking for file changes"
+      rm -f build/analyze_changed_files2.txt
+      if mv build/analyze_changed_files.txt build/analyze_changed_files2.txt 2>/dev/null; then
+        if [ -s build/analyze_changed_files2.txt ]; then
+          # there are changes
+          break
+        fi
+      fi
+      # blinking dot to keep ssh and iterm responsive
+      echo -n -e ".\x1b[1D" # print "." and move cursor left by 1
+      sleep 0.5
+      echo -n -e "\x1b[0K" # clear from cursor until end of line
+      sleep 0.5
+    done
+    ninja debug >/dev/null
+    infer capture --reactive --changed-files-index build/analyze_changed_files2.txt \
+                  --no-progress-bar \
+                  --compilation-database build/debug-compilation-database.json
+    infer analyze --progress-bar-style plain \
+                  --reactive --changed-files-index build/analyze_changed_files2.txt
+  done
+else
+  IS_FIRST_RUN=true
+  while true; do
+    echo -e "\x1bc"  # clear screen ("scroll to top" style)
+    if $IS_FIRST_RUN; then
+      IS_FIRST_RUN=false
+      echo "Tip: Run './dev.sh -analyze' in a second shell for incremental code analysis."
+    fi
+    dev_start "$@"
+    if $OPT_LLDB; then
+      echo "Watching files for changes..."
+    fi
+    fswatch \
+      --one-event \
+      --latency=0.2 \
+      --extended \
+      --exclude='.*' --include='\.(c|h|w|sh|lisp)$' \
+      --recursive \
+      src example config.sh
+    echo "———————————————————— restarting ————————————————————"
+    dev_stop
+  done
+fi

@@ -28,6 +28,7 @@ u8* os_readfile(const char* filename, size_t* bufsize_out, Memory mem) {
 
   struct stat st;
   if (fstat(fd, &st) != 0) {
+    close(fd);
     return NULL;
   }
 

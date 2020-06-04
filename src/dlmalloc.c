@@ -2,6 +2,9 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #pragma GCC diagnostic ignored "-Wexpansion-to-defined"
 
+// [infer] Infer is not run on this file as it's SLOW.
+// If changes are made, make sure to run infer manually.
+
 #include "dlmalloc.h"
 /*
   This is a version (aka dlmalloc) of malloc/free/realloc written by

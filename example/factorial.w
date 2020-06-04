@@ -1,13 +1,14 @@
 
 fun main {
   # a, b = 1, 2 + 1
-  z = int16(9)
-  # z = 9 as int32
+  z = 200 as int8
+  # z = int16(9)
 
-  x = 1     # (Let x (Int 1))
-  y = x + 3 # (Let y (Op + (Ref x) (Int 2)))
-  if true y = x + 4
-  y         # (Ref y)
+  # x = 1     # (Let x (Int 1))
+  # y = x + 3 # (Let y (Op + (Ref x) (Int 2)))
+  # if true y = x + 4
+  # y         # (Ref y)
+
   # factorial(start)
 }
 

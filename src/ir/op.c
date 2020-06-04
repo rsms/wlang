@@ -795,6 +795,12 @@ IROp IROpConvertType(TypeCode fromType, TypeCode toType) {
           TypeCodeName(TypeCodeIntSignedCounterpart(fromType)));
         // TODO NoOp op?
         // Maybe we just avoid calling IROpConvertType for type casts of integers of same size...
+        //
+        // Idea: Before even calling this function (ints only), check signed flags and
+        // if the signed type is different, simply reinterpret ("lie" about) the type as the
+        // destination "signed version". I.e. int8 -> uint32, "lie" and say that the from type
+        // is uint8 instead of int8.
+        //
       }
     }
     // all other valid conversions should have an op, like for example int16 -> int32.

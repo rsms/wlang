@@ -33,3 +33,20 @@ void CCtxFree(CCtx* cc) {
   SourceFree(&cc->src);
   MemoryFree(cc->mem);
 }
+
+
+void CCtxErrorf(CCtx* cc, SrcPos pos, const char* format, ...) {
+  if (cc->errh == NULL) {
+    return;
+  }
+  va_list ap;
+  va_start(ap, format);
+  auto msg = sdsempty();
+  if (strlen(format) > 0) {
+    msg = sdscatvprintf(msg, format, ap);
+    assert(sdslen(msg) > 0); // format may contain %S which is not supported by sdscatvprintf
+  }
+  va_end(ap);
+  cc->errh(&cc->src, pos, msg, cc->userdata);
+  sdsfree(msg);
+}

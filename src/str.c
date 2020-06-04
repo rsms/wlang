@@ -4,7 +4,7 @@
 // using sdscatrepr which encodes non-printable ASCII chars for safe printing.
 // Not thread safe!
 const char* strrepr(ConstStr s) {
-  static Str buf;
+  static Str buf = NULL;
   if (buf == NULL) {
     buf = sdsempty();
   } else {

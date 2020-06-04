@@ -18,23 +18,6 @@ Node* ResolveSym(CCtx* cc, Node* n, Scope* scope) {
 }
 
 
-static void resolveErrorf(ResCtx* ctx, SrcPos pos, const char* format, ...) {
-  if (ctx->cc->errh == NULL) {
-    return;
-  }
-  va_list ap;
-  va_start(ap, format);
-  auto msg = sdsempty();
-  if (strlen(format) > 0) {
-    msg = sdscatvprintf(msg, format, ap);
-    assert(sdslen(msg) > 0); // format may contain %S which is not supported by sdscatvprintf
-  }
-  va_end(ap);
-  ctx->cc->errh(&ctx->cc->src, pos, msg, ctx->cc->userdata);
-  sdsfree(msg);
-}
-
-
 static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
   assert(n->kind == NIdent);
   auto name = n->ref.name;
@@ -48,7 +31,7 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
       target = ScopeLookup(scope, n->ref.name);
 
       if (target == NULL) {
-        resolveErrorf(ctx, n->pos, "undefined symbol %s", name);
+        CCtxErrorf(ctx->cc, n->pos, "undefined symbol %s", name);
         ((Node*)n)->ref.target = NodeBad;
         return n;
       }
@@ -78,8 +61,8 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
         }
         return n;
 
-      case NBool:
-      case NInt:
+      case NBoolLit:
+      case NIntLit:
       case NNil:
       case NFun:
       case NBasicType:
@@ -219,7 +202,7 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
         }
         n->kind = NTypeCast;
       } else {
-        resolveErrorf(ctx, n->pos, "cannot call %s", NodeReprShort(recv));
+        CCtxErrorf(ctx->cc, n->pos, "cannot call %s", NodeReprShort(recv));
       }
     }
     break;
@@ -249,9 +232,9 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   case NTupleType:
   case NComment:
   case NNil:
-  case NBool:
-  case NInt:
-  case NFloat:
+  case NBoolLit:
+  case NIntLit:
+  case NFloatLit:
   case NZeroInit:
   case _NodeKindMax:
     break;

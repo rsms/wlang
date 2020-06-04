@@ -119,7 +119,7 @@ Sym GetTypeID(Node* n) {
     return n->t.id;
   }
   // TODO: precompile type Sym's for all basic types
-  static Str buf;
+  static Str buf = NULL;
   if (buf == NULL) {
     buf = sdsempty();
   } else {
@@ -153,24 +153,24 @@ bool TypeEquals(Node* a, Node* b) {
 }
 
 
-// index = to TypeCode * from TypeCode
-static TypeConv const basicTypeConvTable[TypeCode_NUM_END * 2] = {
-  0
-};
+// // index = to TypeCode * from TypeCode
+// static TypeConv const basicTypeConvTable[TypeCode_NUM_END * 2] = {
+//   0
+// };
 
 
-TypeConv CheckTypeConversion(Node* fromType, Node* toType, u32 intsize) {
-  assert(toType != NULL);
-  assert(fromType != NULL);
-  assert(NodeKindIsType(toType->kind));
-  assert(NodeKindIsType(fromType->kind));
-  if (TypeEquals(toType, fromType)) {
-    return TypeConvLossless;
-  }
+// TypeConv CheckTypeConversion(Node* fromType, Node* toType, u32 intsize) {
+//   assert(toType != NULL);
+//   assert(fromType != NULL);
+//   assert(NodeKindIsType(toType->kind));
+//   assert(NodeKindIsType(fromType->kind));
+//   if (TypeEquals(toType, fromType)) {
+//     return TypeConvLossless;
+//   }
 
-  // TODO
-  return TypeConvImpossible;
-}
+//   // TODO
+//   return TypeConvImpossible;
+// }
 
 
 
@@ -180,35 +180,35 @@ TypeConv CheckTypeConversion(Node* fromType, Node* toType, u32 intsize) {
 
 #if DEBUG
 
-static const char* TypeConvName(TypeConv c) {
-  switch (c) {
-  case TypeConvLossless:   return "Lossless";
-  case TypeConvLossy:      return "Lossy";
-  case TypeConvImpossible: return "Impossible";
-  default:                 return "?";
-  }
-}
+// static const char* TypeConvName(TypeConv c) {
+//   switch (c) {
+//   case TypeConvLossless:   return "Lossless";
+//   case TypeConvLossy:      return "Lossy";
+//   case TypeConvImpossible: return "Impossible";
+//   default:                 return "?";
+//   }
+// }
 
-static void assertConv(const Node* toType, const Node* fromType, TypeConv expected) {
-  u32 intsize = 4; // int=int32, uint=uint32
-  auto actual = CheckTypeConversion((Node*)fromType, (Node*)toType, intsize);
-  if (actual != expected) {
-    printf("CheckTypeConversion(%s <- %s) => %s; expected %s\n",
-      NodeReprShort(toType), NodeReprShort(fromType),
-      TypeConvName(actual), TypeConvName(expected));
-    assert(actual == expected);
-  }
-}
+// static void assertConv(const Node* toType, const Node* fromType, TypeConv expected) {
+//   u32 intsize = 4; // int=int32, uint=uint32
+//   auto actual = CheckTypeConversion((Node*)fromType, (Node*)toType, intsize);
+//   if (actual != expected) {
+//     printf("CheckTypeConversion(%s <- %s) => %s; expected %s\n",
+//       NodeReprShort(toType), NodeReprShort(fromType),
+//       TypeConvName(actual), TypeConvName(expected));
+//     assert(actual == expected);
+//   }
+// }
 
 static void test() {
   // printf("--------------------------------------------------\n");
   Memory mem = MemoryNew(0);
   #define mknode(t) NewNode(mem, (t))
 
-  // same types
-  #define X(name) assertConv(Type_##name, Type_##name, TypeConvLossless);
-  TYPE_SYMS(X)
-  #undef X
+  // // same types
+  // #define X(name) assertConv(Type_##name, Type_##name, TypeConvLossless);
+  // TYPE_SYMS(X)
+  // #undef X
 
   // //   fromType -> toType
   // #define LOSSLESS(_) \

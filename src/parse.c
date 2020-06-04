@@ -1,5 +1,6 @@
 #include "wp.h"
 #include "parseint.h"
+#include "convlit.h"
 
 // enable debug messages for pushScope() and popScope()
 // #define DEBUG_SCOPE_PUSH_POP
@@ -29,10 +30,17 @@ typedef enum Precedence {
 } Precedence;
 
 
+typedef enum PFlag {
+  PFlagNone   = 0,
+  PFlagRValue = 1 << 0, // parsing an rvalue
+  PFlagType   = 1 << 1, // parsing a type
+} PFlag;
+
+
 typedef struct Parselet Parselet;
 
-typedef Node* (ParseletPrefixFun)(P* p);
-typedef Node* (ParseletFun)      (P* p, const Parselet* e, Node* left);
+typedef Node* (ParseletPrefixFun)(P* p, PFlag fl);
+typedef Node* (ParseletFun)      (P* p, const Parselet* e, PFlag fl, Node* left);
 
 typedef struct Parselet {
   ParseletPrefixFun* fprefix;
@@ -163,6 +171,12 @@ static void advance(P* p, const Tok* followlist) {
 }
 
 
+// PFreeNode is shallow; does not free node members
+inline static void PFreeNode(P* p, Node* n) {
+  memfree(p->cc->mem, n);
+}
+
+
 // allocate a new ast node
 inline static Node* PNewNode(P* p, NodeKind kind) {
   auto n = NewNode(p->cc->mem, kind);
@@ -173,14 +187,10 @@ inline static Node* PNewNode(P* p, NodeKind kind) {
 }
 
 // precedence should match the calling parselet's own precedence
-static Node* expr(P* p, int precedence);
+static Node* expr(P* p, int precedence, PFlag fl);
 
-// {rvalue,lvalue}ExprOrTuple = Expr | Tuple
-static Node* rvalueExprOrTuple(P* p, int precedence);
-static Node* lvalueExprOrTuple(P* p, int precedence);
-
-// Fun = "fun" Ident Params? Type? Block?
-static Node* pfun(P* p, bool nameOptional);
+// exprOrTuple = Expr | Tuple
+static Node* exprOrTuple(P* p, int precedence, PFlag fl);
 
 // pushScope adds a new scope to the stack. Returns the new scope.
 static Scope* pushScope(P* p) {
@@ -257,10 +267,10 @@ static Node* bad(P* p) {
 
 
 // tupleTrailingComma = Expr ("," Expr)* ","?
-static Node* tupleTrailingComma(P* p, int precedence, Tok stoptok) {
+static Node* tupleTrailingComma(P* p, int precedence, PFlag fl, Tok stoptok) {
   auto tuple = PNewNode(p, NTuple);
   do {
-    NodeListAppend(p->cc->mem, &tuple->array.a, expr(p, precedence));
+    NodeListAppend(p->cc->mem, &tuple->array.a, expr(p, precedence, fl));
   } while (got(p, TComma) && p->s.tok != stoptok);
   return tuple;
 }
@@ -270,7 +280,17 @@ static Node* tupleTrailingComma(P* p, int precedence, Tok stoptok) {
 // Parselets
 
 //!PrefixParselet TIdent
-static Node* PIdent(P* p) {
+static Node* PIdent(P* p, PFlag fl) {
+  assert(p->s.tok == TIdent);
+  // attempt to lookup rvalue
+  if (fl & PFlagRValue) {
+    auto n = (Node*)ScopeLookup(p->scope, p->s.name);
+    if (n != NULL) {
+      // dlog("PIdent taking shortcut to resolved ident %s", p->s.name);
+      next(p);
+      return n;
+    }
+  }
   auto n = PNewNode(p, NIdent);
   n->ref.name = p->s.name;
   next(p);
@@ -279,19 +299,19 @@ static Node* PIdent(P* p) {
 
 
 // assignment to fields, e.g. "x.y = 3" -> (assign (Field (Ident x) (Ident y)) (Int 3))
-static Node* pAssign(P* p, const Parselet* e, Node* left) {
+static Node* pAssign(P* p, const Parselet* e, PFlag fl, Node* left) {
+  assert(fl & PFlagRValue);
   auto n = PNewNode(p, NAssign);
   n->op.op = p->s.tok;
   next(p); // consume '='
-  auto right = rvalueExprOrTuple(p, e->prec);
+  auto right = exprOrTuple(p, e->prec, fl);
   n->op.left = left;
   n->op.right = right;
 
   // defsym
   if (left->kind == NTuple) {
     if (right->kind != NTuple) {
-      syntaxerrp(p, left->pos, "assignment mismatch: %u targets but 1 value",
-        left->array.a.len);
+      syntaxerrp(p, left->pos, "assignment mismatch: %u targets but 1 value", left->array.a.len);
     } else {
       auto lnodes = &left->array.a;
       auto rnodes = &right->array.a;
@@ -314,8 +334,7 @@ static Node* pAssign(P* p, const Parselet* e, Node* left) {
       }
     }
   } else if (right->kind == NTuple) {
-    syntaxerrp(p, left->pos, "assignment mismatch: 1 target but %u values",
-      right->array.a.len);
+    syntaxerrp(p, left->pos, "assignment mismatch: 1 target but %u values", right->array.a.len);
   } else if (left->kind == NIdent) {
     defsym(p, left->ref.name, right);
   }
@@ -325,9 +344,11 @@ static Node* pAssign(P* p, const Parselet* e, Node* left) {
 
 
 //!Parselet (TEq ASSIGN)
-static Node* PLetOrAssign(P* p, const Parselet* e, Node* left) {
+static Node* PLetOrAssign(P* p, const Parselet* e, PFlag fl, Node* left) {
+  fl |= PFlagRValue;
+
   if (left->kind != NIdent) {
-    return pAssign(p, e, left);
+    return pAssign(p, e, fl, left);
   }
   // let or var assignment
   // common case: let binding. e.g. "x = 3" -> (let (Ident x) (Int 3))
@@ -335,7 +356,7 @@ static Node* PLetOrAssign(P* p, const Parselet* e, Node* left) {
   next(p); // consume '='
 
   auto name = left;
-  auto value = expr(p, PREC_LOWEST);
+  auto value = expr(p, PREC_LOWEST, fl);
 
   // new let binding
   auto n = PNewNode(p, NLet);
@@ -349,7 +370,7 @@ static Node* PLetOrAssign(P* p, const Parselet* e, Node* left) {
 
 
 //!PrefixParselet TComment
-static Node* PComment(P* p) {
+static Node* PComment(P* p, PFlag fl) {
   auto n = PNewNode(p, NComment);
   n->str.ptr = p->s.tokstart;
   n->str.len = p->s.tokend - p->s.tokstart;
@@ -360,19 +381,62 @@ static Node* PComment(P* p) {
 // Group = "(" Expr ("," Expr)* ")"
 // Groups are used to control precedence.
 //!PrefixParselet TLParen
-static Node* PGroup(P* p) {
+static Node* PGroup(P* p, PFlag fl) {
   next(p); // consume "("
-  auto n = rvalueExprOrTuple(p, PREC_LOWEST);
+  auto n = exprOrTuple(p, PREC_LOWEST, fl);
   want(p, TRParen);
   return n;
 }
 
+
+// Type (always rvalue)
+static Node* pType(P* p, PFlag fl) {
+  assert(fl & PFlagRValue);
+  return exprOrTuple(p, PREC_LOWEST, fl | PFlagType);
+  // syntaxerr(p, "expecting type");
+  // return bad(p);
+}
+
+
+static Node* processTypeCast(P* p, PFlag fl, Node* n) {
+  dlog("processTypeCast %s", NodeReprShort(n));
+  assert(n->kind == NTypeCast);
+  assert(NodeKindIsType(n->call.receiver->kind));
+  // attempt conversion
+  auto expr = ConvlitExplicit(p->cc, n->call.args, n->call.receiver);
+  dlog("processTypeCast ConvlitExplicit() => %s", NodeReprShort(expr));
+  if (expr != NULL) {
+    return expr;
+  }
+  // TODO: maybe convert value and eliminate TypeCast node
+  // TODO: PFreeNode(p, n) if we simplify
+  return n;
+}
+
+// As = expr "as" Type
+// "as" has the lowest precedence and thus... Examples:
+//
+//   "9 * 2 as int8"         => (TypeCast int8 (Op * (Int 9) (Int 2)))
+//   "9 * (2 as int8)"       => (Op * (Int 9) (TypeCast int8 (Int 2)))
+//   "9, 2 as (int8,int8)"   => (Int 9) (TypeCast (Tuple int8 int8) (Int 2))
+//   "(9, 2) as (int8,int8)" => (TypeCast (Tuple int8 int8) (Tuple (Int 9) (Int 2)))
+//
+//!Parselet (TAs LOWEST)
+static Node* PAs(P* p, const Parselet* e, PFlag fl, Node* expr) {
+  assert(fl & PFlagRValue);
+  auto n = PNewNode(p, NTypeCast);
+  next(p); // consume "as"
+  n->call.receiver = pType(p, fl);
+  n->call.args = expr;
+  return processTypeCast(p, fl, n);
+}
+
 //!Parselet (TLParen MEMBER)
-static Node* PCall(P* p, const Parselet* e, Node* receiver) {
+static Node* PCall(P* p, const Parselet* e, PFlag fl, Node* receiver) {
   auto n = PNewNode(p, NCall);
   next(p); // consume "("
   n->call.receiver = receiver;
-  auto args = tupleTrailingComma(p, PREC_LOWEST, TRParen);
+  auto args = tupleTrailingComma(p, PREC_LOWEST, fl, TRParen);
   want(p, TRParen);
   assert(args->kind == NTuple);
   switch (args->array.a.len) {
@@ -380,19 +444,26 @@ static Node* PCall(P* p, const Parselet* e, Node* receiver) {
     case 1:  n->call.args = args->array.a.head->node; break;
     default: n->call.args = args; break;
   }
+  if (NodeKindIsType(receiver->kind)) {
+    n->kind = NTypeCast;
+    return processTypeCast(p, fl, n);
+  }
   return n;
 }
 
 // Block = "{" Expr* "}"
 //!PrefixParselet TLBrace
-static Node* PBlock(P* p) {
+static Node* PBlock(P* p, PFlag fl) {
   auto n = PNewNode(p, NBlock);
   next(p); // consume "{"
 
   pushScope(p);
 
+  // clear rvalue flag; productions of block are lvalue
+  fl &= ~PFlagRValue;
+
   while (p->s.tok != TNone && p->s.tok != TRBrace) {
-    NodeListAppend(p->cc->mem, &n->array.a, lvalueExprOrTuple(p, PREC_LOWEST));
+    NodeListAppend(p->cc->mem, &n->array.a, exprOrTuple(p, PREC_LOWEST, fl));
     if (!got(p, TSemi)) {
       break;
     }
@@ -409,11 +480,11 @@ static Node* PBlock(P* p) {
 
 // PrefixOp = ( "+" | "-" | "!" ) Expr
 //!PrefixParselet TPlus TMinus TBang
-static Node* PPrefixOp(P* p) {
+static Node* PPrefixOp(P* p, PFlag fl) {
   auto n = PNewNode(p, NPrefixOp);
   n->op.op = p->s.tok;
   next(p);
-  n->op.left = expr(p, PREC_LOWEST);
+  n->op.left = expr(p, PREC_LOWEST, fl);
   return n;
 }
 
@@ -422,18 +493,18 @@ static Node* PPrefixOp(P* p) {
 //          (TStar MULTIPLY) (TSlash MULTIPLY)
 //          (TLt COMPARE) (TGt COMPARE)
 //          (TEqEq EQUAL) (TNEq EQUAL) (TLEq EQUAL) (TGEq EQUAL)
-static Node* PInfixOp(P* p, const Parselet* e, Node* left) {
+static Node* PInfixOp(P* p, const Parselet* e, PFlag fl, Node* left) {
   auto n = PNewNode(p, NOp);
   n->op.op = p->s.tok;
   n->op.left = left;
   next(p);
-  n->op.right = expr(p, e->prec);
+  n->op.right = expr(p, e->prec, fl);
   return n;
 }
 
 // PostfixOp = Expr ( "++" | "--" )
 //!Parselet (TPlusPlus UNARY_POSTFIX) (TMinusMinus UNARY_POSTFIX)
-static Node* PPostfixOp(P* p, const Parselet* e, Node* operand) {
+static Node* PPostfixOp(P* p, const Parselet* e, PFlag fl, Node* operand) {
   auto n = PNewNode(p, NOp);
   n->op.op = p->s.tok;
   n->op.left = operand;
@@ -443,39 +514,45 @@ static Node* PPostfixOp(P* p, const Parselet* e, Node* operand) {
 
 // IntLit = [0-9]+
 //!PrefixParselet TIntLit
-static Node* PIntLit(P* p) {
-  auto n = PNewNode(p, NInt);
+static Node* PIntLit(P* p, PFlag fl) {
+  auto n = PNewNode(p, NIntLit);
   size_t len = p->s.tokend - p->s.tokstart;
-  if (!parseint64((const char*)p->s.tokstart, len, /*base*/10, &n->integer)) {
-    n->integer = 0;
+  if (!parseint64((const char*)p->s.tokstart, len, /*base*/10, &n->val.i)) {
+    n->val.i = 0;
     syntaxerrp(p, n->pos, "invalid integer literal");
   }
   next(p);
-  n->type = (Node*)Type_int;
+  // TODO: if prefixed by "-", negate. Min i64: -0x8000000000000000
+  n->val.t = n->val.i > 0x7fffffffffffffff ? TypeCode_uint : TypeCode_int;
+  // if ((fl & PFlagRValue) == 0) {
+  //   // used as lvalue, e.g. lone expression. Type now.
+  //   n = ConvlitImplicit(p->cc, n, NULL);
+  // }
+  // n->type = (Node*)Type_int; // convlit is used to assign a type
   return n;
 }
 
 // If = "if" Expr Expr
 //!PrefixParselet TIf
-static Node* PIf(P* p) {
+static Node* PIf(P* p, PFlag fl) {
   auto n = PNewNode(p, NIf);
   next(p);
-  n->cond.cond = expr(p, PREC_LOWEST);
-  n->cond.thenb = expr(p, PREC_LOWEST);
+  n->cond.cond = expr(p, PREC_LOWEST, fl);
+  n->cond.thenb = expr(p, PREC_LOWEST, fl);
   if (p->s.tok == TElse) {
     next(p);
-    n->cond.elseb = expr(p, PREC_LOWEST);
+    n->cond.elseb = expr(p, PREC_LOWEST, fl);
   }
   return n;
 }
 
 // Return = "return" Expr?
 //!PrefixParselet TReturn
-static Node* PReturn(P* p) {
+static Node* PReturn(P* p, PFlag fl) {
   auto n = PNewNode(p, NReturn);
   next(p);
   if (p->s.tok != TSemi && p->s.tok != TRBrace) {
-    n->op.left = rvalueExprOrTuple(p, PREC_LOWEST);
+    n->op.left = exprOrTuple(p, PREC_LOWEST, fl | PFlagRValue);
   }
   return n;
 }
@@ -500,6 +577,7 @@ static Node* params(P* p) { // => NTuple
   auto n = PNewNode(p, NTuple);
   bool hasTypedParam = false; // true when at least one param has type; e.g. "x T"
   NodeList typeq = {0};
+  PFlag fl = PFlagRValue;
 
   while (p->s.tok != TRParen && p->s.tok != TNone) {
     auto field = PNewNode(p, NField);
@@ -508,7 +586,7 @@ static Node* params(P* p) { // => NTuple
       next(p);
       // TODO: check if "<" follows. If so, this is a type.
       if (p->s.tok != TRParen && p->s.tok != TComma && p->s.tok != TSemi) {
-        field->type = expr(p, PREC_LOWEST);
+        field->type = expr(p, PREC_LOWEST, fl);
         hasTypedParam = true;
         // spread type to predecessors
         if (typeq.len > 0) {
@@ -522,7 +600,7 @@ static Node* params(P* p) { // => NTuple
       }
     } else {
       // definitely just type, e.g. "fun(int)int"
-      field->type = expr(p, PREC_LOWEST);
+      field->type = expr(p, PREC_LOWEST, fl);
     }
     NodeListAppend(p->cc->mem, &n->array.a, field);
     if (!got(p, TComma)) {
@@ -574,7 +652,8 @@ static Node* params(P* p) { // => NTuple
 //   fun { 5 }
 //   fun -> 5
 //
-static Node* pfun(P* p, bool nameOptional) {
+//!PrefixParselet TFun
+static Node* PFun(P* p, PFlag fl) {
   auto n = PNewNode(p, NFun);
   next(p);
   // name
@@ -583,10 +662,10 @@ static Node* pfun(P* p, bool nameOptional) {
     n->fun.name = name;
     defsym(p, name, n);
     next(p);
-  } /*else if (!nameOptional) {
+  } else if ((fl & PFlagRValue) == 0) {
     syntaxerr(p, "expecting name");
     next(p);
-  }*/
+  }
   // parameters
   pushScope(p);
   if (p->s.tok == TLParen) {
@@ -600,26 +679,19 @@ static Node* pfun(P* p, bool nameOptional) {
   }
   // result type(s)
   if (p->s.tok != TLBrace && p->s.tok != TSemi && p->s.tok != TRArr) {
-    n->type = rvalueExprOrTuple(p, PREC_LOWEST);
+    n->type = pType(p, fl | PFlagRValue);
   }
   // body
   p->fnest++;
   if (p->s.tok == TLBrace) {
-    n->fun.body = PBlock(p);
+    n->fun.body = PBlock(p, fl);
   } else if (got(p, TRArr)) {
-    n->fun.body = rvalueExprOrTuple(p, PREC_LOWEST); // TODO: is lvalueEx.. func better here?
+    n->fun.body = exprOrTuple(p, PREC_LOWEST, fl & ~PFlagRValue /* lvalue semantics */);
   }
   p->fnest--;
   n->fun.scope = popScope(p);
   return n;
 }
-
-// See pfun for syntax
-//!PrefixParselet TFun
-static Node* PFun(P* p) {
-  return pfun(p, /* nameOptional */ false);
-}
-
 
 // end of parselets
 // ============================================================================================
@@ -641,6 +713,7 @@ static const Parselet parselets[TMax] = {
   [TReturn] = {PReturn, NULL, PREC_MEMBER},
   [TFun] = {PFun, NULL, PREC_MEMBER},
   [TEq] = {NULL, PLetOrAssign, PREC_ASSIGN},
+  [TAs] = {NULL, PAs, PREC_LOWEST},
   [TStar] = {NULL, PInfixOp, PREC_MULTIPLY},
   [TSlash] = {NULL, PInfixOp, PREC_MULTIPLY},
   [TLt] = {NULL, PInfixOp, PREC_COMPARE},
@@ -655,7 +728,7 @@ static const Parselet parselets[TMax] = {
 //PARSELET_MAP_END
 
 
-inline static Node* prefixExpr(P* p) {
+inline static Node* prefixExpr(P* p, PFlag fl) {
   // find prefix parselet
   assert((u32)p->s.tok < (u32)TMax);
   auto parselet = &parselets[p->s.tok];
@@ -666,12 +739,13 @@ inline static Node* prefixExpr(P* p) {
     advance(p, followlist);
     return n;
   }
-  return parselet->fprefix(p);
+  return parselet->fprefix(p, fl);
 }
 
 
-inline static Node* infixExpr(P* p, int precedence, Node* left) {
+inline static Node* infixExpr(P* p, int precedence, PFlag fl, Node* left) {
   // wrap parselets
+  // TODO: Should we set fl|PFlagRValue here?
   while (p->s.tok != TNone) {
     auto parselet = &parselets[p->s.tok];
     // if (parselet->f) {
@@ -682,41 +756,40 @@ inline static Node* infixExpr(P* p, int precedence, Node* left) {
       break;
     }
     assert(parselet);
-    left = parselet->f(p, parselet, left);
+    left = parselet->f(p, parselet, fl, left);
   }
   return left;
 }
 
 
-static Node* expr(P* p, int precedence) {
+static Node* expr(P* p, int precedence, PFlag fl) {
   // Note: precedence should match the calling parselet's own precedence
-  auto left = prefixExpr(p);
-  return infixExpr(p, precedence, left);
+  auto left = prefixExpr(p, fl);
+  return infixExpr(p, precedence, fl, left);
 }
 
 
-// lvalueExprOrTuple = Expr | Tuple
-// rvalueExprOrTuple = Expr | Tuple
+// exprOrTuple = Expr | Tuple
 //
-// Differences between the two related functions rvalueExprOrTuple and lvalueExprOrTuple:
+// This function has different behavior depending on PFlagRValue:
 //
-//   lvalueExprOrTuple consumes a prefixExpr, then a possible tuple and finally calls
+//   PFlagRValue=OFF consumes a prefixExpr, then a possible tuple and finally calls
 //   infixExpr to include the tuple in an infix expression like t + y.
 //
-//   - lvalueExprOrTuple is "conservative" used for lvalues, e.g. (a b c) in a,b,c=1,2,3
-//   - rvalueExprOrTuple is "greedy" and used for rvalues, e.g. (x (y + z)) in _,_=x,y+z
+//   - PFlagRValue=OFF is "conservative" used for lvalues, e.g. (a b c) in a,b,c=1,2,3
+//   - PFlagRValue=ON is "greedy" and used for rvalues, e.g. (x (y + z)) in _,_=x,y+z
 //
 //   Consider the following source code:
 //     a, b + c, d
 //   Parsing this with the different functions yields:
-//   - lvalueExprOrTuple => (+ (a b) c)
-//   - rvalueExprOrTuple => (a (+ b c) d)
+//   - PFlagRValue=OFF => (+ (a b) c)
+//   - PFlagRValue=ON => (a (+ b c) d)
 //
-//   Explanation of lvalueExprOrTuple:
-//   • lvalueExprOrTuple calls prefixExpr => a
-//   • lvalueExprOrTuple sees a comma and begins tuple-parsing mode:
-//   • lvalueExprOrTuple calls prefixExpr => b
-//   • lvalueExprOrTuple end tuple => (a b)
+//   Explanation of PFlagRValue=OFF:
+//   • PFlagRValue=OFF calls prefixExpr => a
+//   • PFlagRValue=OFF sees a comma and begins tuple-parsing mode:
+//   • PFlagRValue=OFF calls prefixExpr => b
+//   • PFlagRValue=OFF end tuple => (a b)
 //   • infixExpr with tuple as the LHS:
 //     • infixExpr calls '+' parselet
 //       • '+' parselet reads RHS by calling expr:
@@ -726,10 +799,10 @@ static Node* expr(P* p, int precedence) {
 //     • return
 //   • return
 //
-//   Explanation of rvalueExprOrTuple:
-//   • rvalueExprOrTuple calls expr => a
-//   • rvalueExprOrTuple sees a comma and begins tuple-parsing mode:
-//   • rvalueExprOrTuple calls expr
+//   Explanation of PFlagRValue=ON:
+//   • PFlagRValue=ON calls expr => a
+//   • PFlagRValue=ON sees a comma and begins tuple-parsing mode:
+//   • PFlagRValue=ON calls expr
 //     • expr calls prefixExpr => b
 //     • expr calls infixExpr with b as LHS:
 //       • infixExpr calls '+' parselet
@@ -739,38 +812,33 @@ static Node* expr(P* p, int precedence) {
 //         • '+' parselet produces LHS + RHS => (+ b c)
 //       • return
 //     • return
-//   • rvalueExprOrTuple calls expr after another comma
+//   • PFlagRValue=ON calls expr after another comma
 //     • calls prefixExpr => b
-//   • rvalueExprOrTuple see no more comma; ends the tuple => (a (+ b c) d)
+//   • PFlagRValue=ON see no more comma; ends the tuple => (a (+ b c) d)
 //
-static Node* lvalueExprOrTuple(P* p, int precedence) {
-  auto left = prefixExpr(p); // read a prefix expression, like an identifier
+static Node* exprOrTuple(P* p, int precedence, PFlag fl) {
+  auto left = (
+    fl & PFlagRValue ? expr(p, precedence, fl) :
+                       prefixExpr(p, fl) ); // read a prefix expression, like an identifier
   if (got(p, TComma)) {
-    auto g = PNewNode(p, NTuple);
+    auto g = PNewNode(p, fl & PFlagType ? NTupleType : NTuple);
     NodeListAppend(p->cc->mem, &g->array.a, left);
-    do {
-      NodeListAppend(p->cc->mem, &g->array.a, prefixExpr(p));
-    } while (got(p, TComma));
+    if (fl & PFlagRValue) {
+      do {
+        NodeListAppend(p->cc->mem, &g->array.a, expr(p, precedence, fl));
+      } while (got(p, TComma));
+    } else {
+      do {
+        NodeListAppend(p->cc->mem, &g->array.a, prefixExpr(p, fl));
+      } while (got(p, TComma));
+    }
     left = g;
+  }
+  if (fl & PFlagRValue) {
+    return left;
   }
   // wrap in possible infix expression, e.g. "left + right"
-  return infixExpr(p, precedence, left);
-}
-
-static Node* rvalueExprOrTuple(P* p, int precedence) {
-  // dlog("%s rvalueExprOrTuple: start at token %s",
-  //   SrcPosFmt(sdsempty(), SSrcPos(&p->s)), TokName(p->s.tok));
-  auto left = expr(p, precedence);
-  // dlog("rvalueExprOrTuple: After left, got token %s", TokName(p->s.tok));
-  if (got(p, TComma)) {
-    auto g = PNewNode(p, NTuple);
-    NodeListAppend(p->cc->mem, &g->array.a, left);
-    do {
-      NodeListAppend(p->cc->mem, &g->array.a, expr(p, precedence));
-    } while (got(p, TComma));
-    left = g;
-  }
-  return left;
+  return infixExpr(p, precedence, fl, left);
 }
 
 
@@ -788,7 +856,7 @@ Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
   pushScope(p);
 
   while (p->s.tok != TNone) {
-    Node* n = lvalueExprOrTuple(p, PREC_LOWEST);
+    Node* n = exprOrTuple(p, PREC_LOWEST, PFlagNone);
     NodeListAppend(p->cc->mem, &file->array.a, n);
 
     // // print associated comments
@@ -819,7 +887,7 @@ Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
 
 
 // //!Parselet (TComma COMMA)
-// static Node* PList(P* p, const Parselet* e, Node* left) {
+// static Node* PList(P* p, const Parselet* e, PFlag fl, Node* left) {
 //   Node* n = left;
 //   if (left->kind != NList) {
 //     n = PNewNode(p, NList);
@@ -969,20 +1037,6 @@ static Node* pident(P* p) {
     return bad(p);
   }
   return PIdent(p);
-}
-
-// parses an identifier and attempts to resolve it in an efficient way.
-// This should only be used in contexts where the identifier is only referenced.
-// I.e. only where the identifier is an rvalue, never an lvalue.
-static Node* pidentWithLookup(P* p) {
-  assert(p->s.tok == TIdent);
-  auto n = (Node*)ScopeLookup(p->scope, p->s.name);
-  if (n == NULL) {
-    n = PNewNode(p, NIdent);
-    n->ref.name = p->s.name;
-  }
-  next(p);
-  return n;
 }
 
 */

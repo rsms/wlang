@@ -20,20 +20,6 @@ void ResolveType(CCtx* cc, Node* n) {
 }
 
 
-static void errorf(CCtx* cc, SrcPos pos, const char* format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  auto msg = sdsempty();
-  if (strlen(format) > 0) {
-    msg = sdscatvprintf(msg, format, ap);
-    assert(sdslen(msg) > 0); // format may contain %S which is not supported by sdscatvprintf
-  }
-  va_end(ap);
-  cc->errh(&cc->src, pos, msg, cc->userdata);
-  sdsfree(msg);
-}
-
-
 static Node* resolveFunType(CCtx* cc, Node* n) {
   Node* ft = NewNode(cc->mem, NFunType);
   auto result = n->type;
@@ -147,7 +133,7 @@ static Node* resolveType(CCtx* cc, Node* n) {
       auto t = resolveType(cc, n);
       if (!t) {
         t = (Node*)NodeBad;
-        errorf(cc, n->pos, "unknown type");
+        CCtxErrorf(cc, n->pos, "unknown type");
       }
       NodeListAppend(cc->mem, &tt->t.tuple, t);
     });
@@ -167,11 +153,11 @@ static Node* resolveType(CCtx* cc, Node* n) {
     auto rtype = resolveType(cc, n->op.right);
     n->type = ltype;
     if (!TypeEquals(ltype, rtype)) {
-      if (n->op.right->kind == NInt) {
+      if (n->op.right->kind == NIntLit) {
         // attempt to fit the constant literal into the destination type
         dlog("TODO intlit");
       }
-      errorf(cc, n->pos, "operation %s on incompatible types %s %s",
+      CCtxErrorf(cc, n->pos, "operation %s on incompatible types %s %s",
         TokName(n->op.op), NodeReprShort(ltype), NodeReprShort(rtype));
     }
     break;
@@ -188,7 +174,7 @@ static Node* resolveType(CCtx* cc, Node* n) {
       // i.e. 1 == 1.0 is an error because float and int are different,
       // but 1.0 == 1.0 and 1 == 1 is ok (float==float and int==int, respectively).
       if (!TypeEquals(ltype, rtype)) {
-        errorf(cc, n->pos, "operation %s on incompatible types %s %s",
+        CCtxErrorf(cc, n->pos, "operation %s on incompatible types %s %s",
           TokName(n->op.op), NodeReprShort(ltype), NodeReprShort(rtype));
       }
       if (n->kind == NOp) {
@@ -212,7 +198,7 @@ static Node* resolveType(CCtx* cc, Node* n) {
     // dlog("CheckTypeConversion() => %d", CheckTypeConversion(argstype, n->type, 4));
 
     // if (CheckTypeConversion(argstype, n->type, 4) == TypeConvImpossible) {
-    //   errorf(cc, n->pos, "cannot convert %s (type %s) to type %s",
+    //   CCtxErrorf(cc, n->pos, "cannot convert %s (type %s) to type %s",
     //     NodeReprShort(n->call.args),
     //     NodeReprShort(argstype),
     //     NodeReprShort(n->type));
@@ -226,14 +212,14 @@ static Node* resolveType(CCtx* cc, Node* n) {
     auto recvt = resolveType(cc, n->call.receiver);
     assert(recvt != NULL);
     if (recvt->kind != NFunType) {
-      errorf(cc, n->pos, "cannot call %s", NodeReprShort(n->call.receiver));
+      CCtxErrorf(cc, n->pos, "cannot call %s", NodeReprShort(n->call.receiver));
       break;
     }
     // Note: Consider arguments with defaults:
     // fun foo(a, b int, c int = 0)
     // foo(1, 2) == foo(1, 2, 0)
     if (!TypeEquals(recvt->t.fun.params, argstype)) {
-      errorf(cc, n->pos, "incompatible arguments %s in function call. Expected %s",
+      CCtxErrorf(cc, n->pos, "incompatible arguments %s in function call. Expected %s",
         NodeReprShort(argstype), NodeReprShort(recvt->t.fun.params));
     }
     n->type = recvt->t.fun.result;
@@ -256,7 +242,7 @@ static Node* resolveType(CCtx* cc, Node* n) {
     auto cond = n->cond.cond;
     auto condt = resolveType(cc, cond);
     if (condt != Type_bool) {
-      errorf(cc, cond->pos, "non-bool %s (type %s) used as condition",
+      CCtxErrorf(cc, cond->pos, "non-bool %s (type %s) used as condition",
         NodeReprShort(cond), NodeReprShort(condt));
     }
     auto thent = resolveType(cc, n->cond.thenb);
@@ -265,7 +251,7 @@ static Node* resolveType(CCtx* cc, Node* n) {
       // branches must be of the same type.
       // TODO: only check type when the result is used.
       if (!TypeEquals(thent, elset)) {
-        errorf(cc, n->pos, "if..else branches of incompatible types %s %s",
+        CCtxErrorf(cc, n->pos, "if..else branches of incompatible types %s %s",
           NodeReprShort(thent), NodeReprShort(elset));
       }
     }
@@ -281,13 +267,13 @@ static Node* resolveType(CCtx* cc, Node* n) {
     break;
 
   // all other: does not have children
-  case NNil:
   case NBad:
-  case NBool:
+  case NNil:
+  case NBoolLit:
+  case NIntLit:
+  case NFloatLit:
   case NComment:
-  case NFloat:
   case NFunType:
-  case NInt:
   case NNone:
   case NBasicType:
   case NTupleType:

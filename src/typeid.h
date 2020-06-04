@@ -15,6 +15,6 @@ typedef enum TypeConv {
   TypeConvImpossible,    // conversion is not possible. e.g. (int,int) -> bool
 } TypeConv;
 
-// TypeConversion returns the effect of converting fromType -> toType.
-// intsize is the size in bytes of the "int" and "uint" types. E.g. 4 for 32-bit.
-TypeConv CheckTypeConversion(Node* fromType, Node* toType, u32 intsize);
+// // TypeConversion returns the effect of converting fromType -> toType.
+// // intsize is the size in bytes of the "int" and "uint" types. E.g. 4 for 32-bit.
+// TypeConv CheckTypeConversion(Node* fromType, Node* toType, u32 intsize);

@@ -103,9 +103,9 @@ Node* Type_float64 = (Node*)&_Type_float64;
 static const Node _Type_str = {NBasicType,{0,0,0},NULL,{.t={sym_s,.basic={TypeCode_str,sym_str}}}};
 Node* Type_str = (Node*)&_Type_str;
 
-static const Node _Const_true = {NBool,{0,0,0},(Node*)&_Type_bool,{.integer=1}};
+static const Node _Const_true = {NBoolLit,{0,0,0},(Node*)&_Type_bool,{.val={TypeCode_bool,.i=1}}};
 Node* Const_true = (Node*)&_Const_true;
-static const Node _Const_false = {NBool,{0,0,0},(Node*)&_Type_bool,{.integer=0}};
+static const Node _Const_false = {NBoolLit,{0,0,0},(Node*)&_Type_bool,{.val={TypeCode_bool,.i=0}}};
 Node* Const_false = (Node*)&_Const_false;
 
 static RBNode n_int64 = { sym_int64, true, null, null };
@@ -166,7 +166,7 @@ static const char* const debugSymCheck =
 // nil is special and implemented without macros since its sym is defined by TOKEN_KEYWORDS
 static const Node _Type_nil = {NBasicType,{0,0,0},NULL,{.t={0,.basic={TypeCode_nil,sym_nil}}}};
 Node* Type_nil = (Node*)&_Type_nil;
-static const Node _Const_nil = {NNil,{0,0,0},(Node*)&_Type_nil,{.integer=0}};
+static const Node _Const_nil = {NNil,{0,0,0},(Node*)&_Type_nil,{.val={TypeCode_nil,.i=0}}};
 Node* Const_nil = (Node*)&_Const_nil;
 
 
@@ -454,10 +454,10 @@ __attribute__((constructor)) static void gen_constants() {
       "static const Node _Const_%s = {%s,{0,0,0},(Node*)&_Type_%s,{.%s=%s}};\n" \
       "Node* Const_%s = (Node*)&_Const_%s;\n",                                  \
       #name,                                                                    \
-      #type == "bool" ? "NBool" : "NInt",                                       \
+      #type == "bool" ? "NBoolLit" : "NIntLit",                                 \
       #type,                                                                    \
-      "integer", /* u field. depends on type */                                 \
-      #value,                                                                   \
+      "val", /* u field. depends on type */                                     \
+      "{TypeCode_" #type ",.i=" #value "}",                                     \
       #name, #name                                                              \
     );
   PREDEFINED_CONSTANTS(SYM_DEF)

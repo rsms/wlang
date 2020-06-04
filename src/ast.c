@@ -82,8 +82,37 @@ static Str reprEmpty(Str s, const ReprCtx* ctx) {
 // }
 
 
+Str NValFmt(Str s, const NVal* v) {
+  switch (v->t) {
+  case TypeCode_bool:
+    return sdscat(s, v->i == 0 ? "false" : "true");
+  case TypeCode_int:
+    return sdscatprintf(s, "%lld", (i64)v->i);
+  case TypeCode_uint:
+    return sdscatprintf(s, "%llu", v->i);
+  default:
+    break;
+  }
+  dlog("TODO NValStr %s", TypeCodeName(v->t));
+  return sdscatfmt(s, "NVal(%s)", TypeCodeName(v->t));
+}
+
+
+const char* NValStr(const NVal* v) {
+  auto s = sdsempty();
+  s = NValFmt(s, v);
+  // copy into tmpdata which is safe to return
+  char* buf = TmpData(sdslen(s) + 1);
+  memcpy(buf, s, sdslen(s) + 1 /* include nil byte */);
+  sdsfree(s);
+  return buf;
+}
+
+
 static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
-  assert(n);
+  if (n == NULL) {
+    return sdscatlen(s, "(null)", 6);
+  }
 
   // dlog("nodeRepr %s", NodeKindNameTable[n->kind]);
   // if (n->kind == NIdent) {
@@ -150,11 +179,11 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
     break;
 
   // uses u.integer
-  case NInt:
-    s = sdscatfmt(s, "%U", n->integer);
+  case NIntLit:
+    s = sdscatfmt(s, "%U", n->val.i);
     break;
-  case NBool:
-    if (n->integer == 0) {
+  case NBoolLit:
+    if (n->val.i == 0) {
       s = sdscat(s, "false");
     } else {
       s = sdscat(s, "true");
@@ -162,8 +191,8 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
     break;
 
   // uses u.real
-  case NFloat:
-    s = sdscatprintf(s, "%f", n->real);
+  case NFloatLit:
+    s = sdscatprintf(s, "%f", n->val.f);
     break;
 
   // uses u.str

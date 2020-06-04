@@ -82,13 +82,12 @@ typedef struct IRConstCache {
 
 // number of entries in c->entries
 inline static u32 branchesLen(const IRConstCache* c) {
-  // int __builtin_popcount(int)
-  return (u32)__builtin_popcount(c->bmap);
+  return (u32)popcount(c->bmap);
 }
 
 // bitindex ... [TODO doc]
 inline static u32 bitindex(u32 bmap, u32 bitpos) {
-  return (u32)__builtin_popcount(bmap & (bitpos - 1));
+  return (u32)popcount(bmap & (bitpos - 1));
 }
 
 
@@ -146,14 +145,6 @@ IRConstCache* IRConstCacheAdd(
 
   // dlog("IRConstCacheAdd type=%c (%u) value=0x%lX", TypeCodeEncoding[t], t, value);
 
-  // if addHint is not NULL, it is the branch index+1 of the type branch
-  if (addHint > 0) {
-    u32 bi = (u32)(addHint - 1);
-    auto branch = (RBNode*)c->branches[bi];
-    c->branches[bi] = RBSet(branch, value, v, mem);
-    return c;
-  }
-
   const u32 bitpos = 1 << t;
 
   if (c == NULL) {
@@ -163,6 +154,13 @@ IRConstCache* IRConstCacheAdd(
     c->bmap = bitpos;
     c->branches[0] = RBSet(NULL, value, v, mem);
   } else {
+    // if addHint is not NULL, it is the branch index+1 of the type branch
+    if (addHint > 0) {
+      u32 bi = (u32)(addHint - 1);
+      auto branch = (RBNode*)c->branches[bi];
+      c->branches[bi] = RBSet(branch, value, v, mem);
+      return c;
+    }
     u32 bi = bitindex(c->bmap, bitpos); // index in c->buckets
     if ((c->bmap & bitpos) == 0) {
       // dlog("case B -- new branch");

@@ -91,6 +91,8 @@ static void serr(S* s, const char* format, ...) {
 
   if (s->errh) {
     s->errh(s->src, pos, msg, s->userdata);
+  } else if (msg == NULL) {
+    msg = sdsempty();
   } else {
     msg[sdslen(msg)] = '\n'; // replace NUL with ln
     fwrite(msg, sdslen(msg)+1, 1, stderr);

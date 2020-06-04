@@ -191,10 +191,10 @@ static IRValue* addExpr(IRBuilder* u, Node* n);
 
 
 static IRValue* addInt(IRBuilder* u, Node* n) {
-  assert(n->kind == NInt);
+  assert(n->kind == NIntLit);
   assert(n->type->kind == NBasicType);
   auto tc = IntrinsicTypeCode(n->type->t.basic.typeCode);
-  return IRFunGetConstInt(u->f, tc, n->integer);
+  return IRFunGetConstInt(u->f, tc, n->val.i);
 }
 
 
@@ -358,24 +358,24 @@ static IRValue* addBlock(IRBuilder* u, Node* n) {  // language block, not IR blo
 static IRValue* addExpr(IRBuilder* u, Node* n) {
   assert(n->type != NULL); // AST should be fully typed
   switch (n->kind) {
-    case NBlock: return addBlock(u, n);
-    case NLet:   return addLet(u, n);
-    case NInt:   return addInt(u, n);
-    case NOp:    return addOp(u, n);
-    case NIdent: return addIdent(u, n);
-    case NIf:    return addIf(u, n);
+    case NBlock:  return addBlock(u, n);
+    case NLet:    return addLet(u, n);
+    case NIntLit: return addInt(u, n);
+    case NOp:     return addOp(u, n);
+    case NIdent:  return addIdent(u, n);
+    case NIf:     return addIf(u, n);
 
+    case NBoolLit:
+    case NFloatLit:
+    case NNil:
     case NAssign:
     case NBasicType:
-    case NBool:
     case NCall:
     case NComment:
     case NField:
     case NFile:
-    case NFloat:
     case NFun:
     case NFunType:
-    case NNil:
     case NPrefixOp:
     case NReturn:
     case NTuple:
@@ -460,19 +460,19 @@ static bool addTopLevel(IRBuilder* u, Node* n) {
 
     case NNone:
     case NBad:
+    case NBoolLit:
+    case NIntLit:
+    case NFloatLit:
+    case NNil:
     case NAssign:
     case NBasicType:
     case NBlock:
-    case NBool:
     case NCall:
     case NComment:
     case NField:
-    case NFloat:
     case NFunType:
     case NIdent:
     case NIf:
-    case NInt:
-    case NNil:
     case NOp:
     case NPrefixOp:
     case NReturn:

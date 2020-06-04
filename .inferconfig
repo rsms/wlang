@@ -1,0 +1,15 @@
+// Config file for infer (https://fbinfer.com/)
+// - for switches options, the value is a JSON boolean (true or false, without quotes)
+// - for integers, the value is a JSON integer (without quotes)
+// - string options have string values
+// - path options have string values, and are interpreted relative to the location of the
+//   .inferconfig file
+// - cumulative options are JSON arrays of the appropriate type
+//
+// Note: This JSON flavor supports comments but not extra trailing commas.
+{
+  "cxx": false, // don't analyze C++
+  "results-dir": "build/infer",
+  "skip-analysis-in-path": [ "src/dlmalloc.c" ],
+  "disable-issue-type": ["DEAD_STORE"]
+}

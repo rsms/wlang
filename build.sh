@@ -4,8 +4,9 @@ cd "$(dirname "$0")"
 OPT_HELP=false
 OPT_CONFIG=false
 OPT_G=false
-OPT_MSAN=false
 OPT_CLEAN=false
+OPT_ANALYZE=false
+OPT_QUIET=false
 USAGE_EXIT_CODE=0
 
 # parse args
@@ -23,6 +24,14 @@ while [[ $# -gt 0 ]]; do
     OPT_CLEAN=true
     shift
     ;;
+  -a|-analyze|--analyze)
+    OPT_ANALYZE=true
+    shift
+    ;;
+  -quiet|--quiet)
+    OPT_QUIET=true
+    shift
+    ;;
   -g)
     OPT_G=true
     shift
@@ -38,10 +47,12 @@ done
 if $OPT_HELP; then
   echo "usage: $0 [options]"
   echo "options:"
-  echo "  -h, -help  Show help on stdout."
-  echo "  -config    Configure build even if config.sh <> build.ninja is up to date."
-  echo "  -clean     Clean ./build directory before building."
-  echo "  -g         Build debug build instead of release build."
+  echo "  -h, -help     Show help on stdout."
+  echo "  -config       Configure build even if config.sh <> build.ninja is up to date."
+  echo "  -clean        Clean ./build directory before building."
+  echo "  -g            Build debug build instead of release build."
+  echo "  -a, -analyze  Run static analyzer (Infer https://fbinfer.com) on sources."
+  echo "  -quiet        Only print errors."
   exit $USAGE_EXIT_CODE
 fi
 
@@ -57,10 +68,36 @@ python3 misc/gen_parselet_map.py &  # patches src/parse.c
 python3 misc/gen_ops.py # patches src/ir/op.{h,c}, src/token.h, src/types.h
 wait
 
-if $OPT_G; then
-  ninja debug
+if $OPT_ANALYZE; then
+  if ! (which infer >/dev/null); then
+    echo "'infer' not found in PATH. See https://fbinfer.com/ on how to install" >&2
+    exit 1
+  fi
+  if $OPT_QUIET; then
+    ninja debug >/dev/null
+  else
+    ninja debug
+  fi
+  ninja -t compdb compile_obj > build/debug-compilation-database.json
+  if $OPT_QUIET; then
+    infer capture --no-progress-bar --compilation-database build/debug-compilation-database.json
+    infer analyze --no-progress-bar
+  else
+    infer capture --compilation-database build/debug-compilation-database.json
+    infer analyze
+  fi
+elif $OPT_G; then
+  if $OPT_QUIET; then
+    ninja debug >/dev/null
+  else
+    ninja debug
+  fi
 else
-  ninja release
+  if $OPT_QUIET; then
+    ninja release >/dev/null
+  else
+    ninja release
+  fi
 fi
 
 

@@ -26,6 +26,7 @@ sources=( \
   src/types.c \
   src/unicode.c \
   src/wp.c \
+  src/convlit.c \
   \
   src/ir/block.c \
   src/ir/builder.c \
@@ -57,14 +58,15 @@ for srcfile in ${sources[@]}; do
   echo "  cflags = \$cflags_opt" >> "$TF"
 
   echo "build \$builddir/obj/dev__$objfile: compile_obj $srcfile" >> "$TF"
-  echo "  cflags = \$cflags_dev" >> "$TF"
+  echo "  cflags = \$cflags_dev_asan" >> "$TF"
+
 done
 
 echo -e "build \$builddir/wp: link ${opt_objects[@]}" >> "$TF"
 echo "  lflags = \$lflags_opt" >> "$TF"
 
 echo -e "build \$builddir/wp.g: link ${dev_objects[@]}" >> "$TF"
-echo "  lflags = \$lflags_dev" >> "$TF"
+echo "  lflags = \$lflags_dev_asan" >> "$TF"
 
 sed -E "/CONFIG_REPLACE_BUILDS/r $TF" "build.in.ninja" \
 | sed -E "/CONFIG_REPLACE_BUILDS/d" \

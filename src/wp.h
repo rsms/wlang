@@ -90,6 +90,13 @@ typedef double                 f64;
 #define countof(x) \
   ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
+// popcount<T>
+#define popcount(x) _Generic((x), \
+  unsigned long long: __builtin_popcountll, \
+  unsigned long:      __builtin_popcountl, \
+  default:            __builtin_popcount \
+)(x)
+
 // division of integer, rounding up
 #define W_IDIV_CEIL(x, y) (1 + (((x) - 1) / (y)))
 
@@ -322,6 +329,7 @@ void CCtxInit(
   size_t        srclen
 );
 void CCtxFree(CCtx*);
+void CCtxErrorf(CCtx* cc, SrcPos pos, const char* format, ...);
 
 // parser
 typedef struct P {

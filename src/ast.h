@@ -13,30 +13,30 @@ typedef enum {
 #define DEF_NODE_KINDS(_) \
   /* N<kind>     NClass<class> */ \
   _(None,        Invalid) \
-  _(Assign,      Expr) \
   _(Bad,         Invalid) /* substitute "filler node" for invalid syntax */ \
-  _(BasicType,   Type) /* Basic type, e.g. int, bool */ \
-  _(Block,       Expr) \
-  _(Bool,        Const) /* boolean literal */ \
-  _(Call,        Expr) \
+  _(BoolLit,     Const) /* boolean literal */ \
+  _(IntLit,      Const) /* integer literal */ \
+  _(FloatLit,    Const) /* floating-point literal */ \
+  _(Nil,         Const) /* the nil atom */ \
   _(Comment,     Expr) \
+  _(Assign,      Expr) \
+  _(Block,       Expr) \
+  _(Call,        Expr) \
   _(Field,       Expr) \
   _(File,        Expr) \
-  _(Float,       Expr) /* floating-point literal */ \
   _(Fun,         Expr) \
-  _(FunType,     Type) /* Function type, e.g. (int,int)->(float,bool) */ \
   _(Ident,       Expr) \
   _(If,          Expr) \
-  _(Int,         Const) /* integer literal */ \
   _(Let,         Expr) \
-  _(Nil,         Const) /* nil literal */ \
   _(Op,          Expr) \
   _(PrefixOp,    Expr) \
   _(Return,      Expr) \
   _(Tuple,       Expr) \
-  _(TupleType,   Type) /* Tuple type, e.g. (float,bool,int) */ \
   _(TypeCast,    Expr) \
   _(ZeroInit,    Expr) \
+  _(BasicType,   Type) /* Basic type, e.g. int, bool */ \
+  _(TupleType,   Type) /* Tuple type, e.g. (float,bool,int) */ \
+  _(FunType,     Type) /* Function type, e.g. (int,int)->(float,bool) */ \
 /*END DEF_NODE_KINDS*/
 
 typedef enum {
@@ -83,14 +83,60 @@ typedef struct {
   u32           len;   // number of items
 } NodeList;
 
+
+// type Val struct {
+//   // U contains one of:
+//   // bool     bool when Ctype() == CTBOOL
+//   // *Mpint   int when Ctype() == CTINT, rune when Ctype() == CTRUNE
+//   // *Mpflt   float when Ctype() == CTFLT
+//   // *Mpcplx  pair of floats when Ctype() == CTCPLX
+//   // string   string when Ctype() == CTSTR
+//   // *Nilval  when Ctype() == CTNIL
+//   U interface{}
+// }
+
+// func (v Val) Ctype() Ctype {
+//   switch x := v.U.(type) {
+//   default:
+//     Fatalf("unexpected Ctype for %T", v.U)
+//     panic("unreachable")
+//   case nil:
+//     return 0
+//   case *NilVal:
+//     return CTNIL
+//   case bool:
+//     return CTBOOL
+//   case *Mpint:
+//     if x.Rune {
+//       return CTRUNE
+//     }
+//     return CTINT
+//   case *Mpflt:
+//     return CTFLT
+//   case *Mpcplx:
+//     return CTCPLX
+//   case string:
+//     return CTSTR
+//   }
+// }
+
+typedef struct NVal {
+  TypeCode t;
+  union {
+    u64    i;  // BoolLit, IntLit
+    double f;  // FloatLit
+    Str    s;  // StrLit
+  };
+} NVal;
+
 typedef struct Node {
   NodeKind kind;      // kind of node (e.g. NIdent)
   SrcPos   pos;       // source origin & position
   Node*    type;      // value type. null if unknown.
   union {
-    u64    integer;  // Bool, Int
-    double real;     // Float
-    struct { // Comment, String
+    void* _never; // for initializers
+    NVal val; // BoolLit, IntLit, FloatLit, StrLit
+    struct { // Comment
       const u8* ptr;
       size_t    len;
     } str;
@@ -113,7 +159,7 @@ typedef struct Node {
       Sym    name;   // null for fun-type and lambda
       Node*  body;   // null for fun-type and fun-declaration
     } fun;
-    struct { // Call
+    struct { // Call, TypeCast
       Node* receiver; // either an NFun or a type (e.g. NBasicType)
       Node* args;
     } call;
@@ -164,6 +210,8 @@ static inline bool NodeKindIsConst(NodeKind kind) {
   return NodeClassTable[kind] == NodeClassConst;
 }
 
+Str NValFmt(Str s, const NVal* v);
+const char* NValStr(const NVal* v); // returns a temporary string
 
 #define NodeListForEach(list, nodename, body)               \
   do {                                                      \
