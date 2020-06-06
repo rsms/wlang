@@ -98,6 +98,13 @@ TYPE_SYMS(SYM_DEF)
 Node* Type_nil;
 Node* Const_nil;
 
+// TypeCodeToTypeNode returns the type Node for TypeCode t.
+static Node* TypeCodeToTypeNode(TypeCode t);
+Node* const _TypeCodeToTypeNodeMap[TypeCode_CONCRETE_END];
+inline static Node* TypeCodeToTypeNode(TypeCode t) {
+  assert(t >= 0 && t < TypeCode_CONCRETE_END);
+  return _TypeCodeToTypeNodeMap[t];
+}
 
 // symbols and AST nodes for predefined constants
 #define PREDEFINED_CONSTANTS(_) \

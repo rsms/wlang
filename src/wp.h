@@ -329,7 +329,7 @@ void CCtxInit(
   size_t        srclen
 );
 void CCtxFree(CCtx*);
-void CCtxErrorf(CCtx* cc, SrcPos pos, const char* format, ...);
+void CCtxErrorf(const CCtx* cc, SrcPos pos, const char* format, ...);
 
 // parser
 typedef struct P {

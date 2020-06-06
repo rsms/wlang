@@ -88,23 +88,29 @@ longestTypeCode = reduce(lambda a, v: max(a, len(v)), typeCodeToIRType.keys(), 0
 astOpToIROpPrefix = {
   # AST token    IROp prefix
   #              (1-input, 2-input)
-  "TPlus":       (None,    "Add"),  # +
-  "TMinus":      ("Neg",   "Sub"),  # -
-  "TStar":       (None,    "Mul"),  # *
-  "TSlash":      (None,    "Div"),  # /
-  "TGt":         (None,    "Greater"), # >
-  "TLt":         (None,    "Less"), # <
-  "TEqEq":       (None,    "Eq"),   # ==
-  "TNEq":        (None,    "NEq"),  # !=
-  "TLEq":        (None,    "LEq"),  # <=
-  "TGEq":        (None,    "GEq"),  # >=
-  # "TAndAnd":     "And",  # &&  Not yet implemented in scanner
-  # "TOrOr":       "Or",   # ||  Not yet implemented in scanner
+  "TStar":       (None,    "Mul"),     # *
+  "TSlash":      (None,    "Div"),     # /
+  "TShl":        (None,    "ShL"),     # <<
+  "TShr":        (None,    "ShR"),     # >>
+  "TAnd":        (None,    "And"),     # &
+  "TPercent":    (None,    "Rem"),     # %
 
-  "TPlusPlus":   (None,  None), # ++
-  "TMinusMinus": (None,  None), # --
-  "TTilde":      (None,  None), # ~
-  "TBang":       ("Not", None), # !
+  "TPlus":       ("Pos",   "Add"),     # +
+  "TMinus":      ("Neg",   "Sub"),     # -
+  "TPipe":       (None,    "Or"),      # |
+  "THat":        ("Compl", "XOr"),     # ^  complement
+  "TTilde":      ("BNot",  None),      # ~
+
+  "TEq":         (None,    "Eq"),      # ==
+  "TNEq":        (None,    "NEq"),     # !=
+  "TLt":         (None,    "Less"),    # <
+  "TLEq":        (None,    "LEq"),     # <=
+  "TGt":         (None,    "Greater"), # >
+  "TGEq":        (None,    "GEq"),     # >=
+
+  "TPlusPlus":   ("Incr",  None),        # ++
+  "TMinusMinus": ("Decr",  None),        # --
+  "TExcalm":     ("Not",   None),        # !
 }
 
 # Operator flags. Encoded as bitflags and thus have a count limit of 31.
@@ -663,6 +669,10 @@ def replaceInSourceFile(filename, findstart, findend, body):
 
   # write changes only if we modified the source
   if source2 == source:
+    if not DRY_RUN:
+      # touch mtime to satisfy build systems like make
+      with os.fdopen(os.open(filename, flags=os.O_APPEND)) as f:
+        os.utime(f.fileno() if os.utime in os.supports_fd else filename)
     return False
   if DRY_RUN:
     print(scriptname + ": patch", filename, " (dry run)")
@@ -698,8 +708,8 @@ def loadASTOpTokens(filename :str) -> [(str,str)]:
   ended = False
 
   startSubstring = b"#define TOKENS("
-  startName = "T_OPS_START"
-  endName   = "T_OPS_END"
+  startName = "T_PRIM_OPS_START"
+  endName   = "T_PRIM_OPS_END"
   pat = re.compile(r'\s*_\(\s*(\w+)\s*,\s*"([^"]*)"')  # _( name, "repr" )
   verifiedNames = set()
 

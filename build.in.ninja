@@ -37,9 +37,19 @@ rule compile_obj
 rule link
   command = clang $lflags -o $out $in
 
+rule gen_ops
+  command = python3 misc/gen_ops.py
+
+rule gen_parselet_map
+  command = python3 misc/gen_parselet_map.py $out
+
+
 CONFIG_REPLACE_BUILDS
 
-build release: phony | $builddir/wp
-build debug:   phony | $builddir/wp.g
+build src/ir/op.c: gen_ops src/ir/arch_base.lisp
+build $builddir/gen_parselet_map.marker: gen_parselet_map src/parse.c
+
+build release: phony | $builddir/gen_parselet_map.marker $builddir/wp
+build debug:   phony | $builddir/gen_parselet_map.marker $builddir/wp.g
 
 default debug

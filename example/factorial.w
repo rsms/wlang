@@ -1,13 +1,24 @@
+# <
+# <=
+# <<
+# <<=
+# >
+# >=
+# >>
+# >>=
 
-fun main {
+fun main (arg1, arg0 int) {
   # a, b = 1, 2 + 1
-  z = 200 as int8
-  # z = int16(9)
+  # z = 20 as int8
+  # a = z as int16
+  # a = int16(20)
+  # b = int64(arg0)
+  # k = x / y * z # oops! Right-associate but should be left-associative
 
-  # x = 1     # (Let x (Int 1))
-  # y = x + 3 # (Let y (Op + (Ref x) (Int 2)))
+  x = 1     # (Let x (Int 1))
+  y = x + 3 as uint16 # (Let y (Op + (Ref x) (Int 2)))
   # if true y = x + 4
-  # y         # (Ref y)
+  y         # (Ref y)
 
   # factorial(start)
 }

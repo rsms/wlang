@@ -48,19 +48,21 @@ void parsefile(Str filename, Scope* pkgscope) {
   // parse input
   static P parser; // shared parser (zero-initialized since it's static)
   auto file = Parse(&parser, &cc, SCAN_COMMENTS, pkgscope);
+  printAst(file);
+  if (errcount != 0) { goto end; }
+
+  // resolve symbols and types
+  printf("————————————————————————————————————————————————————————————————\n");
+  printf("RESOLVE NAMES\n");
+  ResolveSym(&cc, file, pkgscope);
   // printAst(file);
+  if (errcount != 0) { goto end; }
 
   printf("————————————————————————————————————————————————————————————————\n");
-  printf("RESOLVE AST\n");
-  // resolve symbols and types
-  if (errcount == 0) {
-    ResolveSym(&cc, file, pkgscope);
-    // printAst(file);
-    if (errcount == 0) {
-      ResolveType(&cc, file);
-    }
-  }
+  printf("RESOLVE TYPES\n");
+  ResolveType(&cc, file);
   printAst(file);
+  if (errcount != 0) { goto end; }
 
   printf("————————————————————————————————————————————————————————————————\n");
   printf("BUILD IR\n");
@@ -73,6 +75,7 @@ void parsefile(Str filename, Scope* pkgscope) {
   // print IR SLC
   printIR(irbuilder.pkg);
 
+  end:
   CCtxFree(&cc);
   TmpRecycle();
 }

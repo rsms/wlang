@@ -101,6 +101,9 @@ Str NValFmt(Str s, const NVal* v) {
 const char* NValStr(const NVal* v) {
   auto s = sdsempty();
   s = NValFmt(s, v);
+  if (s == NULL) {
+    return "";
+  }
   // copy into tmpdata which is safe to return
   char* buf = TmpData(sdslen(s) + 1);
   memcpy(buf, s, sdslen(s) + 1 /* include nil byte */);
@@ -213,9 +216,10 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
     break;
 
   // uses u.op
-  case NOp:
-  case NAssign:
+  case NBinOp:
+  case NPostfixOp:
   case NPrefixOp:
+  case NAssign:
   case NReturn:
     if (n->op.op != TNone) {
       s = sdscat(s, TokName(n->op.op));
@@ -243,16 +247,19 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
 
   // uses u.field
   case NLet:
+  case NArg:
   case NField:
   {
-    auto f = &n->field;
-    if (f->name) {
-      s = sdscatsds(s, f->name);
+    if (n->kind == NArg) {
+      s = sdscatfmt(s, "#%u ", n->field.index);
+    }
+    if (n->field.name) {
+      s = sdscatsds(s, n->field.name);
     } else {
       s = sdscatlen(s, "_", 1);
     }
-    if (f->init) {
-      s = nodeRepr(f->init, s, ctx, depth + 1);
+    if (n->field.init != NULL) {
+      s = nodeRepr(n->field.init, s, ctx, depth + 1);
     }
     break;
   }

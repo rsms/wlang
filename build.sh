@@ -64,10 +64,6 @@ if $OPT_CONFIG || [ config.sh -nt build.ninja ] || [ build.in.ninja -nt build.ni
   ./config.sh
 fi
 
-python3 misc/gen_parselet_map.py &  # patches src/parse.c
-python3 misc/gen_ops.py # patches src/ir/op.{h,c}, src/token.h, src/types.h
-wait
-
 if $OPT_ANALYZE; then
   if ! (which infer >/dev/null); then
     echo "'infer' not found in PATH. See https://fbinfer.com/ on how to install" >&2

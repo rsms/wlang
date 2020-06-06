@@ -2,37 +2,61 @@
 // Defines the Tok enum
 
 // scanner tokens
-#define TOKENS(_) \
-  _( TComma      , ",")  \
-  _( TSemi       , ";")  \
-  _( TEq         , "=")  \
-  _( T_OPS_START , "") /* start of operator tokens */ \
-  _( TPlus       , "+")  \
-  _( TMinus      , "-")  \
-  _( TStar       , "*")  \
-  _( TSlash      , "/")  \
-  _( TGt         , ">")  \
-  _( TLt         , "<")  \
-  _( TEqEq       , "==") \
-  _( TNEq        , "!=") \
-  _( TLEq        , "<=") \
-  _( TGEq        , ">=") \
-  _( TPlusPlus   , "++") \
-  _( TMinusMinus , "--") \
-  _( TTilde      , "~")  \
-  _( TBang       , "!")  \
-  _( T_OPS_END   , "") /* end of operator tokens */ \
-  _( TLParen     , "(") \
-  _( TRParen     , ")") \
-  _( TLBrace     , "{") \
-  _( TRBrace     , "}") \
-  _( TLBrack     , "[") \
-  _( TRBrack     , "]") \
-  _( TRArr       , "->") \
-  _( TIdent      , "identifier") \
-  _( TIntLit     , "int")     \
-  _( TFloatLit   , "float")   \
-  _( TComment    , "comment") \
+#define TOKENS(_)  \
+  _( TNone  , "TNone" ) \
+  _( TComma , ",")      \
+  _( TSemi  , ";")      \
+  \
+  _( T_PRIM_OPS_START , "") \
+  /* primary "intrinsic" operator tokens, most of them mapping directly to IR ops */ \
+  _( TStar          , "*")  \
+  _( TSlash         , "/")  \
+  _( TPercent       , "%")  \
+  _( TShl           , "<<") \
+  _( TShr           , ">>") \
+  _( TAnd           , "&")  \
+  _( TPlus          , "+")  \
+  _( TMinus         , "-")  \
+  _( TPipe          , "|")  \
+  _( THat           , "^")  \
+  _( TTilde         , "~")  \
+  _( TExcalm        , "!")  \
+  _( TEq            , "==") \
+  _( TNEq           , "!=") \
+  _( TLt            , "<")  \
+  _( TLEq           , "<=") \
+  _( TGt            , ">")  \
+  _( TGEq           , ">=") \
+  _( TPlusPlus      , "++") \
+  _( TMinusMinus    , "--") \
+  \
+  _( T_PRIM_OPS_END , "") /* end of operator tokens */ \
+  \
+  _( TAssign        , "=")   \
+  _( TShlAssign     , "<<=") \
+  _( TShrAssign     , ">>=") \
+  _( TPlusAssign    , "+=")  \
+  _( TMinusAssign   , "-=")  \
+  _( TStarAssign    , "*=")  \
+  _( TSlashAssign   , "/=")  \
+  _( TPercentAssign , "%=")  \
+  _( TAndAssign     , "&=")  \
+  _( TPipeAssign    , "|=")  \
+  _( TTildeAssign   , "~=")  \
+  _( THatAssign     , "^=")  \
+  _( TLParen        , "(")   \
+  _( TRParen        , ")")   \
+  _( TLBrace        , "{")   \
+  _( TRBrace        , "}")   \
+  _( TLBrack        , "[")   \
+  _( TRBrack        , "]")   \
+  _( TAndAnd        , "&&")  \
+  _( TPipePipe      , "||")  \
+  _( TRArr          , "->")  \
+  _( TIdent         , "identifier") \
+  _( TIntLit        , "int")        \
+  _( TFloatLit      , "float")      \
+  _( TComment       , "comment")    \
 /*END TOKENS*/
 #define TOKEN_KEYWORDS(_) \
   _( as,          TAs)          \
@@ -63,14 +87,12 @@
 //END TOKEN_KEYWORDS
 
 typedef enum {
-  TNone,
-
   #define I_ENUM(name, str) name,
   TOKENS(I_ENUM)
   #undef I_ENUM
 
   // TKeywordsStart is used for 0-based keyword indexing.
-  // It's explicit value is used by sym.c to avoid having to regenerate keyword symbols
+  // Its explicit value is used by sym.c to avoid having to regenerate keyword symbols
   // whenever a non-keyword token is added. I.e. this number can be changed freely but will
   // require regeneration of the code in sym.c.
   TKeywordsStart = 0x100,

@@ -200,6 +200,8 @@ if $OPT_ANALYZE; then
   infer analyze --reactive --changed-files-index build/git-dirty-files.txt
   # echo "Analyzer watching for file changes..."
 
+  set +e
+
   while true; do
     while true; do
       # echo "checking for file changes"
@@ -216,13 +218,16 @@ if $OPT_ANALYZE; then
       echo -n -e "\x1b[0K" # clear from cursor until end of line
       sleep 0.5
     done
-    ninja debug >/dev/null
+    ninja debug >/dev/null && \
+    ninja -t compdb compile_obj > build/debug-compilation-database.json
+    git status --porcelain | sed 's/^...//' > build/git-dirty-files.txt
     infer capture --reactive --changed-files-index build/analyze_changed_files2.txt \
                   --no-progress-bar \
-                  --compilation-database build/debug-compilation-database.json
+                  --compilation-database build/debug-compilation-database.json && \
     infer analyze --progress-bar-style plain \
                   --reactive --changed-files-index build/analyze_changed_files2.txt
   done
+  set -e
 else
   IS_FIRST_RUN=true
   while true; do

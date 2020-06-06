@@ -21,7 +21,7 @@ Notes:
 
 Requirements for building:
 
-- [clang](https://clang.llvm.org/) version >=10
+- [clang](https://clang.llvm.org/) version >=7
 - [Ninja](https://ninja-build.org/) version >=1.2
 - Bash or a bash-compatible shell, for running the build scripts
 - [Python 3](https://www.python.org/) used for code generation

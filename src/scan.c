@@ -247,34 +247,91 @@ Tok SNext(S* s) {
 
   bool insertSemi = false;
 
+  #define CONSUME_CHAR() ({ s->inp++; s->tokend++; })
+
   // COND_CHAR includes next char in token if nextc==c. Returns tok1 if nextc==c, else tok2.
-  #define COND_CHAR(c, tok1, tok2) \
-    (nextc == (c)) ? ({ s->inp++; s->tokend++; (tok1); }) : (tok2)
+  #define COND_CHAR(c, tok2, tok1) \
+    (nextc == (c)) ? ({ CONSUME_CHAR(); (tok1); }) : (tok2)
+
   // COND_CHAR_SEMIC is like COND_CHAR but sets insertSemi=true if nextc==c
-  #define COND_CHAR_SEMIC(c, tok1, tok2) \
-    (nextc == (c)) ? ({ s->inp++; s->tokend++; insertSemi = true; (tok1); }) : (tok2)
+  #define COND_CHAR_SEMIC(c, tok2, tok1) \
+    (nextc == (c)) ? ({ CONSUME_CHAR(); insertSemi = true; (tok1); }) : (tok2)
 
   u8 c = *s->inp++; // current char
   u8 nextc = (s->inp+1 < s->inend) ? *s->inp : 0; // next char
 
   switch (c) {
 
-  case '-':  // "-" | "--" | "->"
-    if (nextc == '>') {
-      s->inp++;
-      s->tokend++;
-      s->tok = TRArr;
-    } else {
-      s->tok = COND_CHAR_SEMIC('-', TMinusMinus, TMinus);
+  case '-':  // "-" | "->" | "--" | "-="
+    switch (nextc) {
+      case '>': s->tok = TRArr;        CONSUME_CHAR(); break;
+      case '-': s->tok = TMinusMinus;  CONSUME_CHAR(); insertSemi = true; break;
+      case '=': s->tok = TMinusAssign; CONSUME_CHAR(); break;
+      default:  s->tok = TMinus; break;
     }
     break;
 
-  case '+': s->tok = COND_CHAR_SEMIC('+', TPlusPlus, TPlus); break; // "+" | "++"
+  case '+':  // "+" | "++" | "+="
+    switch (nextc) {
+      case '+': s->tok = TPlusPlus;   CONSUME_CHAR(); insertSemi = true; break;
+      case '=': s->tok = TPlusAssign; CONSUME_CHAR(); break;
+      default:  s->tok = TPlus; break;
+    }
+    break;
 
-  case '=': s->tok = COND_CHAR('=', TEqEq, TEq); break;   // "=" | "=="
-  case '!': s->tok = COND_CHAR('=', TNEq,  TBang); break; // "!" | "!="
-  case '<': s->tok = COND_CHAR('=', TLEq,  TLt); break;   // "<" | "<="
-  case '>': s->tok = COND_CHAR('=', TGEq,  TGt); break;   // ">" | ">="
+  case '&':  // "&" | "&&" | "&="
+    switch (nextc) {
+      case '&': s->tok = TAndAnd;    CONSUME_CHAR(); break;
+      case '=': s->tok = TAndAssign; CONSUME_CHAR(); break;
+      default:  s->tok = TAnd; break;
+    }
+    break;
+
+  case '|':  // "|" | "||" | "|="
+    switch (nextc) {
+      case '|': s->tok = TPipePipe;   CONSUME_CHAR(); break;
+      case '=': s->tok = TPipeAssign; CONSUME_CHAR(); break;
+      default:  s->tok = TPipe; break;
+    }
+    break;
+
+  case '!': s->tok = COND_CHAR('=', TExcalm,  TNEq); break;           // "!" | "!="
+  case '%': s->tok = COND_CHAR('=', TPercent, TPercentAssign); break; // "%" | "%="
+  case '*': s->tok = COND_CHAR('=', TStar,    TStarAssign); break;    // "*" | "*="
+  case '/': s->tok = COND_CHAR('=', TSlash,   TSlashAssign); break;   // "/" | "/="
+  case '=': s->tok = COND_CHAR('=', TAssign,  TEq); break;            // "=" | "=="
+  case '^': s->tok = COND_CHAR('=', THat,     THatAssign); break;     // "^" | "^="
+  case '~': s->tok = COND_CHAR('=', TTilde,   TTildeAssign); break;   // "~" | "~="
+
+  case '<': // "<" | "<=" | "<<" | "<<="
+    switch (nextc) {
+      case '=': s->tok = TLEq;  CONSUME_CHAR(); break;  // "<="
+      case '<': // "<<" | "<<="
+        CONSUME_CHAR();
+        if (s->inp+1 < s->inend && *s->inp == '=') { // "<<="
+          s->tok = TShlAssign; CONSUME_CHAR();
+        } else { // "<<"
+          s->tok = TShl;
+        }
+        break;
+      default: s->tok = TLt; break; // <
+    }
+    break;
+
+  case '>': // ">" | ">=" | ">>" | ">>="
+    switch (nextc) {
+      case '=': s->tok = TLEq;  CONSUME_CHAR(); break;  // ">="
+      case '>': // ">>" | ">>="
+        CONSUME_CHAR();
+        if (s->inp+1 < s->inend && *s->inp == '=') { // ">>="
+          s->tok = TShrAssign; CONSUME_CHAR();
+        } else { // ">>"
+          s->tok = TShr;
+        }
+        break;
+      default: s->tok = TGt; break; // >
+    }
+    break;
 
   case '(': s->tok = TLParen; break;
   case ')': s->tok = TRParen; insertSemi = true; break;
@@ -282,13 +339,11 @@ Tok SNext(S* s) {
   case '}': s->tok = TRBrace; insertSemi = true; break;
   case '[': s->tok = TLBrack; break;
   case ']': s->tok = TRBrack; insertSemi = true; break;
-  case '~': s->tok = TTilde; break;
-  case '*': s->tok = TStar; break;
-  case '/': s->tok = TSlash; break;
   case ',': s->tok = TComma; break;
   case ';': s->tok = TSemi; break;
 
   case '#': // line comment
+    // TODO: multiline/inline comment '#* ... *#'
     scomment(s);
     goto scan_again;
     break;

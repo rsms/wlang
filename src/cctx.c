@@ -35,7 +35,7 @@ void CCtxFree(CCtx* cc) {
 }
 
 
-void CCtxErrorf(CCtx* cc, SrcPos pos, const char* format, ...) {
+void CCtxErrorf(const CCtx* cc, SrcPos pos, const char* format, ...) {
   if (cc->errh == NULL) {
     return;
   }

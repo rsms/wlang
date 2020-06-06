@@ -20,6 +20,7 @@ typedef enum {
   _(Nil,         Const) /* the nil atom */ \
   _(Comment,     Expr) \
   _(Assign,      Expr) \
+  _(Arg,         Expr) \
   _(Block,       Expr) \
   _(Call,        Expr) \
   _(Field,       Expr) \
@@ -28,7 +29,8 @@ typedef enum {
   _(Ident,       Expr) \
   _(If,          Expr) \
   _(Let,         Expr) \
-  _(Op,          Expr) \
+  _(BinOp,       Expr) \
+  _(PostfixOp,   Expr) \
   _(PrefixOp,    Expr) \
   _(Return,      Expr) \
   _(Tuple,       Expr) \
@@ -163,9 +165,10 @@ typedef struct Node {
       Node* receiver; // either an NFun or a type (e.g. NBasicType)
       Node* args;
     } call;
-    struct { // Field, Let
+    struct { // Arg, Field, Let
       Sym   name;
       Node* init;  // Field: initial value (may be NULL). Let: final value (never NULL).
+      u32   index; // Arg: argument index.
     } field;
     struct { // If
       Node* cond;
@@ -251,5 +254,11 @@ const Node* NodeBad;  // kind==NBad
 static inline Node* NewNode(Memory mem, NodeKind kind) {
   Node* n = (Node*)memalloc(mem, sizeof(Node));
   n->kind = kind;
+  return n;
+}
+
+static inline Node* NodeCopy(Memory mem, const Node* src) {
+  Node* n = (Node*)memalloc(mem, sizeof(Node));
+  memcpy(n, src, sizeof(Node));
   return n;
 }

@@ -51,10 +51,10 @@ const Sym sym_int32 = "\0\0\0\0\0\0\0\xBF\xE2\xDE\xFB\x05\x00\x05\x00\x02""int32
 const Sym sym_uint32 = "\0\0\0\0\0\0\0\xEC\x0B\x94\x32\x06\x00\x06\x00\x02""uint32" + 16;
 const Sym sym_int64 = "\0\0\0\0\0\0\0\x64\x23\xD2\x03\x05\x00\x05\x00\x02""int64" + 16;
 const Sym sym_uint64 = "\0\0\0\0\0\0\0\x13\x08\xA0\xAE\x06\x00\x06\x00\x02""uint64" + 16;
-const Sym sym_int = "\0\0\0\0\0\0\0\x5E\x7E\xE9\x95\x03\x00\x03\x00\x02""int" + 16;
-const Sym sym_uint = "\0\0\0\0\0\0\0\xA1\x36\x98\xCB\x04\x00\x04\x00\x02""uint" + 16;
 const Sym sym_float32 = "\0\0\0\0\0\0\0\x10\x74\x9F\xE8\x07\x00\x07\x00\x02""float32" + 16;
 const Sym sym_float64 = "\0\0\0\0\0\0\0\x47\x0E\x98\x7C\x07\x00\x07\x00\x02""float64" + 16;
+const Sym sym_int = "\0\0\0\0\0\0\0\x5E\x7E\xE9\x95\x03\x00\x03\x00\x02""int" + 16;
+const Sym sym_uint = "\0\0\0\0\0\0\0\xA1\x36\x98\xCB\x04\x00\x04\x00\x02""uint" + 16;
 const Sym sym_str = "\0\0\0\0\0\0\0\x90\xD1\x4B\xC2\x03\x00\x03\x00\x02""str" + 16;
 const Sym sym__ = "\0\0\0\0\0\0\0\x6E\x19\x0C\xDA\x01\x00\x01\x00\x02""_" + 16;
 const Sym sym_true = "\0\0\0\0\0\0\0\xE5\x11\xB2\x4D\x04\x00\x04\x00\x02""true" + 16;
@@ -68,10 +68,10 @@ const Sym sym_5 = "\0\0\0\0\0\0\0\xD0\xA0\x0C\x30\x01\x00\x01\x00\x02""5" + 16;
 const Sym sym_6 = "\0\0\0\0\0\0\0\x89\xA5\x0C\x33\x01\x00\x01\x00\x02""6" + 16;
 const Sym sym_7 = "\0\0\0\0\0\0\0\xF6\xA3\x0C\x32\x01\x00\x01\x00\x02""7" + 16;
 const Sym sym_8 = "\0\0\0\0\0\0\0\x47\xB5\x0C\x3D\x01\x00\x01\x00\x02""8" + 16;
-const Sym sym_i = "\0\0\0\0\0\0\0\xC4\x35\x0C\xEC\x01\x00\x01\x00\x02""i" + 16;
-const Sym sym_u = "\0\0\0\0\0\0\0\x10\x3C\x0C\xF0\x01\x00\x01\x00\x02""u" + 16;
 const Sym sym_f = "\0\0\0\0\0\0\0\x99\x27\x0C\xE3\x01\x00\x01\x00\x02""f" + 16;
 const Sym sym_F = "\0\0\0\0\0\0\0\x39\xF5\x0B\xC3\x01\x00\x01\x00\x02""F" + 16;
+const Sym sym_i = "\0\0\0\0\0\0\0\xC4\x35\x0C\xEC\x01\x00\x01\x00\x02""i" + 16;
+const Sym sym_u = "\0\0\0\0\0\0\0\x10\x3C\x0C\xF0\x01\x00\x01\x00\x02""u" + 16;
 const Sym sym_s = "\0\0\0\0\0\0\0\x82\x45\x0C\xF6\x01\x00\x01\x00\x02""s" + 16;
 
 static const Node _Type_bool = {NBasicType,{0,0,0},NULL,{.t={sym_b,.basic={TypeCode_bool,sym_bool}}}};
@@ -92,14 +92,14 @@ static const Node _Type_int64 = {NBasicType,{0,0,0},NULL,{.t={sym_7,.basic={Type
 Node* Type_int64 = (Node*)&_Type_int64;
 static const Node _Type_uint64 = {NBasicType,{0,0,0},NULL,{.t={sym_8,.basic={TypeCode_uint64,sym_uint64}}}};
 Node* Type_uint64 = (Node*)&_Type_uint64;
-static const Node _Type_int = {NBasicType,{0,0,0},NULL,{.t={sym_i,.basic={TypeCode_int,sym_int}}}};
-Node* Type_int = (Node*)&_Type_int;
-static const Node _Type_uint = {NBasicType,{0,0,0},NULL,{.t={sym_u,.basic={TypeCode_uint,sym_uint}}}};
-Node* Type_uint = (Node*)&_Type_uint;
 static const Node _Type_float32 = {NBasicType,{0,0,0},NULL,{.t={sym_f,.basic={TypeCode_float32,sym_float32}}}};
 Node* Type_float32 = (Node*)&_Type_float32;
 static const Node _Type_float64 = {NBasicType,{0,0,0},NULL,{.t={sym_F,.basic={TypeCode_float64,sym_float64}}}};
 Node* Type_float64 = (Node*)&_Type_float64;
+static const Node _Type_int = {NBasicType,{0,0,0},NULL,{.t={sym_i,.basic={TypeCode_int,sym_int}}}};
+Node* Type_int = (Node*)&_Type_int;
+static const Node _Type_uint = {NBasicType,{0,0,0},NULL,{.t={sym_u,.basic={TypeCode_uint,sym_uint}}}};
+Node* Type_uint = (Node*)&_Type_uint;
 static const Node _Type_str = {NBasicType,{0,0,0},NULL,{.t={sym_s,.basic={TypeCode_str,sym_str}}}};
 Node* Type_str = (Node*)&_Type_str;
 
@@ -157,7 +157,7 @@ static const char* const debugSymCheck =
   "enum#108 for#109 fun#10a if#10b import#10c in#10d interface#10e "
   "is#10f mutable#110 nil#111 return#112 select#113 struct#114 switch#115 "
   "symbol#116 type#117 while#118 bool int8 uint8 int16 uint16 int32 uint32 "
-  "int64 uint64 int uint float32 float64 str true:bool=1 false:bool=0 _ ";
+  "int64 uint64 float32 float64 int uint str true:bool=1 false:bool=0 _ ";
 #endif
 
 //-- END gen_constants() at src/sym.c:508
@@ -274,6 +274,27 @@ Sym symget(const u8* data, size_t _len, u32 hash) {
 Sym symgeth(const u8* data, size_t len) {
   return symget(data, len, hashFNV1a(data, len));
 }
+
+
+Node* const _TypeCodeToTypeNodeMap[TypeCode_CONCRETE_END] = {
+  (Node*)&_Type_bool, // TypeCode_bool
+  (Node*)&_Type_int8, // TypeCode_int8
+  (Node*)&_Type_uint8, // TypeCode_uint8
+  (Node*)&_Type_int16, // TypeCode_int16
+  (Node*)&_Type_uint16, // TypeCode_uint16
+  (Node*)&_Type_int32, // TypeCode_int32
+  (Node*)&_Type_uint32, // TypeCode_uint32
+  (Node*)&_Type_int64, // TypeCode_int64
+  (Node*)&_Type_uint64, // TypeCode_uint64
+  (Node*)&_Type_float32, // TypeCode_float32
+  (Node*)&_Type_float64, // TypeCode_float64
+  (Node*)&_Type_nil, // TypeCode_INTRINSIC_NUM_END
+  (Node*)&_Type_int, // TypeCode_int
+  (Node*)&_Type_uint, // TypeCode_uint
+  (Node*)&_Type_nil, // TypeCode_NUM_END
+  (Node*)&_Type_str, // TypeCode_str
+  (Node*)&_Type_nil, // TypeCode_nil
+};
 
 
 // ---------------------------------------------------------------------------------------

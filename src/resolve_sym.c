@@ -156,7 +156,8 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
     n->op.right = resolve(n->op.right, scope, ctx);
     break;
   }
-  case NOp:
+  case NBinOp:
+  case NPostfixOp:
   case NPrefixOp:
   case NReturn: {
     auto newleft = resolve(n->op.left, scope, ctx);
@@ -176,7 +177,6 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   case NTypeCast:
     n->call.args = resolve(n->call.args, scope, ctx);
     n->call.receiver = resolve(n->call.receiver, scope, ctx);
-    assert(NodeKindIsType(n->call.receiver->kind));
     break;
 
   case NCall:
@@ -209,6 +209,7 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
 
   // uses u.field
   case NLet:
+  case NArg:
   case NField: {
     if (n->field.init) {
       n->field.init = resolve(n->field.init, scope, ctx);

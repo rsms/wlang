@@ -1,19 +1,20 @@
 #include "wp.h"
 #include "typeid.h"
+#include "ir/op.h"
 
 
 static const i64 minIntVal[TypeCode_INTRINSIC_NUM_END] = {
-  0,                   // bool
-  -0x80,               // int8
-  0,                   // uint8
-  -0x8000,             // int16
-  0,                   // uint16
-  -0x80000000,         // int32
-  0,                   // uint32
-  -0x8000000000000000, // int64
-  0,                   // uint64
-  0,                   // TODO float32
-  0,                   // TODO float64
+  (i64)0,                   // bool
+  (i8)-0x80,               // int8
+  (i64)0,                   // uint8
+  (i16)-0x8000,             // int16
+  (i64)0,                   // uint16
+  (i32)-0x80000000,         // int32
+  (i64)0,                   // uint32
+  (i64)-0x8000000000000000, // int64
+  (i64)0,                   // uint64
+  (i64)0,                   // TODO float32
+  (i64)0,                   // TODO float64
 };
 
 static const u64 maxIntVal[TypeCode_INTRINSIC_NUM_END] = {
@@ -37,7 +38,6 @@ static bool convvalToInt(CCtx* cc, Node* srcnode, NVal* v, TypeCode tc) {
     // int -> int; check overflow and simply leave as-is (reinterpret.)
     if ((i64)v->i < minIntVal[tc] || maxIntVal[tc] < v->i) {
       CCtxErrorf(cc, srcnode->pos, "constant %s overflows %s", NValStr(v), TypeCodeName(tc));
-      // TODO: consider actually truncating v->i. Probably not useful as IR builder does that.
     }
     return true;
   }
@@ -55,6 +55,7 @@ static bool convvalToFloat(CCtx* cc, Node* srcnode, NVal* v, TypeCode t) {
 // convval converts v into a representation appropriate for t.
 // If no such representation exists, return false.
 static bool convval(CCtx* cc, Node* srcnode, NVal* v, Node* t, bool explicit) {
+  // TODO use explicit for allowing "bigger" conversions like for example int -> str.
   switch (t->kind) {
 
   case NBasicType: {
@@ -75,43 +76,68 @@ static bool convval(CCtx* cc, Node* srcnode, NVal* v, Node* t, bool explicit) {
     dlog("TODO convval t->kind %s", NodeKindName(t->kind));
     break;
   }
-  // return (NVal){TypeCode_nil,{0}};
   return false;
 }
 
 
-// convlit converts an expression to type t.
-// If expr is already of type t, expr is simply returned.
-//
-// For explicit conversions, t must be non-nil.
-// For implicit conversions (e.g., assignments), t may be nil;
-// if so, expr is converted to its default type.
-//
-Node* _convlit(CCtx* cc, Node* expr, Node* t, bool explicit) {
+// convlit converts an expression n to type t.
+// If n is already of type t, n is simply returned.
+Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
   assert(t != NULL);
   assert(NodeKindIsType(t->kind));
-  dlog("convlit %s as %s", NodeReprShort(expr), NodeReprShort(t));
+  dlog("[convlit] %s as %s", NodeReprShort(n), NodeReprShort(t));
 
-  if (expr->type != NULL) {
-    dlog("no-op -- expr is already typed: %s", NodeReprShort(expr->type));
-    return expr;
+  if (n->type != NULL) {
+    // already typed
+    if (TypeEquals(n->type, t)) {
+      return n;
+    }
+    if (!explicit) {
+      dlog("[convlit] no-op -- n is already typed: %s", NodeReprShort(n->type));
+      return n;
+    }
   }
-  // if (expr->type != NULL && TypeEquals(expr->type, t)) {
-  //   // expr is already of target type
-  //   return expr;
-  // }
 
-  switch (expr->kind) {
+  switch (n->kind) {
+
   case NIntLit:
-    dlog("  NIntLit");
-    if (convval(cc, expr, &expr->val, t, explicit)) {
-      expr->type = t;
-      return expr;
+    if (n->type != NULL) {
+      n = NodeCopy(cc->mem, n);
+    }
+    if (convval(cc, n, &n->val, t, explicit)) {
+      n->type = t;
+      return n;
+    }
+    break;
+
+  case NBinOp:
+    if (t->kind == NBasicType) {
+      auto tc = t->t.basic.typeCode;
+      // check to see if there is an operation on t; if the type cast is valid
+      if (IROpFromAST(n->op.op, tc, tc) == OpNil) {
+        break;
+      }
+      auto left2  = _convlit(cc, n->op.left, t, /* explicit */ false);
+      auto right2 = _convlit(cc, n->op.right, t, /* explicit */ false);
+      if (left2 == NULL || right2 == NULL) {
+        break;
+      }
+      n->op.left = left2;
+      n->op.right = right2;
+      if (!TypeEquals(n->op.left->type, n->op.right->type)) {
+        CCtxErrorf(cc, n->pos,
+          "invalid operation: %s (mismatched types %s and %s)",
+          TokName(n->op.op),
+          NodeReprShort(n->op.left->type),
+          NodeReprShort(n->op.right->type));
+        break;
+      }
+      n->type = n->op.left->type;
     }
     break;
 
   default:
-    dlog("  TODO expr->kind %s", NodeKindName(expr->kind));
+    dlog("[convlit] ignoring n->kind %s", NodeKindName(n->kind));
     break;
   }
 
@@ -119,4 +145,50 @@ Node* _convlit(CCtx* cc, Node* expr, Node* t, bool explicit) {
 }
 
 
+// // binOpOkforType returns true if binary op Tok is available for operands of type TypeCode.
+// // Tok => TypeCode => bool
+// static bool binOpOkforType[T_PRIM_OPS_END - T_PRIM_OPS_START - 1][TypeCode_INTRINSIC_NUM_END] = {
+//   //                 bool    int8  uint8  int16 uint16 int32 uint32 int64 uint64 float32 float64
+//   /* TPlus       */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TMinus      */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TStar       */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TSlash      */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TGt         */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TLt         */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TEqEq       */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TNEq        */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TLEq        */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TGEq        */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TPlusPlus   */{ 0 },
+//   /* TMinusMinus */{ 0 },
+//   /* TTilde      */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+//   /* TNot        */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
+// };
+
+// okfor[OADD] = okforadd[:]
+// okfor[OAND] = okforand[:]
+// okfor[OANDAND] = okforbool[:]
+// okfor[OANDNOT] = okforand[:]
+// okfor[ODIV] = okforarith[:]
+// okfor[OEQ] = okforeq[:]
+// okfor[OGE] = okforcmp[:]
+// okfor[OGT] = okforcmp[:]
+// okfor[OLE] = okforcmp[:]
+// okfor[OLT] = okforcmp[:]
+// okfor[OMOD] = okforand[:]
+// okfor[OMUL] = okforarith[:]
+// okfor[ONE] = okforeq[:]
+// okfor[OOR] = okforand[:]
+// okfor[OOROR] = okforbool[:]
+// okfor[OSUB] = okforarith[:]
+// okfor[OXOR] = okforand[:]
+// okfor[OLSH] = okforand[:]
+// okfor[ORSH] = okforand[:]
+
+// func operandType(op Op, t *types.Type) *types.Type {
+//   if okfor[op][t.Etype] {
+//     return t
+//   }
+//   return nil
+// }
 

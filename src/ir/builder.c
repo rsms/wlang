@@ -127,7 +127,12 @@ static IRValue* TODO_Value(IRBuilder* u) {
 // configurable, make this function part of the builder (take a builder arg) and return
 // values set in the builder struct.
 static TypeCode IntrinsicTypeCode(TypeCode t) {
+  #if DEBUG
+  if (t >= TypeCode_NUM_END) {
+    dlog("ERR t = %s", TypeCodeName(t));
+  }
   assert(t < TypeCode_NUM_END);
+  #endif
   switch (t) {
     case TypeCode_int:  return TypeCode_int32;
     case TypeCode_uint: return TypeCode_uint32;
@@ -230,29 +235,66 @@ static IRValue* addIdent(IRBuilder* u, Node* n) {
 }
 
 
-static IRValue* addOp(IRBuilder* u, Node* n) {
-  assert(n->kind == NOp);
+static IRValue* addTypeCast(IRBuilder* u, Node* n) {
+  assert(n->kind == NTypeCast);
+  assert(n->call.receiver != NULL);
+  assert(n->call.args != NULL);
 
-  dlog("addOp %s %s = %s",
+  // generate rvalue
+  auto inval = addExpr(u, n->call.args);
+  auto dstType = n->call.receiver;
+
+  if (dstType->kind != NBasicType) {
+    CCtxErrorf(u->cc, n->pos, "invalid type %s in type cast", NodeReprShort(dstType));
+    return TODO_Value(u);
+  }
+
+  auto totype = IntrinsicTypeCode(dstType->t.basic.typeCode);
+  if (totype == inval->type) {
+    // same type. This could happen if IntrinsicTypeCode convert an alias like int.
+    return inval;
+  }
+  IROp convop = IROpConvertType(inval->type, totype);
+  if (convop == OpNil) {
+    CCtxErrorf(u->cc, n->pos, "invalid type conversion %s to %s",
+      TypeCodeName(inval->type), TypeCodeName(dstType->t.basic.typeCode));
+    return TODO_Value(u);
+  }
+  auto v = IRValueNew(u->f, u->b, convop, totype, &n->pos);
+  IRValueAddArg(v, inval);
+  return v;
+}
+
+
+static IRValue* addArg(IRBuilder* u, Node* n) {
+  assert(n->kind == NArg);
+  if (n->type->kind != NBasicType) {
+    // TODO add support for NTupleType et al
+    CCtxErrorf(u->cc, n->pos, "invalid argument type %s", NodeReprShort(n->type));
+    return TODO_Value(u);
+  }
+  auto t = IntrinsicTypeCode(n->type->t.basic.typeCode);
+  auto v = IRValueNew(u->f, u->b, OpArg, t, &n->pos);
+  v->auxInt = n->field.index;
+  return v;
+}
+
+
+static IRValue* addBinOp(IRBuilder* u, Node* n) {
+  assert(n->kind == NBinOp);
+
+  dlog("addBinOp %s %s = %s",
     TokName(n->op.op),
     NodeReprShort(n->op.left),
     n->op.right != NULL ? NodeReprShort(n->op.right) : "nil"
   );
 
   // gen left operand
-  auto left = addExpr(u, n->op.left);
-
-  // gen right operand
-  // RHS is NULL for PostfixOp. Note that PrefixOp has a dedicated AST type NPrefixOp.
-  TypeCode type2 = TypeCode_nil;
-  IRValue* right = NULL;
-  if (n->op.right != NULL) {
-    right = addExpr(u, n->op.right);
-    type2 = right->type;
-  }
+  auto left  = addExpr(u, n->op.left);
+  auto right = addExpr(u, n->op.right);
 
   // lookup IROp
-  IROp op = IROpFromAST(n->op.op, left->type, type2);
+  IROp op = IROpFromAST(n->op.op, left->type, right->type);
   assert(op != OpNil);
 
   // read result type
@@ -265,7 +307,7 @@ static IRValue* addOp(IRBuilder* u, Node* n) {
     if (restype == TypeCode_param1) {
       restype = left->type;
     } else {
-      restype = type2;
+      restype = right->type;
     }
   }
   assert(IntrinsicTypeCode(n->type->t.basic.typeCode) == restype);
@@ -275,9 +317,7 @@ static IRValue* addOp(IRBuilder* u, Node* n) {
 
   auto v = IRValueNew(u->f, u->b, op, restype, &n->pos);
   IRValueAddArg(v, left);
-  if (right != NULL) {
-    IRValueAddArg(v, right);
-  }
+  IRValueAddArg(v, right);
   return v;
 }
 
@@ -358,12 +398,14 @@ static IRValue* addBlock(IRBuilder* u, Node* n) {  // language block, not IR blo
 static IRValue* addExpr(IRBuilder* u, Node* n) {
   assert(n->type != NULL); // AST should be fully typed
   switch (n->kind) {
-    case NBlock:  return addBlock(u, n);
-    case NLet:    return addLet(u, n);
-    case NIntLit: return addInt(u, n);
-    case NOp:     return addOp(u, n);
-    case NIdent:  return addIdent(u, n);
-    case NIf:     return addIf(u, n);
+    case NBlock:    return addBlock(u, n);
+    case NLet:      return addLet(u, n);
+    case NIntLit:   return addInt(u, n);
+    case NBinOp:    return addBinOp(u, n);
+    case NIdent:    return addIdent(u, n);
+    case NIf:       return addIf(u, n);
+    case NTypeCast: return addTypeCast(u, n);
+    case NArg:      return addArg(u, n);
 
     case NBoolLit:
     case NFloatLit:
@@ -377,10 +419,10 @@ static IRValue* addExpr(IRBuilder* u, Node* n) {
     case NFun:
     case NFunType:
     case NPrefixOp:
+    case NPostfixOp:
     case NReturn:
     case NTuple:
     case NTupleType:
-    case NTypeCast:
     case NZeroInit:
       dlog("TODO addExpr kind %s", NodeKindName(n->kind));
       break;
@@ -470,11 +512,13 @@ static bool addTopLevel(IRBuilder* u, Node* n) {
     case NCall:
     case NComment:
     case NField:
+    case NArg:
     case NFunType:
     case NIdent:
     case NIf:
-    case NOp:
+    case NBinOp:
     case NPrefixOp:
+    case NPostfixOp:
     case NReturn:
     case NTuple:
     case NTupleType:

@@ -32,12 +32,13 @@ typedef enum TypeCodeFlag {
   _( float32   , 'f', TypeCodeFlagSize4 | TypeCodeFlagFloat ) \
   _( float64   , 'F', TypeCodeFlagSize8 | TypeCodeFlagFloat ) \
   _( INTRINSIC_NUM_END, 0, 0 ) /* sentinel; not a TypeCode */ \
-  _( int       , 'i', 0 ) /* lowered to a concrete type in IR. e.g. int32 */ \
-  _( uint      , 'u', 0 ) /* lowered to a concrete type in IR. e.g. uint32 */ \
+  _( int       , 'i', TypeCodeFlagInt | TypeCodeFlagSigned ) \
+  _( uint      , 'u', TypeCodeFlagInt ) \
   _( NUM_END, 0, 0 ) /* sentinel; not a TypeCode */ \
   _( str       , 's', 0 ) \
-  /* internal types not directly reachable by names in the language */ \
   _( nil       , '0', 0 ) \
+  _( CONCRETE_END, 0, 0 ) /* sentinel; not a TypeCode */ \
+  /* internal types not directly reachable by names in the language */ \
   _( fun       , '^', 0 ) \
   _( tuple     , '(', 0 ) _( tupleEnd  , ')', 0 ) \
   _( list      , '[', 0 ) _( listEnd   , ']', 0 ) \
@@ -65,7 +66,8 @@ static_assert(TypeCode_int64+1 == TypeCode_uint64, "integer order incorrect");
 static_assert(TypeCode_INTRINSIC_NUM_END <= 32,
               "there must be no more than 32 basic numeric types");
 
-// named types exported in the global scope
+// named types exported in the global scope.
+// IMPORTANT: These must match the list of TypeCodes up until CONCRETE_END.
 // Looking for all type defs? sym.h puts it all together.
 #define TYPE_SYMS(_) \
   _( bool    ) \
@@ -77,12 +79,15 @@ static_assert(TypeCode_INTRINSIC_NUM_END <= 32,
   _( uint32  ) \
   _( int64   ) \
   _( uint64  ) \
-  _( int     ) \
-  _( uint    ) \
   _( float32 ) \
   _( float64 ) \
+  _( int     ) \
+  _( uint    ) \
   _( str     ) \
 /*END TYPE_SYMS*/
+
+// Note: The following function is provided by sym.h
+// static Node* TypeCodeToTypeNode(TypeCode t);
 
 // Lookup table TypeCode => string encoding char
 const char TypeCodeEncoding[TypeCode_MAX];

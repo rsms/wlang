@@ -3,8 +3,6 @@
 
 const char* TokName(Tok t) {
   switch (t) {
-    case TNone: return "TNone";
-
     #define I_ENUM(name, str) case name: return str;
     TOKENS(I_ENUM)
     #undef I_ENUM

@@ -44,6 +44,7 @@
 (ops
   (Nil ()->() ZeroWidth)
   (Phi ()->() ZeroWidth) ; select an argument based on which predecessor block we came from
+  (Arg ()->() (aux i32))
   ;
   ; Constant values. Stored in IRValue.aux
   (ConstBool  () -> bool  Constant  (aux bool))  ; aux is 0=false, 1=true
@@ -94,11 +95,99 @@
   (DivF32  (f32 f32) -> f32  ResultInArg0)
   (DivF64  (f64 f64) -> f64  ResultInArg0)
   ;
+  ; arg0 % arg1 ; remainder
+  ; [1] For Mod16, Mod32 and Mod64, AuxInt non-zero means that
+  ;     the divisor has been proved to be not -1.
+  (ModS8   (s8  s8)  -> s8)
+  (ModU8   (u8  u8)  -> u8)
+  (ModS16  (s16 s16) -> s16 (aux bool)) ; [1]
+  (ModU16  (u16 u16) -> u16)
+  (ModS32  (s32 s32) -> s32 (aux bool)) ; [1]
+  (ModU32  (u32 u32) -> u32)
+  (ModS64  (s64 s64) -> s64 (aux bool)) ; [1]
+  (ModU64  (u64 u64) -> u64)
+  ;
+  ; arg0 & arg1 ; bitwise AND
+  (And8    (i8  i8)  -> i8   Commutative)
+  (And16   (i16 i16) -> i16  Commutative)
+  (And32   (i32 i32) -> i32  Commutative)
+  (And64   (i64 i64) -> i64  Commutative)
+  ;
+  ; arg0 | arg1 ; bitwise OR
+  (Or8    (i8  i8)  -> i8    Commutative)
+  (Or16   (i16 i16) -> i16   Commutative)
+  (Or32   (i32 i32) -> i32   Commutative)
+  (Or64   (i64 i64) -> i64   Commutative)
+  ;
+  ; arg0 ^ arg1 ; bitwise XOR
+  (Xor8    (i8  i8)  -> i8   Commutative)
+  (Xor16   (i16 i16) -> i16  Commutative)
+  (Xor32   (i32 i32) -> i32  Commutative)
+  (Xor64   (i64 i64) -> i64  Commutative)
+  ;
+  ; For shifts, AxB means the shifted value has A bits and the shift amount has B bits.
+  ; Shift amounts are considered unsigned.
+  ; If arg1 is known to be less than the number of bits in arg0, then aux may be set to 1.
+  ; According to the Go assembler, this enables better code generation on some platforms.
+  ;
+  ; arg0 << arg1 ; sign-agnostic shift left
+  (ShLI8x8    (i8  u8)  -> i8   (aux bool))
+  (ShLI8x16   (i8  u16) -> i8   (aux bool))
+  (ShLI8x32   (i8  u32) -> i8   (aux bool))
+  (ShLI8x64   (i8  u64) -> i8   (aux bool))
+  (ShLI16x8   (i16 u8)  -> i16  (aux bool))
+  (ShLI16x16  (i16 u16) -> i16  (aux bool))
+  (ShLI16x32  (i16 u32) -> i16  (aux bool))
+  (ShLI16x64  (i16 u64) -> i16  (aux bool))
+  (ShLI32x8   (i32 u8)  -> i32  (aux bool))
+  (ShLI32x16  (i32 u16) -> i32  (aux bool))
+  (ShLI32x32  (i32 u32) -> i32  (aux bool))
+  (ShLI32x64  (i32 u64) -> i32  (aux bool))
+  (ShLI64x8   (i64 u8)  -> i64  (aux bool))
+  (ShLI64x16  (i64 u16) -> i64  (aux bool))
+  (ShLI64x32  (i64 u32) -> i64  (aux bool))
+  (ShLI64x64  (i64 u64) -> i64  (aux bool))
+  ;
+  ; arg0 >> arg1 ; sign-replicating (arithmetic) shift right
+  (ShRS8x8    (s8  u8)  -> s8   (aux bool))
+  (ShRS8x16   (s8  u16) -> s8   (aux bool))
+  (ShRS8x32   (s8  u32) -> s8   (aux bool))
+  (ShRS8x64   (s8  u64) -> s8   (aux bool))
+  (ShRS16x8   (s16 u8)  -> s16  (aux bool))
+  (ShRS16x16  (s16 u16) -> s16  (aux bool))
+  (ShRS16x32  (s16 u32) -> s16  (aux bool))
+  (ShRS16x64  (s16 u64) -> s16  (aux bool))
+  (ShRS32x8   (s32 u8)  -> s32  (aux bool))
+  (ShRS32x16  (s32 u16) -> s32  (aux bool))
+  (ShRS32x32  (s32 u32) -> s32  (aux bool))
+  (ShRS32x64  (s32 u64) -> s32  (aux bool))
+  (ShRS64x8   (s64 u8)  -> s64  (aux bool))
+  (ShRS64x16  (s64 u16) -> s64  (aux bool))
+  (ShRS64x32  (s64 u32) -> s64  (aux bool))
+  (ShRS64x64  (s64 u64) -> s64  (aux bool))
+  ;
+  ; arg0 >> arg1 (aka >>>) ; zero-replicating (logical) shift right
+  (ShRU8x8    (u8  u8)  -> u8   (aux bool))
+  (ShRU8x16   (u8  u16) -> u8   (aux bool))
+  (ShRU8x32   (u8  u32) -> u8   (aux bool))
+  (ShRU8x64   (u8  u64) -> u8   (aux bool))
+  (ShRU16x8   (u16 u8)  -> u16  (aux bool))
+  (ShRU16x16  (u16 u16) -> u16  (aux bool))
+  (ShRU16x32  (u16 u32) -> u16  (aux bool))
+  (ShRU16x64  (u16 u64) -> u16  (aux bool))
+  (ShRU32x8   (u32 u8)  -> u32  (aux bool))
+  (ShRU32x16  (u32 u16) -> u32  (aux bool))
+  (ShRU32x32  (u32 u32) -> u32  (aux bool))
+  (ShRU32x64  (u32 u64) -> u32  (aux bool))
+  (ShRU64x8   (u64 u8)  -> u64  (aux bool))
+  (ShRU64x16  (u64 u16) -> u64  (aux bool))
+  (ShRU64x32  (u64 u32) -> u64  (aux bool))
+  (ShRU64x64  (u64 u64) -> u64  (aux bool))
+  ;
   ; ---------------------------------------------------------------------
   ; 2-input comparisons
   ;
   ; arg0 == arg1 ; sign-agnostic compare equal
-  (EqB    (bool bool) -> bool  Commutative)
   (EqI8   (i8 i8)   -> bool    Commutative)
   (EqI16  (i16 i16) -> bool    Commutative)
   (EqI32  (i32 i32) -> bool    Commutative)
@@ -107,7 +196,6 @@
   (EqF64  (f64 f64) -> bool    Commutative)
   ;
   ; arg0 != arg1 ; sign-agnostic compare unequal
-  (NEqB    (bool bool) -> bool Commutative)
   (NEqI8   (i8 i8)   -> bool   Commutative)
   (NEqI16  (i16 i16) -> bool   Commutative)
   (NEqI32  (i32 i32) -> bool   Commutative)
@@ -163,11 +251,11 @@
   (GEqF32  (f32 f32) -> bool)
   (GEqF64  (f64 f64) -> bool)
   ;
-  ; arg1 && arg2 ; both are true
-  (AndB  (bool bool) -> bool  Commutative)
-  ;
-  ; arg1 || arg2 ; one of them are true
-  (OrB  (bool bool) -> bool   Commutative)
+  ; boolean op boolean
+  (AndB (bool bool) -> bool  Commutative) ; arg0 && arg1 (not shortcircuited)
+  (OrB  (bool bool) -> bool  Commutative) ; arg0 || arg1 (not shortcircuited)
+  (EqB  (bool bool) -> bool  Commutative) ; arg0 == arg1
+  (NEqB (bool bool) -> bool  Commutative) ; arg0 != arg1
   ;
   ; ---------------------------------------------------------------------
   ; 1-input
@@ -182,6 +270,14 @@
   (NegI64 i64 -> i64)
   (NegF32 f32 -> f32)
   (NegF64 f64 -> f64)
+  ;
+  ; ^arg0 ; bitwise complement
+  ; m ^ x  with m = "all bits set to 1" for unsigned x
+  ;        and  m = -1 for signed x
+  (Compl8  i8 -> i8)
+  (Compl16 i16 -> i16)
+  (Compl32 i32 -> i32)
+  (Compl64 i64 -> i64)
   ;
   ; ---------------------------------------------------------------------
   ; Conversions

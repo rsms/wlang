@@ -8,7 +8,14 @@
 // enable debug messages for defsym()
 // #define DEBUG_DEFSYM
 
-
+// Operator precedence
+// Precedence    Operator
+//     5             *  /  %  <<  >>  &  &^
+//     4             +  -  |  ^
+//     3             ==  !=  <  <=  >  >=
+//     2             &&
+//     1             ||
+//
 typedef enum Precedence {
   PREC_LOWEST,
   PREC_ASSIGN,
@@ -171,10 +178,10 @@ static void advance(P* p, const Tok* followlist) {
 }
 
 
-// PFreeNode is shallow; does not free node members
-inline static void PFreeNode(P* p, Node* n) {
-  memfree(p->cc->mem, n);
-}
+// // PFreeNode is shallow; does not free node members
+// inline static void PFreeNode(P* p, Node* n) {
+//   memfree(p->cc->mem, n);
+// }
 
 
 // allocate a new ast node
@@ -286,8 +293,13 @@ static Node* PIdent(P* p, PFlag fl) {
   if (fl & PFlagRValue) {
     auto n = (Node*)ScopeLookup(p->scope, p->s.name);
     if (n != NULL) {
-      // dlog("PIdent taking shortcut to resolved ident %s", p->s.name);
+      // dlog("PIdent taking shortcut to resolved ident %s -> %s", p->s.name, NodeReprShort(n));
       next(p);
+      // unbox let bindings
+      if (n->kind == NLet) {
+        assert(n->field.init != NULL);
+        n = n->field.init;
+      }
       return n;
     }
   }
@@ -343,7 +355,7 @@ static Node* pAssign(P* p, const Parselet* e, PFlag fl, Node* left) {
 }
 
 
-//!Parselet (TEq ASSIGN)
+//!Parselet (TAssign ASSIGN)
 static Node* PLetOrAssign(P* p, const Parselet* e, PFlag fl, Node* left) {
   fl |= PFlagRValue;
 
@@ -399,17 +411,15 @@ static Node* pType(P* p, PFlag fl) {
 
 
 static Node* processTypeCast(P* p, PFlag fl, Node* n) {
-  dlog("processTypeCast %s", NodeReprShort(n));
+  // dlog("processTypeCast %s", NodeReprShort(n));
   assert(n->kind == NTypeCast);
-  assert(NodeKindIsType(n->call.receiver->kind));
-  // attempt conversion
-  auto expr = ConvlitExplicit(p->cc, n->call.args, n->call.receiver);
-  dlog("processTypeCast ConvlitExplicit() => %s", NodeReprShort(expr));
-  if (expr != NULL) {
-    return expr;
+  if (NodeKindIsType(n->call.receiver->kind)) {
+    // attempt conversion to eliminate type cast
+    auto expr = ConvlitExplicit(p->cc, n->call.args, n->call.receiver);
+    if (expr != NULL) {
+      return expr;
+    }
   }
-  // TODO: maybe convert value and eliminate TypeCast node
-  // TODO: PFreeNode(p, n) if we simplify
   return n;
 }
 
@@ -423,7 +433,8 @@ static Node* processTypeCast(P* p, PFlag fl, Node* n) {
 //
 //!Parselet (TAs LOWEST)
 static Node* PAs(P* p, const Parselet* e, PFlag fl, Node* expr) {
-  assert(fl & PFlagRValue);
+  // assert(fl & PFlagRValue);
+  fl |= PFlagRValue;
   auto n = PNewNode(p, NTypeCast);
   next(p); // consume "as"
   n->call.receiver = pType(p, fl);
@@ -479,7 +490,7 @@ static Node* PBlock(P* p, PFlag fl) {
 }
 
 // PrefixOp = ( "+" | "-" | "!" ) Expr
-//!PrefixParselet TPlus TMinus TBang
+//!PrefixParselet TPlus TMinus TExcalm
 static Node* PPrefixOp(P* p, PFlag fl) {
   auto n = PNewNode(p, NPrefixOp);
   n->op.op = p->s.tok;
@@ -492,9 +503,9 @@ static Node* PPrefixOp(P* p, PFlag fl) {
 //!Parselet (TPlus ADD) (TMinus ADD)
 //          (TStar MULTIPLY) (TSlash MULTIPLY)
 //          (TLt COMPARE) (TGt COMPARE)
-//          (TEqEq EQUAL) (TNEq EQUAL) (TLEq EQUAL) (TGEq EQUAL)
+//          (TEq EQUAL) (TNEq EQUAL) (TLEq EQUAL) (TGEq EQUAL)
 static Node* PInfixOp(P* p, const Parselet* e, PFlag fl, Node* left) {
-  auto n = PNewNode(p, NOp);
+  auto n = PNewNode(p, NBinOp);
   n->op.op = p->s.tok;
   n->op.left = left;
   next(p);
@@ -505,7 +516,7 @@ static Node* PInfixOp(P* p, const Parselet* e, PFlag fl, Node* left) {
 // PostfixOp = Expr ( "++" | "--" )
 //!Parselet (TPlusPlus UNARY_POSTFIX) (TMinusMinus UNARY_POSTFIX)
 static Node* PPostfixOp(P* p, const Parselet* e, PFlag fl, Node* operand) {
-  auto n = PNewNode(p, NOp);
+  auto n = PNewNode(p, NPostfixOp);
   n->op.op = p->s.tok;
   n->op.left = operand;
   next(p); // consume "+"
@@ -580,7 +591,7 @@ static Node* params(P* p) { // => NTuple
   PFlag fl = PFlagRValue;
 
   while (p->s.tok != TRParen && p->s.tok != TNone) {
-    auto field = PNewNode(p, NField);
+    auto field = PNewNode(p, NArg);
     if (p->s.tok == TIdent) {
       field->field.name = p->s.name;
       next(p);
@@ -619,17 +630,22 @@ static Node* params(P* p) { // => NTuple
       // e.g. "(x, y int, z)"
       syntaxerr(p, "expecting type");
     }
-    NodeListForEach(&n->array.a, field,
-      defsym(p, field->field.name, field));
+    u32 index = 0;
+    NodeListForEach(&n->array.a, field, {
+      field->field.index = index++;
+      defsym(p, field->field.name, field);
+    });
   } else {
     // type-only form; e.g. "(T, T, Y)"
     // make ident of each field->field.name where field->type == NULL
+    u32 index = 0;
     NodeListForEach(&n->array.a, field, {
       if (!field->type) {
         auto t = PNewNode(p, NIdent);
         t->ref.name = field->field.name;
         field->type = t;
         field->field.name = sym__;
+        field->field.index = index++;
       }
     });
   }
@@ -707,18 +723,18 @@ static const Parselet parselets[TMax] = {
   [TLBrace] = {PBlock, NULL, PREC_MEMBER},
   [TPlus] = {PPrefixOp, PInfixOp, PREC_ADD},
   [TMinus] = {PPrefixOp, PInfixOp, PREC_ADD},
-  [TBang] = {PPrefixOp, NULL, PREC_MEMBER},
+  [TExcalm] = {PPrefixOp, NULL, PREC_MEMBER},
   [TIntLit] = {PIntLit, NULL, PREC_MEMBER},
   [TIf] = {PIf, NULL, PREC_MEMBER},
   [TReturn] = {PReturn, NULL, PREC_MEMBER},
   [TFun] = {PFun, NULL, PREC_MEMBER},
-  [TEq] = {NULL, PLetOrAssign, PREC_ASSIGN},
+  [TAssign] = {NULL, PLetOrAssign, PREC_ASSIGN},
   [TAs] = {NULL, PAs, PREC_LOWEST},
   [TStar] = {NULL, PInfixOp, PREC_MULTIPLY},
   [TSlash] = {NULL, PInfixOp, PREC_MULTIPLY},
   [TLt] = {NULL, PInfixOp, PREC_COMPARE},
   [TGt] = {NULL, PInfixOp, PREC_COMPARE},
-  [TEqEq] = {NULL, PInfixOp, PREC_EQUAL},
+  [TEq] = {NULL, PInfixOp, PREC_EQUAL},
   [TNEq] = {NULL, PInfixOp, PREC_EQUAL},
   [TLEq] = {NULL, PInfixOp, PREC_EQUAL},
   [TGEq] = {NULL, PInfixOp, PREC_EQUAL},

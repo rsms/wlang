@@ -1,6 +1,7 @@
 // Resolve types in an AST. Usuaully run after Parse() and ResolveSym()
 #include "wp.h"
 #include "typeid.h"
+#include "convlit.h"
 
 // #define DEBUG_TYPE_RESOLUTION 1
 
@@ -38,8 +39,13 @@ static Node* resolveFunType(CCtx* cc, Node* n) {
   }
 
   if (n->fun.body) {
-    resolveType(cc, n->fun.body);
-    // TODO: check result type
+    auto bodyType = resolveType(cc, n->fun.body);
+    if (ft->t.fun.result == NULL) {
+      ft->t.fun.result = bodyType;
+    } else if (!TypeEquals(ft->t.fun.result, bodyType)) {
+      CCtxErrorf(cc, n->fun.body->pos, "cannot use type %s as return type %s",
+        NodeReprShort(bodyType), NodeReprShort(ft->t.fun.result));
+    }
   }
 
   n->type = ft;
@@ -51,7 +57,7 @@ static Node* resolveBinOpType(CCtx* cc, Node* n, Tok op, Node* ltype, Node* rtyp
   switch (op) {
     case TGt:   // >
     case TLt:   // <
-    case TEqEq: // ==
+    case TEq:   // ==
     case TNEq:  // !=
     case TLEq:  // <=
     case TGEq:  // >=
@@ -68,39 +74,45 @@ static Node* resolveBinOpType(CCtx* cc, Node* n, Tok op, Node* ltype, Node* rtyp
 }
 
 
-static bool isTyped(const Node* n) {
-  if (n->kind == NFun) {
-    return n->type && n->type->kind == NFunType;
-  }
-  return n->type != NULL && NodeKindIsType(n->type->kind);
-}
-
-
 static Node* resolveType(CCtx* cc, Node* n) {
   assert(n != NULL);
 
   #if DEBUG_TYPE_RESOLUTION
   auto nc = NodeClassTable[n->kind];
-  dlog("resolveType %s %s", NodeKindName(n->kind), NodeClassName(nc));
+  dlog("resolveType %s %p (%s class) type %s",
+    NodeKindName(n->kind),
+    n,
+    NodeClassName(nc),
+    NodeReprShort(n->type));
   #endif
 
   if (NodeKindIsType(n->kind)) {
+    #if DEBUG_TYPE_RESOLUTION
+    dlog("  => %s", NodeReprShort(n));
+    #endif
     return n;
   }
 
-  if (isTyped(n)) {
-    // type already known
-    // dlog("  already resolved kind=%s class=%s", NodeKindName(n->type->kind),
-    //   NodeClassName(NodeClassTable[n->type->kind]));
+  if (n->kind == NFun) {
+    // type already resolved
+    if (n->type && n->type->kind == NFunType) {
+      #if DEBUG_TYPE_RESOLUTION
+      dlog("  => %s", NodeReprShort(n->type));
+      #endif
+      return n->type;
+    }
+  } else if (n->type != NULL) {
+    // type already resolved
+    #if DEBUG_TYPE_RESOLUTION
+    dlog("  => %s", NodeReprShort(n->type));
+    #endif
     return n->type;
-  }
-
-  // Set type to nil here to break any self-referencing cycles.
-  // NFun is special-cased as it stores result type in n->type. Note that resolveFunType
-  // handles breaking of cycles.
-  // A nice side effect of this is that for error cases and nodes without types, the
-  // type "defaults" to nil and we can avoid setting Type_nil in the switch below.
-  if (n->kind != NFun) {
+  } else {
+    // Set type to nil here to break any self-referencing cycles.
+    // NFun is special-cased as it stores result type in n->type. Note that resolveFunType
+    // handles breaking of cycles.
+    // A nice side effect of this is that for error cases and nodes without types, the
+    // type "defaults" to nil and we can avoid setting Type_nil in the switch below.
     n->type = Type_nil;
   }
 
@@ -162,7 +174,8 @@ static Node* resolveType(CCtx* cc, Node* n) {
     }
     break;
   }
-  case NOp:
+  case NBinOp:
+  case NPostfixOp:
   case NPrefixOp:
   case NReturn: {
     auto ltype = resolveType(cc, n->op.left);
@@ -177,7 +190,7 @@ static Node* resolveType(CCtx* cc, Node* n) {
         CCtxErrorf(cc, n->pos, "operation %s on incompatible types %s %s",
           TokName(n->op.op), NodeReprShort(ltype), NodeReprShort(rtype));
       }
-      if (n->kind == NOp) {
+      if (n->kind == NBinOp) {
         n->type = resolveBinOpType(cc, n, n->op.op, ltype, rtype);
       } else {
         n->type = rtype;
@@ -189,20 +202,22 @@ static Node* resolveType(CCtx* cc, Node* n) {
   // uses u.call
   case NTypeCast: {
     assert(n->call.receiver != NULL);
-    assert(NodeKindIsType(n->call.receiver->kind));
+    if (!NodeKindIsType(n->call.receiver->kind)) {
+      CCtxErrorf(cc, n->pos, "invalid conversion to non-type %s", NodeReprShort(n->call.receiver));
+      break;
+    }
     auto argstype = resolveType(cc, n->call.args);
     n->type = resolveType(cc, n->call.receiver);
-
-    // // if (n->type != )NodeKindIsConst
-    // dlog("TODO NTypeCast check argstype <> target type. %d", n->type == argstype);
-    // dlog("CheckTypeConversion() => %d", CheckTypeConversion(argstype, n->type, 4));
-
-    // if (CheckTypeConversion(argstype, n->type, 4) == TypeConvImpossible) {
-    //   CCtxErrorf(cc, n->pos, "cannot convert %s (type %s) to type %s",
-    //     NodeReprShort(n->call.args),
-    //     NodeReprShort(argstype),
-    //     NodeReprShort(n->type));
-    // }
+    if (TypeEquals(argstype, n->type)) {
+      // eliminate type cast since source is already target type
+      memcpy(n, n->call.args, sizeof(Node));
+      break;
+    }
+    // attempt conversion to eliminate type cast
+    auto expr = ConvlitExplicit(cc, n->call.args, n->call.receiver);
+    if (expr != NULL) {
+      memcpy(n, expr, sizeof(Node));
+    }
     break;
   }
   case NCall: {
@@ -228,6 +243,7 @@ static Node* resolveType(CCtx* cc, Node* n) {
 
   // uses u.field
   case NLet:
+  case NArg:
   case NField: {
     if (n->field.init) {
       n->type = resolveType(cc, n->field.init);
@@ -266,12 +282,15 @@ static Node* resolveType(CCtx* cc, Node* n) {
     }
     break;
 
-  // all other: does not have children
-  case NBad:
-  case NNil:
   case NBoolLit:
   case NIntLit:
   case NFloatLit:
+    n->type = TypeCodeToTypeNode(n->val.t);
+    break;
+
+  // all other: does not have children or are types themselves
+  case NBad:
+  case NNil:
   case NComment:
   case NFunType:
   case NNone:

@@ -76,4 +76,6 @@ if source2 != source:
   print("write", sourcefilename)
   with open(sourcefilename, "w") as f:
     f.write(source2)
-
+# write "marker" file for ninja/make
+with open("build/gen_parselet_map.marker", "w") as f:
+  f.write("x")
