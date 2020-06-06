@@ -204,15 +204,16 @@ Str NodeRepr(const Node* n, Str s); // return human-readable printable text repr
 // Note: The returned string is valid until the next call to TmpRecycle.
 const char* NodeReprShort(const Node*);
 
-// NodeKindIsType returns true if kind represents a type (i.e. NBasicType, NFunType, etc.)
-static inline bool NodeKindIsType(NodeKind kind) {
-  return NodeClassTable[kind] == NodeClassType;
-}
+// NodeKindIs{Type|Const|Expr} returns true if kind is of class Type, Const or Expr.
+static inline bool NodeKindIsType(NodeKind kind) { return NodeClassTable[kind] == NodeClassType; }
+static inline bool NodeKindIsConst(NodeKind kind) { return NodeClassTable[kind] == NodeClassConst;}
+static inline bool NodeKindIsExpr(NodeKind kind) { return NodeClassTable[kind] == NodeClassExpr; }
 
-static inline bool NodeKindIsConst(NodeKind kind) {
-  return NodeClassTable[kind] == NodeClassConst;
-}
+// Retrieve the effective "printable" type of a node.
+// For nodes which are lazily typed, like IntLit, this returns the default type of the constant.
+const Node* NodeEffectiveType(const Node* n);
 
+// Format an NVal
 Str NValFmt(Str s, const NVal* v);
 const char* NValStr(const NVal* v); // returns a temporary string
 
@@ -240,7 +241,9 @@ const char* NValStr(const NVal* v); // returns a temporary string
 
 // Add node to list
 void NodeListAppend(Memory mem, NodeList*, Node*);
-
+static inline u32 NodeListLen(const NodeList* list) {
+  return list->len;
+}
 static inline void NodeListClear(NodeList* list) {
   list->len = 0;
   list->head = NULL;

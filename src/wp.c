@@ -47,14 +47,14 @@ void parsefile(Str filename, Scope* pkgscope) {
   printf("PARSE\n");
   // parse input
   static P parser; // shared parser (zero-initialized since it's static)
-  auto file = Parse(&parser, &cc, SCAN_COMMENTS, pkgscope);
+  auto file = Parse(&parser, &cc, ParseComments /*| ParseOpt*/, pkgscope);
   printAst(file);
   if (errcount != 0) { goto end; }
 
   // resolve symbols and types
   printf("————————————————————————————————————————————————————————————————\n");
   printf("RESOLVE NAMES\n");
-  ResolveSym(&cc, file, pkgscope);
+  ResolveSym(&cc, parser.s.flags, file, pkgscope);
   // printAst(file);
   if (errcount != 0) { goto end; }
 

@@ -1,4 +1,5 @@
 #include "wp.h"
+#include "tstyle.h"
 
 
 void SourceInit(Source* s, Str name, const u8* buf, size_t len) {
@@ -107,10 +108,13 @@ Str SrcPosFmt(Str s, SrcPos pos) {
 
 Str SrcPosMsg(Str s, SrcPos pos, ConstStr message) {
   auto l = SrcPosLineCol(pos);
-  s = sdscatfmt(s, "%s:%u:%u: %S\n",
+  s = sdscatfmt(s, "%s%s:%u:%u: %S%s\n",
+    TStyleTable[TStyle_bold],
     pos.src ? pos.src->name : sdsnew("<input>"), l.line + 1, l.col + 1,
-    message
+    message,
+    TStyle_none
   );
+  s = TStyleNone(s);
 
   // include line contents
   if (pos.src) {

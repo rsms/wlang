@@ -1,6 +1,5 @@
 #include "wp.h"
 #include "parseint.h"
-#include "convlit.h"
 
 // enable debug messages for pushScope() and popScope()
 // #define DEBUG_SCOPE_PUSH_POP
@@ -289,22 +288,29 @@ static Node* tupleTrailingComma(P* p, int precedence, PFlag fl, Tok stoptok) {
 //!PrefixParselet TIdent
 static Node* PIdent(P* p, PFlag fl) {
   assert(p->s.tok == TIdent);
-  // attempt to lookup rvalue
-  if (fl & PFlagRValue) {
-    auto n = (Node*)ScopeLookup(p->scope, p->s.name);
-    if (n != NULL) {
-      // dlog("PIdent taking shortcut to resolved ident %s -> %s", p->s.name, NodeReprShort(n));
+  // Attempt to lookup rvalue identifier that references a constant or type.
+  // Example:
+  //   "x = true" parses as (Let (Ident x) (Ident true))
+  //   Notice how "true" is an identifier here and not BoolLit.
+  //   Unless "true" has been rebound, we instead yield the following:
+  //   "x = true" parses as (Let (Ident x) (BoolLit true))
+  //
+  //   Similarly, types are short-circuited, too. Instead of...
+  //   "MyBool = bool" parses as (Let (Ident MyBool) (Ident bool))
+  //   ...we get:
+  //   "MyBool = bool" parses as (Let (Ident MyBool) (Type bool))
+  //
+  Node* target = NULL;
+  if ((fl & PFlagRValue) != 0) {
+    target = (Node*)ScopeLookup(p->scope, p->s.name);
+    if (target != NULL && !NodeKindIsExpr(target->kind)) {
       next(p);
-      // unbox let bindings
-      if (n->kind == NLet) {
-        assert(n->field.init != NULL);
-        n = n->field.init;
-      }
-      return n;
+      return target;
     }
   }
   auto n = PNewNode(p, NIdent);
   n->ref.name = p->s.name;
+  n->ref.target = target;
   next(p);
   return n;
 }
@@ -410,19 +416,6 @@ static Node* pType(P* p, PFlag fl) {
 }
 
 
-static Node* processTypeCast(P* p, PFlag fl, Node* n) {
-  // dlog("processTypeCast %s", NodeReprShort(n));
-  assert(n->kind == NTypeCast);
-  if (NodeKindIsType(n->call.receiver->kind)) {
-    // attempt conversion to eliminate type cast
-    auto expr = ConvlitExplicit(p->cc, n->call.args, n->call.receiver);
-    if (expr != NULL) {
-      return expr;
-    }
-  }
-  return n;
-}
-
 // As = expr "as" Type
 // "as" has the lowest precedence and thus... Examples:
 //
@@ -439,7 +432,7 @@ static Node* PAs(P* p, const Parselet* e, PFlag fl, Node* expr) {
   next(p); // consume "as"
   n->call.receiver = pType(p, fl);
   n->call.args = expr;
-  return processTypeCast(p, fl, n);
+  return n;
 }
 
 //!Parselet (TLParen MEMBER)
@@ -457,7 +450,7 @@ static Node* PCall(P* p, const Parselet* e, PFlag fl, Node* receiver) {
   }
   if (NodeKindIsType(receiver->kind)) {
     n->kind = NTypeCast;
-    return processTypeCast(p, fl, n);
+    return n;
   }
   return n;
 }
@@ -533,13 +526,8 @@ static Node* PIntLit(P* p, PFlag fl) {
     syntaxerrp(p, n->pos, "invalid integer literal");
   }
   next(p);
-  // TODO: if prefixed by "-", negate. Min i64: -0x8000000000000000
+  // TODO: if prefixed by "-", negate
   n->val.t = n->val.i > 0x7fffffffffffffff ? TypeCode_uint : TypeCode_int;
-  // if ((fl & PFlagRValue) == 0) {
-  //   // used as lvalue, e.g. lone expression. Type now.
-  //   n = ConvlitImplicit(p->cc, n, NULL);
-  // }
-  // n->type = (Node*)Type_int; // convlit is used to assign a type
   return n;
 }
 
@@ -858,9 +846,9 @@ static Node* exprOrTuple(P* p, int precedence, PFlag fl) {
 }
 
 
-Node* Parse(P* p, CCtx* cc, ScanFlags sflags, Scope* pkgscope) {
+Node* Parse(P* p, CCtx* cc, ParseFlags fl, Scope* pkgscope) {
   // initialize scanner
-  SInit(&p->s, cc->mem, &cc->src, sflags, cc->errh, cc->userdata);
+  SInit(&p->s, cc->mem, &cc->src, fl, cc->errh, cc->userdata);
   p->fnest = 0;
   p->scope = pkgscope;
   p->cc = cc;

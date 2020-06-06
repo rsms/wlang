@@ -254,11 +254,12 @@ typedef void(ErrorHandler)(const Source*, SrcPos, ConstStr msg, void* userdata);
 // scanner
 #include "token.h"
 
-// scanner flags
+// parser & scanner flags
 typedef enum {
-  SCAN_DEFAULT  = 1 << 0,
-  SCAN_COMMENTS = 1 << 2,  // populate S.comments
-} ScanFlags;
+  ParseFlagsDefault = 0,
+  ParseComments     = 1 << 1, // parse comments, populating S.comments
+  ParseOpt          = 1 << 2, // apply optimizations. might produce a non-1:1 AST/token stream
+} ParseFlags;
 
 // scanned comment
 typedef struct Comment {
@@ -270,12 +271,12 @@ typedef struct Comment {
 
 // scanner
 typedef struct S {
-  Memory    mem;
-  Source*   src;           // input source
-  const u8* inp;           // input buffer current pointer
-  const u8* inp0;          // input buffer previous pointer
-  const u8* inend;         // input buffer end
-  ScanFlags flags;
+  Memory     mem;
+  Source*    src;          // input source
+  const u8*  inp;          // input buffer current pointer
+  const u8*  inp0;         // input buffer previous pointer
+  const u8*  inend;        // input buffer end
+  ParseFlags flags;
 
   Tok       tok;           // current token
   const u8* tokstart;      // start of current token
@@ -292,7 +293,7 @@ typedef struct S {
   void*         userdata;
 } S;
 
-void SInit(S*, Memory, Source*, ScanFlags, ErrorHandler*, void* userdata);
+void SInit(S*, Memory, Source*, ParseFlags, ErrorHandler*, void* userdata);
 Tok  SNext(S*);
 
 // source position of current token
@@ -338,10 +339,10 @@ typedef struct P {
   Scope* scope;  // current scope
   CCtx*  cc;     // compilation context
 } P;
-Node* Parse(P*, CCtx*, ScanFlags, Scope* pkgscope);
+Node* Parse(P*, CCtx*, ParseFlags, Scope* pkgscope);
 
 // Symbol resolver
-Node* ResolveSym(CCtx*, Node*, Scope*);
+Node* ResolveSym(CCtx*, ParseFlags, Node*, Scope*);
 
 // Type resolver
 void ResolveType(CCtx*, Node*);

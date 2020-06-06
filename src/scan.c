@@ -57,7 +57,7 @@ static u8 charflags[256] = {
 };
 
 
-void SInit(S* s, Memory mem, Source* src, ScanFlags flags, ErrorHandler* errh, void* userdata) {
+void SInit(S* s, Memory mem, Source* src, ParseFlags flags, ErrorHandler* errh, void* userdata) {
   memset(s, 0, sizeof(S));
 
   s->mem   = mem;
@@ -132,7 +132,7 @@ static void scomment(S* s) {
     s->inp++;
   }
   s->tokend = s->inp;
-  if (s->flags & SCAN_COMMENTS) {
+  if (s->flags & ParseComments) {
     addComment(s);
   }
 }

@@ -122,25 +122,6 @@ static IRValue* TODO_Value(IRBuilder* u) {
 }
 
 
-// IntrinsicTypeCode takes any numberic TypeCode and returns a concrete type code like int32.
-// Note: Currently int and uint are hard-coded to 32-bit ints. If we want to make this
-// configurable, make this function part of the builder (take a builder arg) and return
-// values set in the builder struct.
-static TypeCode IntrinsicTypeCode(TypeCode t) {
-  #if DEBUG
-  if (t >= TypeCode_NUM_END) {
-    dlog("ERR t = %s", TypeCodeName(t));
-  }
-  assert(t < TypeCode_NUM_END);
-  #endif
-  switch (t) {
-    case TypeCode_int:  return TypeCode_int32;
-    case TypeCode_uint: return TypeCode_uint32;
-    default:            return t;
-  }
-}
-
-
 // ———————————————————————————————————————————————————————————————————————————————————————————————
 // Phi & variables
 
@@ -195,11 +176,18 @@ static IRValue* readVariable(IRBuilder* u, Sym name, Node* typeNode, IRBlock* b/
 static IRValue* addExpr(IRBuilder* u, Node* n);
 
 
-static IRValue* addInt(IRBuilder* u, Node* n) {
+static IRValue* addIntConst(IRBuilder* u, Node* n) {
   assert(n->kind == NIntLit);
   assert(n->type->kind == NBasicType);
-  auto tc = IntrinsicTypeCode(n->type->t.basic.typeCode);
-  return IRFunGetConstInt(u->f, tc, n->val.i);
+  return IRFunGetConstInt(u->f, n->type->t.basic.typeCode, n->val.i);
+}
+
+
+static IRValue* addBoolConst(IRBuilder* u, Node* n) {
+  assert(n->kind == NBoolLit);
+  assert(n->type->kind == NBasicType);
+  assert(n->type->t.basic.typeCode == TypeCode_bool);
+  return IRFunGetConstBool(u->f, (bool)n->val.i);
 }
 
 
@@ -249,9 +237,14 @@ static IRValue* addTypeCast(IRBuilder* u, Node* n) {
     return TODO_Value(u);
   }
 
-  auto totype = IntrinsicTypeCode(dstType->t.basic.typeCode);
+  auto totype = dstType->t.basic.typeCode;
+  // aliases. e.g. int, uint
+  switch (totype) {
+    case TypeCode_int:  totype = TypeCode_int32; break;
+    case TypeCode_uint: totype = TypeCode_uint32; break;
+    default: break;
+  }
   if (totype == inval->type) {
-    // same type. This could happen if IntrinsicTypeCode convert an alias like int.
     return inval;
   }
   IROp convop = IROpConvertType(inval->type, totype);
@@ -273,8 +266,7 @@ static IRValue* addArg(IRBuilder* u, Node* n) {
     CCtxErrorf(u->cc, n->pos, "invalid argument type %s", NodeReprShort(n->type));
     return TODO_Value(u);
   }
-  auto t = IntrinsicTypeCode(n->type->t.basic.typeCode);
-  auto v = IRValueNew(u->f, u->b, OpArg, t, &n->pos);
+  auto v = IRValueNew(u->f, u->b, OpArg, n->type->t.basic.typeCode, &n->pos);
   v->auxInt = n->field.index;
   return v;
 }
@@ -301,7 +293,7 @@ static IRValue* addBinOp(IRBuilder* u, Node* n) {
   #if DEBUG
   // ensure that the type we think n will have is actually the type of the resulting value.
   TypeCode restype = IROpInfo(op)->outputType;
-  if (restype > TypeCode_INTRINSIC_NUM_END) {
+  if (restype > TypeCode_NUM_END) {
     // result type is parametric; is the same as an input type.
     assert(restype == TypeCode_param1 || restype == TypeCode_param2);
     if (restype == TypeCode_param1) {
@@ -310,9 +302,9 @@ static IRValue* addBinOp(IRBuilder* u, Node* n) {
       restype = right->type;
     }
   }
-  assert(IntrinsicTypeCode(n->type->t.basic.typeCode) == restype);
+  assert( restype == n->type->t.basic.typeCode);
   #else
-  TypeCode restype = IntrinsicTypeCode(n->type->t.basic.typeCode);
+  TypeCode restype = n->type->t.basic.typeCode;
   #endif
 
   auto v = IRValueNew(u->f, u->b, op, restype, &n->pos);
@@ -325,6 +317,12 @@ static IRValue* addBinOp(IRBuilder* u, Node* n) {
 static IRValue* addLet(IRBuilder* u, Node* n) {
   assert(n->kind == NLet);
   assert(n->field.init != NULL);
+  if (n->type == NULL) {
+    // this means the let binding is unused; the type resolver never bothered
+    // resolving it as nothing referenced it.
+    dlog("[ir/builder] discard unused let %s", NodeReprShort(n));
+    return NULL;
+  }
   dlog("addLet %s %s = %s",
     n->field.name ? n->field.name : "_",
     NodeReprShort(n->type),
@@ -371,7 +369,7 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
   if (control->type != TypeCode_bool) {
     // AST should not contain conds that are non-bool
     // dlog("n->cond.cond->pos")
-    errorf(u, NoSrcPos,
+    errorf(u, n->cond.cond->pos,
       "invalid non-bool type in condition %s", NodeReprShort(n->cond.cond));
   }
 
@@ -396,18 +394,18 @@ static IRValue* addBlock(IRBuilder* u, Node* n) {  // language block, not IR blo
 
 
 static IRValue* addExpr(IRBuilder* u, Node* n) {
-  assert(n->type != NULL); // AST should be fully typed
+  assert(n->kind == NLet || n->type != NULL); // AST should be fully typed (let is an exception)
   switch (n->kind) {
-    case NBlock:    return addBlock(u, n);
     case NLet:      return addLet(u, n);
-    case NIntLit:   return addInt(u, n);
+    case NBlock:    return addBlock(u, n);
+    case NIntLit:   return addIntConst(u, n);
+    case NBoolLit:  return addBoolConst(u, n);
     case NBinOp:    return addBinOp(u, n);
     case NIdent:    return addIdent(u, n);
     case NIf:       return addIf(u, n);
     case NTypeCast: return addTypeCast(u, n);
     case NArg:      return addArg(u, n);
 
-    case NBoolLit:
     case NFloatLit:
     case NNil:
     case NAssign:

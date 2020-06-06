@@ -3,7 +3,7 @@
 #include "ir/op.h"
 
 
-static const i64 minIntVal[TypeCode_INTRINSIC_NUM_END] = {
+static const i64 minIntVal[TypeCode_NUM_END] = {
   (i64)0,                   // bool
   (i8)-0x80,               // int8
   (i64)0,                   // uint8
@@ -15,9 +15,11 @@ static const i64 minIntVal[TypeCode_INTRINSIC_NUM_END] = {
   (i64)0,                   // uint64
   (i64)0,                   // TODO float32
   (i64)0,                   // TODO float64
+  (i32)-0x80000000,         // int == int32
+  (i64)0,                   // uint == uint32
 };
 
-static const u64 maxIntVal[TypeCode_INTRINSIC_NUM_END] = {
+static const u64 maxIntVal[TypeCode_NUM_END] = {
   1,                   // bool
   0x7f,                // int8
   0xff,                // uint8
@@ -29,11 +31,13 @@ static const u64 maxIntVal[TypeCode_INTRINSIC_NUM_END] = {
   0xffffffffffffffff,  // uint64
   0,                   // TODO float32
   0,                   // TODO float64
+  0x7fffffff,          // int == int32
+  0xffffffff,          // uint == uint32
 };
 
 // convert an intrinsic numeric value v to an integer of type tc
 static bool convvalToInt(CCtx* cc, Node* srcnode, NVal* v, TypeCode tc) {
-  assert(tc < TypeCode_INTRINSIC_NUM_END);
+  assert(tc < TypeCode_NUM_END);
   if (TypeCodeIsInt(tc)) {
     // int -> int; check overflow and simply leave as-is (reinterpret.)
     if ((i64)v->i < minIntVal[tc] || maxIntVal[tc] < v->i) {
@@ -61,7 +65,7 @@ static bool convval(CCtx* cc, Node* srcnode, NVal* v, Node* t, bool explicit) {
   case NBasicType: {
     auto tc = t->t.basic.typeCode;
     if (TypeCodeIsInt(tc)) {
-      if (tc >= TypeCode_INTRINSIC_NUM_END) {
+      if (tc >= TypeCode_NUM_END) {
         assert(tc == TypeCode_int || tc == TypeCode_uint);
         tc = (tc == TypeCode_int) ? TypeCode_int32 : TypeCode_uint32;
       }
@@ -80,6 +84,18 @@ static bool convval(CCtx* cc, Node* srcnode, NVal* v, Node* t, bool explicit) {
 }
 
 
+static void errInvalidBinOp(CCtx* cc, Node* n) {
+  assert(n->kind == NBinOp);
+  auto ltype = NodeEffectiveType(n->op.left);
+  auto rtype = NodeEffectiveType(n->op.right);
+  CCtxErrorf(cc, n->pos,
+    "invalid operation: %s (mismatched types %s and %s)",
+    TokName(n->op.op),
+    NodeReprShort(ltype),
+    NodeReprShort(rtype));
+}
+
+
 // convlit converts an expression n to type t.
 // If n is already of type t, n is simply returned.
 Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
@@ -87,13 +103,15 @@ Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
   assert(NodeKindIsType(t->kind));
   dlog("[convlit] %s as %s", NodeReprShort(n), NodeReprShort(t));
 
-  if (n->type != NULL) {
-    // already typed
-    if (TypeEquals(n->type, t)) {
+  if (n->type != NULL && n->type != Type_nil) {
+    if (!explicit) {
+      // in implicit mode, if something is typed already, we don't try and convert the type.
+      dlog("[convlit/implicit] no-op -- n is already typed: %s", NodeReprShort(n->type));
       return n;
     }
-    if (!explicit) {
-      dlog("[convlit] no-op -- n is already typed: %s", NodeReprShort(n->type));
+    if (TypeEquals(n->type, t)) {
+      // in both modes: if n is already of target type, stop here.
+      dlog("[convlit] no-op -- n is already of target type %s", NodeReprShort(n->type));
       return n;
     }
   }
@@ -101,9 +119,7 @@ Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
   switch (n->kind) {
 
   case NIntLit:
-    if (n->type != NULL) {
-      n = NodeCopy(cc->mem, n);
-    }
+    n = NodeCopy(cc->mem, n); // copy, since literals may be referenced by many
     if (convval(cc, n, &n->val, t, explicit)) {
       n->type = t;
       return n;
@@ -113,26 +129,27 @@ Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
   case NBinOp:
     if (t->kind == NBasicType) {
       auto tc = t->t.basic.typeCode;
+      dlog("IROpFromAST tc=%s", TypeCodeName(tc));
       // check to see if there is an operation on t; if the type cast is valid
       if (IROpFromAST(n->op.op, tc, tc) == OpNil) {
+        errInvalidBinOp(cc, n);
         break;
       }
       auto left2  = _convlit(cc, n->op.left, t, /* explicit */ false);
       auto right2 = _convlit(cc, n->op.right, t, /* explicit */ false);
       if (left2 == NULL || right2 == NULL) {
+        errInvalidBinOp(cc, n);
         break;
       }
       n->op.left = left2;
       n->op.right = right2;
       if (!TypeEquals(n->op.left->type, n->op.right->type)) {
-        CCtxErrorf(cc, n->pos,
-          "invalid operation: %s (mismatched types %s and %s)",
-          TokName(n->op.op),
-          NodeReprShort(n->op.left->type),
-          NodeReprShort(n->op.right->type));
+        errInvalidBinOp(cc, n);
         break;
       }
       n->type = n->op.left->type;
+    } else {
+      dlog("TODO convlit %s as %s", NodeReprShort(n), NodeReprShort(t));
     }
     break;
 
@@ -147,7 +164,7 @@ Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
 
 // // binOpOkforType returns true if binary op Tok is available for operands of type TypeCode.
 // // Tok => TypeCode => bool
-// static bool binOpOkforType[T_PRIM_OPS_END - T_PRIM_OPS_START - 1][TypeCode_INTRINSIC_NUM_END] = {
+// static bool binOpOkforType[T_PRIM_OPS_END - T_PRIM_OPS_START - 1][TypeCode_NUM_END] = {
 //   //                 bool    int8  uint8  int16 uint16 int32 uint32 int64 uint64 float32 float64
 //   /* TPlus       */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },
 //   /* TMinus      */{ false,  true, true,  true, true,  true, true,  true, true,  true,   true },

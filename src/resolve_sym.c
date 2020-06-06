@@ -4,16 +4,17 @@
 
 typedef struct {
   CCtx* cc;
-  u32   funNest;    // level of function nesting. 0 at file level
-  u32   assignNest; // level of assignment. Used to avoid early constant folding in assignments.
+  ParseFlags flags;
+  u32        funNest;    // level of function nesting. 0 at file level
+  u32        assignNest; // level of assignment. Used to avoid early constant folding.
 } ResCtx;
 
 
 static Node* resolve(Node* n, Scope* scope, ResCtx* ctx);
 
 
-Node* ResolveSym(CCtx* cc, Node* n, Scope* scope) {
-  ResCtx ctx = { cc, 0, 0 };
+Node* ResolveSym(CCtx* cc, ParseFlags fl, Node* n, Scope* scope) {
+  ResCtx ctx = { cc, fl, 0, 0 };
   return resolve(n, scope, &ctx);
 }
 
@@ -29,13 +30,11 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
     if (target == NULL) {
       // dlog("  LOOKUP %s", n->ref.name);
       target = ScopeLookup(scope, n->ref.name);
-
       if (target == NULL) {
         CCtxErrorf(ctx->cc, n->pos, "undefined symbol %s", name);
         ((Node*)n)->ref.target = NodeBad;
         return n;
       }
-
       ((Node*)n)->ref.target = target;
       // dlog("  UNWIND %s => %s", n->ref.name, NodeKindName(target->kind));
     }
@@ -51,11 +50,16 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
       case NLet:
         // Unwind let bindings
         assert(target->field.init != NULL);
-        if (NodeKindIsConst(target->field.init->kind)) {
-          // in the case of a let target with a constant, resolve to the constant.
+        if (!NodeKindIsExpr(target->field.init->kind)) {
+          // in the case of a let target with a constant or type, resolve to that.
           // Example:
-          //   x = true   # Identifier "true" is resolved to constant Boolean true
-          //   y = x      # Identifier x is resolved to constant Boolean true via x
+          //   "x = true ; y = x"
+          //  parsed as:
+          //   (Let (Ident x) (BoolLit true))
+          //   (Let (Ident y) (Ident x))
+          //  transformed to:
+          //   (Let (Ident x) (BoolLit true))
+          //   (Let (Ident y) (BoolLit true))
           //
           return target->field.init;
         }
@@ -121,9 +125,14 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
     if (n->array.scope) {
       scope = n->array.scope;
     }
+    Node* lastn = NULL;
     NodeListMap(&n->array.a, n,
-      /* n = */ resolve(n, scope, ctx)
+      /* n <= */ lastn = resolve(n, scope, ctx)
     );
+    // simplify blocks with a single expression; (block expr) => expr
+    if (n->kind == NBlock && NodeListLen(&n->array.a) == 1) {
+      return lastn;
+    }
     break;
   }
 
@@ -221,8 +230,16 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   case NIf:
     n->cond.cond = resolve(n->cond.cond, scope, ctx);
     n->cond.thenb = resolve(n->cond.thenb, scope, ctx);
+    if (n->cond.cond == Const_true && (ctx->flags & ParseOpt)) {
+      // [optimization] then branch always taken
+      return n->cond.thenb;
+    }
     if (n->cond.elseb) {
       n->cond.elseb = resolve(n->cond.elseb, scope, ctx);
+      if (n->cond.cond == Const_false && (ctx->flags & ParseOpt)) {
+        // [optimization] then branch is never taken
+        return n->cond.elseb;
+      }
     }
     break;
 

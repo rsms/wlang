@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 # encoding: utf8
 #
-# This script reads from ir/arch_*.lisp file and patches the following source files:
+# This script reads from:
+# - src/ir/arch_*.lisp
+# - src/types.h
+# - src/token.h
+# and patches:
 # - src/ir/op.h
 # - src/ir/op.c
 # - src/token.h
@@ -21,7 +25,7 @@ os.chdir(os.path.dirname(os.path.dirname(scriptfile)))
 scriptname = os.path.relpath(scriptfile)  # e.g. "misc/gen_ops.py"
 
 DRY_RUN = False  # don't actually write files
-DEBUG = False    # log stuff to stdout
+DEBUG   = False  # log stuff to stdout
 
 # S-expression types
 Symbol = str              # A Scheme Symbol is implemented as a Python str
@@ -45,14 +49,12 @@ typeCodeToIRType :{str:[str]} = {
   "uint64":  ["u64", "i64"],
   "float32": ["f32"],
   "float64": ["f64"],
-  # "int":     ["SINT"],
-  # "uint":    ["UINT"],
 }
 
-typeCodeAliases = set([
-  "int",
-  "uint",
-])
+typeCodeAliases = {
+  "int":  "int32",
+  "uint": "uint32",
+}
 
 auxTypes = [
   "IRAuxBool",
@@ -143,7 +145,7 @@ OpKeyAttributes = set([
 # the IROpDescr struct's fields. (type, name, comment)
 IROpDescr = [
   ("IROpFlag", "flags",      ""),
-  ("TypeCode", "outputType", "invariant: < TypeCode_INTRINSIC_NUM_END"),
+  ("TypeCode", "outputType", "invariant: < TypeCode_NUM_END"),
   ("IRAux",    "aux",        "type of data in IRValue.aux"),
 ]
 
@@ -380,9 +382,9 @@ def gen_IROpFlag():
 
 
 def gen_IROpConvTable(baseArch :Arch, typeCodes :[str]):
-  # generates matrix table of size TypeCode_INTRINSIC_NUM_END*2,
+  # generates matrix table of size TypeCode_NUM_END*2,
   # mapping fromType*toType to a Conv* operation.
-  # const IROp _IROpConvMap[TypeCode_INTRINSIC_NUM_END][TypeCode_INTRINSIC_NUM_END];
+  # const IROp _IROpConvMap[TypeCode_NUM_END][TypeCode_NUM_END];
 
   # typeCodeToIRType TypeCode => [irtype ...]
   # irTypeToTypeCode irtype => [ TypeCode ... ]
@@ -415,15 +417,15 @@ def gen_IROpConvTable(baseArch :Arch, typeCodes :[str]):
         m[outTypeCode] = op
 
   # fail if not all known TypeCodes are covered
-  if len(table) < len(typeCodes):
+  if len(table) < len(typeCodes) - len(typeCodeAliases):
     diff = set(typeCodes).difference(table)
     raise Exception("not all source types covered; missing: %s -> *" % " -> *, ".join(diff))
-  if len(outTypeCodes) < len(typeCodes):
+  if len(outTypeCodes) < len(typeCodes) - len(typeCodeAliases):
     diff = set(typeCodes).difference(outTypeCodes)
     raise Exception("not all destination types covered; missing: * -> %s" % ", * -> ".join(diff))
 
   # generate 2-D table
-  startline = 'const IROp _IROpConvMap[TypeCode_INTRINSIC_NUM_END][TypeCode_INTRINSIC_NUM_END] = {'
+  startline = 'const IROp _IROpConvMap[TypeCode_NUM_END][TypeCode_NUM_END] = {'
   endline   = '};'
   lines = [
     startline,
@@ -434,17 +436,19 @@ def gen_IROpConvTable(baseArch :Arch, typeCodes :[str]):
   # typeCodes is parsed from src/types.h
   missing = []
   for inTypeCode in typeCodes:
-    m = table.get(inTypeCode)
     lines.append("  { // %s -> ..." % inTypeCode)
+    inTypeCode = typeCodeAliases.get(inTypeCode,inTypeCode)
+    m = table.get(inTypeCode)
     for outTypeCode in typeCodes:
+      outTypeCodeC = typeCodeAliases.get(outTypeCode,outTypeCode)
       opname = "Nil"
       if m is not None:
-        op = m.get(outTypeCode)
+        op = m.get(outTypeCodeC)
         if op is not None:
           opname = op.name
-      if opname == "Nil" and inTypeCode != outTypeCode:
-        if (outTypeCode[0] == "u" and outTypeCode[1:] == inTypeCode) or \
-           (inTypeCode[0] == "u" and inTypeCode[1:] == outTypeCode):
+      if opname == "Nil" and inTypeCode != outTypeCodeC:
+        if (outTypeCodeC[0] == "u" and outTypeCodeC[1:] == inTypeCode) or \
+           (inTypeCode[0] == "u" and inTypeCode[1:] == outTypeCodeC):
           # ignore signed differences. e.g. uint32 -> int32
           pass
         else:
@@ -487,12 +491,15 @@ def gen_IROpSwitches(baseArch :Arch, typeCodes :[str], astOps):
         v.append((astTok, op))
         iropsByInput[op.inputSig] = v
 
-  # print("iropsByInput", rep(iropsByInput))
-  # return
-
-  # for astTok, opPrefix in astOpToIROpPrefix.items():
+  revTypeCodeAliases = {}
+  for alias, target in typeCodeAliases.items():
+    v = revTypeCodeAliases.get(target,[])
+    v.append(alias)
+    revTypeCodeAliases[target] = v
 
   def genAstOpToIrOpSwitch(lines, typeCode, ops):
+    for alias in revTypeCodeAliases.get(typeCode,[]):
+      lines.append('      case TypeCode_%s:' % alias)
     lines.append('      case TypeCode_%s: switch (tok) {' % typeCode)
     longestAstOp = 0
     longestIrOp = 0
@@ -505,7 +512,6 @@ def gen_IROpSwitches(baseArch :Arch, typeCodes :[str], astOps):
     lines.append('        default: return OpNil;')
     lines.append('      }')
 
-
   startline = '  //!BEGIN_AST_TO_IR_OP_SWITCHES'
   endline   = '  //!END_AST_TO_IR_OP_SWITCHES'
   lines = [
@@ -514,7 +520,13 @@ def gen_IROpSwitches(baseArch :Arch, typeCodes :[str], astOps):
   ]
 
   lines.append('switch (type1) {')
+  i = 0
   for type1 in typeCodes:
+    if type1 in typeCodeAliases:
+      continue
+
+    for alias in revTypeCodeAliases.get(type1,[]):
+      lines.append('  case TypeCode_%s:' % alias)
     lines.append('  case TypeCode_%s:' % type1)
     lines.append('    switch (type2) {')
 
@@ -528,6 +540,8 @@ def gen_IROpSwitches(baseArch :Arch, typeCodes :[str], astOps):
 
     # 2-input
     for type2 in typeCodes:
+      if type2 in typeCodeAliases:
+        continue
 
       ops2 = []  # [ (astPrefix, Op) ... ]
       for irtype1 in typeCodeToIRType[type1]:
@@ -560,7 +574,7 @@ def mustFind(s, substr, start=None):
 def gen_IROpConstMap(baseArch :Arch, typeCodes :[str]):
   constOps = createConstantOpsMap([baseArch])  # { irtype: [Op] }
   # print("constOps", constOps)
-  startline = 'const IROp _IROpConstMap[TypeCode_INTRINSIC_NUM_END] = {'
+  startline = 'const IROp _IROpConstMap[TypeCode_NUM_END] = {'
   endline   = '};'
   lines = [
     startline,
@@ -569,7 +583,7 @@ def gen_IROpConstMap(baseArch :Arch, typeCodes :[str]):
   for typeCode in typeCodes:
     # find best matching constop
     op = None
-    for irtype in typeCodeToIRType[typeCode]:
+    for irtype in typeCodeToIRType[typeCodeAliases.get(typeCode, typeCode)]:
       op = constOps.get(irtype)
       if op:
         break
@@ -755,7 +769,6 @@ def loadTypeCodes(filename :str) -> [str]:
   typeCodes = []
   started = False
   ended = False
-  aliasesStarted = False
   startSubstring = b"#define TYPE_CODES"
   endName = "NUM_END"
   verifiedTypeCodes = set()
@@ -774,14 +787,9 @@ def loadTypeCodes(filename :str) -> [str]:
           if name == endName:
             ended = True
             break
-          if aliasesStarted:
-            if name not in typeCodeAliases:
-              raise Exception("TypeCode %r missing in typeCodeAliases map" % name)
-          elif name == "INTRINSIC_NUM_END":
-            aliasesStarted = True
           else:
             typeCodes.append(name)
-            if name in typeCodeToIRType:
+            if name in typeCodeToIRType or name in typeCodeAliases:
               verifiedTypeCodes.add(name)
             else:
               raise Exception("TypeCode %r missing in typeCodeToIRType map" % name)
@@ -790,7 +798,7 @@ def loadTypeCodes(filename :str) -> [str]:
     raise Exception("unable to find start substring %r" % startSubstring)
   if not ended:
     raise Exception("unable to find ending typecode %r" % endName)
-  if len(typeCodeToIRType) != len(verifiedTypeCodes):
+  if len(typeCodeToIRType) + len(typeCodeAliases) != len(verifiedTypeCodes):
     diff = set(typeCodeToIRType.keys()).difference(verifiedTypeCodes)
     raise Exception(
       "%d TypeCode(s) in typeCodeToIRType missing in %s: %s" %

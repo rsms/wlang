@@ -35,6 +35,20 @@ const char* NodeClassName(NodeClass c) {
 }
 
 
+const Node* NodeEffectiveType(const Node* n) {
+  auto t = n->type;
+  if (t == NULL) {
+    if (n->kind == NIntLit || n->kind == NFloatLit) {
+      // numeric literals are lazily typed
+      t = TypeCodeToTypeNode(n->val.t);
+    } else {
+      t = Type_nil;
+    }
+  }
+  return t;
+}
+
+
 // NBad node
 static const Node _NodeBad = {NBad,{0,0,0},NULL,{0}};
 const Node* NodeBad = &_NodeBad;

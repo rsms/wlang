@@ -288,7 +288,6 @@ Node* const _TypeCodeToTypeNodeMap[TypeCode_CONCRETE_END] = {
   (Node*)&_Type_uint64, // TypeCode_uint64
   (Node*)&_Type_float32, // TypeCode_float32
   (Node*)&_Type_float64, // TypeCode_float64
-  (Node*)&_Type_nil, // TypeCode_INTRINSIC_NUM_END
   (Node*)&_Type_int, // TypeCode_int
   (Node*)&_Type_uint, // TypeCode_uint
   (Node*)&_Type_nil, // TypeCode_NUM_END

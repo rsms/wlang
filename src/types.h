@@ -13,7 +13,7 @@ typedef enum TypeCodeFlag {
 } TypeCodeFlag;
 
 // TypeCode with their string encoding.
-// Note: misc/gen_ops.py relies on "#define TYPE_CODES" and "INTRINSIC_NUM_END".
+// Note: misc/gen_ops.py relies on "#define TYPE_CODES" and "NUM_END".
 #define TYPE_CODES(_) \
   /* named types exported in the global scope. Names must match those of TYPE_SYMS. */ \
   /* Note: numeric types are listed first as their enum value is used as dense indices. */ \
@@ -31,7 +31,6 @@ typedef enum TypeCodeFlag {
   _( uint64    , '8', TypeCodeFlagSize8 | TypeCodeFlagInt ) \
   _( float32   , 'f', TypeCodeFlagSize4 | TypeCodeFlagFloat ) \
   _( float64   , 'F', TypeCodeFlagSize8 | TypeCodeFlagFloat ) \
-  _( INTRINSIC_NUM_END, 0, 0 ) /* sentinel; not a TypeCode */ \
   _( int       , 'i', TypeCodeFlagInt | TypeCodeFlagSigned ) \
   _( uint      , 'u', TypeCodeFlagInt ) \
   _( NUM_END, 0, 0 ) /* sentinel; not a TypeCode */ \
@@ -62,9 +61,8 @@ static_assert(TypeCode_int8+1  == TypeCode_uint8,  "integer order incorrect");
 static_assert(TypeCode_int16+1 == TypeCode_uint16, "integer order incorrect");
 static_assert(TypeCode_int32+1 == TypeCode_uint32, "integer order incorrect");
 static_assert(TypeCode_int64+1 == TypeCode_uint64, "integer order incorrect");
-// must be less than 32 intrinsic types
-static_assert(TypeCode_INTRINSIC_NUM_END <= 32,
-              "there must be no more than 32 basic numeric types");
+// must be less than 32 numeric types
+static_assert(TypeCode_NUM_END <= 32, "there must be no more than 32 numeric types");
 
 // named types exported in the global scope.
 // IMPORTANT: These must match the list of TypeCodes up until CONCRETE_END.
