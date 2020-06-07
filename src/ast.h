@@ -163,15 +163,23 @@ typedef struct Node {
 // inline static void NodeFree(Node* _) {}
 Str NodeRepr(const Node* n, Str s); // return human-readable printable text representation
 
-// NodeReprShort returns a short string representation of a node,
-// suitable for use in error messages.
-// Note: The returned string is valid until the next call to TmpRecycle.
-const char* NodeReprShort(const Node*);
+// nodestr returns a short representation of an AST node, suitable for use in error messages.
+// Note: The returned string is garbage collected.
+ConstStr nodestr(const Node*);
+
+// sdscatnode appends a short representation of an AST node to s.
+// It produces the same result as nodestr.
+sds sdscatnode(sds s, const Node* n);
 
 // NodeKindIs{Type|Const|Expr} returns true if kind is of class Type, Const or Expr.
 static inline bool NodeKindIsType(NodeKind kind) { return NodeClassTable[kind] == NodeClassType; }
 static inline bool NodeKindIsConst(NodeKind kind) { return NodeClassTable[kind] == NodeClassConst;}
 static inline bool NodeKindIsExpr(NodeKind kind) { return NodeClassTable[kind] == NodeClassExpr; }
+
+// NodeIs{Type|Const|Expr} calls NodeKindIs{Type|Const|Expr}(n->kind)
+static inline bool NodeIsType(const Node* n) { return NodeKindIsType(n->kind); }
+static inline bool NodeIsConst(const Node* n) { return NodeKindIsConst(n->kind); }
+static inline bool NodeIsExpr(const Node* n) { return NodeKindIsExpr(n->kind); }
 
 // Retrieve the effective "printable" type of a node.
 // For nodes which are lazily typed, like IntLit, this returns the default type of the constant.

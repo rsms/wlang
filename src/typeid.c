@@ -194,7 +194,7 @@ bool TypeEquals(Node* a, Node* b) {
 //   auto actual = CheckTypeConversion((Node*)fromType, (Node*)toType, intsize);
 //   if (actual != expected) {
 //     printf("CheckTypeConversion(%s <- %s) => %s; expected %s\n",
-//       NodeReprShort(toType), NodeReprShort(fromType),
+//       nodestr(toType), nodestr(fromType),
 //       TypeConvName(actual), TypeConvName(expected));
 //     assert(actual == expected);
 //   }

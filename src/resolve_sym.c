@@ -76,7 +76,7 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
         // Example:
         //   (Ident true #user) -> (Ident true #builtin) -> (Bool true #builtin)
         //
-        // dlog("  RET target %s -> %s", NodeKindName(target->kind), NodeReprShort(target));
+        // dlog("  RET target %s -> %s", NodeKindName(target->kind), nodestr(target));
         if (ctx->assignNest > 0) {
           // assignNest is >0 when resolving the LHS of an assignment.
           // In this case we do not unwind constants as that would lead to things like this:
@@ -91,7 +91,7 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
         // dlog("resolveIdent FINAL %s => %s (target %s) type? %d",
         //   n->ref.name, NodeKindName(n->kind), NodeKindName(target->kind),
         //   NodeKindIsType(target->kind));
-        // dlog("  RET n %s -> %s", NodeKindName(n->kind), NodeReprShort(n));
+        // dlog("  RET n %s -> %s", NodeKindName(n->kind), nodestr(n));
         return n;
     }
   }
@@ -202,7 +202,7 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
       if (recv->kind == NBasicType) {
         n->kind = NTypeCast;
       } else {
-        CCtxErrorf(ctx->cc, n->pos, "cannot call %s", NodeReprShort(recv));
+        CCtxErrorf(ctx->cc, n->pos, "cannot call %s", nodestr(recv));
       }
     }
     break;

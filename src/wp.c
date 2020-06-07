@@ -81,7 +81,7 @@ void parsefile(Str filename, Scope* pkgscope) {
 
   end:
   CCtxFree(&cc);
-  TmpRecycle();
+  memgc_collect();
 }
 
 

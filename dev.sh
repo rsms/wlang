@@ -195,10 +195,9 @@ if $OPT_ANALYZE; then
 
   ninja -t compdb compile_obj > build/debug-compilation-database.json
   git status --porcelain | sed 's/^...//' > build/git-dirty-files.txt
-  infer capture --reactive --changed-files-index build/git-dirty-files.txt \
-                --no-progress-bar --compilation-database build/debug-compilation-database.json
-  infer analyze --reactive --changed-files-index build/git-dirty-files.txt
-  # echo "Analyzer watching for file changes..."
+  infer capture --no-progress-bar --compilation-database build/debug-compilation-database.json
+  infer analyze --changed-files-index build/git-dirty-files.txt
+  echo "Analyzer watching for file changes..."
 
   set +e
 
@@ -221,11 +220,11 @@ if $OPT_ANALYZE; then
     ninja debug >/dev/null && \
     ninja -t compdb compile_obj > build/debug-compilation-database.json
     git status --porcelain | sed 's/^...//' > build/git-dirty-files.txt
-    infer capture --reactive --changed-files-index build/analyze_changed_files2.txt \
+    infer capture --changed-files-index build/analyze_changed_files2.txt \
                   --no-progress-bar \
                   --compilation-database build/debug-compilation-database.json && \
     infer analyze --progress-bar-style plain \
-                  --reactive --changed-files-index build/analyze_changed_files2.txt
+                  --changed-files-index build/analyze_changed_files2.txt
   done
   set -e
 else

@@ -18,8 +18,8 @@ static void errInvalidBinOp(CCtx* cc, Node* n) {
   CCtxErrorf(cc, n->pos,
     "invalid operation: %s (mismatched types %s and %s)",
     TokName(n->op.op),
-    NodeReprShort(ltype),
-    NodeReprShort(rtype));
+    nodestr(ltype),
+    nodestr(rtype));
 }
 
 
@@ -126,17 +126,17 @@ Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
 
   dlog_mod("[%s] %s of type %s as %s",
     explicit ? "explicit" : "implicit",
-    NodeReprShort(n), NodeReprShort(n->type), NodeReprShort(t));
+    nodestr(n), nodestr(n->type), nodestr(t));
 
   if (n->type != NULL && n->type != Type_nil && n->type != Type_ideal) {
     if (!explicit) {
       // in implicit mode, if something is typed already, we don't try and convert the type.
-      dlog_mod("[implicit] no-op -- n is already typed: %s", NodeReprShort(n->type));
+      dlog_mod("[implicit] no-op -- n is already typed: %s", nodestr(n->type));
       return n;
     }
     if (TypeEquals(n->type, t)) {
       // in both modes: if n is already of target type, stop here.
-      dlog_mod("no-op -- n is already of target type %s", NodeReprShort(n->type));
+      dlog_mod("no-op -- n is already of target type %s", nodestr(n->type));
       return n;
     }
   }
@@ -177,7 +177,7 @@ Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
       }
       n->type = n->op.left->type;
     } else {
-      dlog_mod("TODO NBinOp %s as %s", NodeReprShort(n), NodeReprShort(t));
+      dlog_mod("TODO NBinOp %s as %s", nodestr(n), nodestr(t));
     }
     break;
 

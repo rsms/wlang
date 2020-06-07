@@ -23,8 +23,16 @@
 #ifndef MALLOC_280_H
 #define MALLOC_280_H
 
+// CONFIG
 #define USE_DL_PREFIX 1
 #define MSPACES 1
+#define NO_MALLINFO 1 /* disable mallinfo as we don't need it */
+#if DEBUG
+  // Enable extra checking by placing word-sized "footers" in every allocated chunk.
+  // This adds space and time overhead but does allow dlmalloc to detect errors like
+  // attempt to free a pointer in one mspace which was allocated in another.
+  #define FOOTERS 1
+#endif
 
 #ifdef __cplusplus
 extern "C" {

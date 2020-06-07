@@ -213,7 +213,7 @@ static IRValue* addAssign(IRBuilder* u, Sym name /*nullable*/, IRValue* value) {
 static IRValue* addIdent(IRBuilder* u, Node* n) {
   assert(n->kind == NIdent);
   assert(n->ref.target != NULL); // never unresolved
-  // dlog("addIdent \"%s\" target = %s", n->ref.name, NodeReprShort(n->ref.target));
+  // dlog("addIdent \"%s\" target = %s", n->ref.name, nodestr(n->ref.target));
   if (n->ref.target->kind == NLet) {
     // variable
     return readVariable(u, n->ref.name, n->type, u->b);
@@ -233,7 +233,7 @@ static IRValue* addTypeCast(IRBuilder* u, Node* n) {
   auto dstType = n->call.receiver;
 
   if (dstType->kind != NBasicType) {
-    CCtxErrorf(u->cc, n->pos, "invalid type %s in type cast", NodeReprShort(dstType));
+    CCtxErrorf(u->cc, n->pos, "invalid type %s in type cast", nodestr(dstType));
     return TODO_Value(u);
   }
 
@@ -263,7 +263,7 @@ static IRValue* addArg(IRBuilder* u, Node* n) {
   assert(n->kind == NArg);
   if (n->type->kind != NBasicType) {
     // TODO add support for NTupleType et al
-    CCtxErrorf(u->cc, n->pos, "invalid argument type %s", NodeReprShort(n->type));
+    CCtxErrorf(u->cc, n->pos, "invalid argument type %s", nodestr(n->type));
     return TODO_Value(u);
   }
   auto v = IRValueNew(u->f, u->b, OpArg, n->type->t.basic.typeCode, &n->pos);
@@ -277,8 +277,8 @@ static IRValue* addBinOp(IRBuilder* u, Node* n) {
 
   dlog("addBinOp %s %s = %s",
     TokName(n->op.op),
-    NodeReprShort(n->op.left),
-    n->op.right != NULL ? NodeReprShort(n->op.right) : "nil"
+    nodestr(n->op.left),
+    n->op.right != NULL ? nodestr(n->op.right) : "nil"
   );
 
   // gen left operand
@@ -320,13 +320,13 @@ static IRValue* addLet(IRBuilder* u, Node* n) {
   if (n->type == NULL || n->type == Type_ideal) {
     // this means the let binding is unused; the type resolver never bothered
     // resolving it as nothing referenced it.
-    dlog("[ir/builder] discard unused let %s", NodeReprShort(n));
+    dlog("[ir/builder] discard unused let %s", nodestr(n));
     return NULL;
   }
   dlog("addLet %s %s = %s",
     n->field.name ? n->field.name : "_",
-    NodeReprShort(n->type),
-    n->field.init ? NodeReprShort(n->field.init) : "nil"
+    nodestr(n->type),
+    n->field.init ? nodestr(n->field.init) : "nil"
   );
   auto v = addExpr(u, n->field.init); // right-hand side
   return addAssign(u, n->field.name, v);
@@ -369,7 +369,7 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
   if (control->type != TypeCode_bool) {
     // AST should not contain conds that are non-bool
     errorf(u, n->cond.cond->pos,
-      "invalid non-bool type in condition %s", NodeReprShort(n->cond.cond));
+      "invalid non-bool type in condition %s", nodestr(n->cond.cond));
   }
 
   // [optimization] Early optimization of constant boolean condition
@@ -455,7 +455,7 @@ static IRFun* addFun(IRBuilder* u, Node* n) {
     return f;
   }
 
-  dlog("addFun %s", NodeReprShort(n));
+  dlog("addFun %s", nodestr(n));
 
   // allocate a new function and its entry block
   f = IRFunNew(u->mem, n);

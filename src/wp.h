@@ -194,14 +194,6 @@ inline static Str strgrow(Str s, size_t addlSize) {
 const char* strrepr(ConstStr);
 
 
-// TmpData allocates "size" number of bytes to be used for a short amount of time.
-// The returned memory is valid until the next call to TmpRecycle() in the same thread.
-void* TmpData(size_t size);
-
-// TmpRecycle frees all memory allocated with TmpData.
-void TmpRecycle();
-
-
 // Sym
 #include "sym.h"
 

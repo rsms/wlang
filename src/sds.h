@@ -249,6 +249,7 @@ static inline void sdssetalloc(sds s, size_t newlen) {
 }
 
 sds sdsnewlen(const void *init, size_t initlen);
+sds sdsnewcap(size_t initcap); // RSMS
 sds sdsnew(const char *init);
 #define sdsnewfmt(fmt, ...) sdscatfmt(sdsempty(), (fmt), ##__VA_ARGS__)
 sds sdsempty(void);
@@ -257,8 +258,9 @@ void sdsfree(sds s);
 sds sdsgrowzero(sds s, size_t len);
 sds sdsgrow(sds s, size_t len, unsigned char c); // RSMS
 sds sdscatlen(sds s, const void *t, size_t len);
-sds sdscat(sds s, const char *t);
+static sds sdscat(sds s, const char *t);
 sds sdscatsds(sds s, constsds t);
+sds sdscatc(sds s, char c); // RSMS
 sds sdscpylen(sds s, const char *t, size_t len);
 sds sdscpy(sds s, const char *t);
 
@@ -305,5 +307,10 @@ void sds_free(void *ptr);
 #ifdef REDIS_TEST
 int sdsTest(int argc, char *argv[]);
 #endif
+
+// RSMS enables use of constexpr strlen
+inline static sds sdscat(sds s, const char *t) {
+    return sdscatlen(s, t, strlen(t));
+}
 
 #endif

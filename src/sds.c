@@ -42,6 +42,15 @@
 const char *SDS_NOINIT = "SDS_NOINIT";
 
 
+// RSMS
+sds sdsnewcap(size_t initcap) {
+    sds s = sdsnewlen(SDS_NOINIT, initcap);
+    sdssetlen(s, 0);
+    s[0] = '\0';
+    return s;
+}
+
+
 /* Create a new sds string with the content specified by the 'init' pointer
  * and 'initlen'.
  * If NULL is used for 'init' the string is initialized with zero bytes.
@@ -394,9 +403,9 @@ sds sdscatlen(sds s, const void *t, size_t len) {
  *
  * After the call, the passed sds string is no longer valid and all the
  * references must be substituted with the new pointer returned by the call. */
-sds sdscat(sds s, const char *t) {
-    return sdscatlen(s, t, strlen(t));
-}
+// sds sdscat(sds s, const char *t) {
+//     return sdscatlen(s, t, strlen(t));
+// } // RSMS moved to inline so that constexpr strlen can be used
 
 /* Append the specified sds 't' to the existing sds 's'.
  *
@@ -404,6 +413,18 @@ sds sdscat(sds s, const char *t) {
  * references must be substituted with the new pointer returned by the call. */
 sds sdscatsds(sds s, constsds t) {
     return sdscatlen(s, t, sdslen(t));
+}
+
+// RSMS
+sds sdscatc(sds s, char c) {
+    if (sdsavail(s) < 1) {
+        s = sdsMakeRoomFor(s,1);
+    }
+    size_t curlen = sdslen(s);
+    s[curlen++] = c;
+    s[curlen] = '\0';
+    sdssetlen(s, curlen);
+    return s;
 }
 
 /* Destructively modify the sds string 's' to hold the specified binary

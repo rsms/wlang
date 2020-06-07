@@ -197,11 +197,7 @@ const char* NValStr(const NVal* v) {
   if (s == NULL) {
     return "";
   }
-  // copy into tmpdata which is safe to return
-  char* buf = TmpData(sdslen(s) + 1);
-  memcpy(buf, s, sdslen(s) + 1 /* include nil byte */);
-  sdsfree(s);
-  return buf;
+  return memgcsds(s);
 }
 
 
@@ -493,46 +489,183 @@ Str NodeRepr(const Node* n, Str s) {
 }
 
 
-ConstStr NodeReprShort(const Node* n) {
-  // return a short string representation of a node, suitable for use in error messages.
-  // Important: The returned string is invalidated on the next call to NodeReprShort,
-  // so either copy it into an sds Str or make use of it right away.
-
-  // Note: Do not include type information.
-  // Instead, in use sites, call NodeReprShort individually for n->type when needed.
-
-  // TODO: Rewrite all of this to use TmpData instead of sds
-
-  ReprCtx ctx = { 0 };
-  ctx.maxdepth = 2;
-  ctx.pretty = false;
-  ctx.includeTypes = false;
-  PtrMapInit(&ctx.seen, 32, NULL);
-
-  auto s = nodeRepr(n, sdsempty(), &ctx, /*depth*/ 1);
-
-  PtrMapDealloc(&ctx.seen);
-
-  // copy into tmpdata which is safe to return
-  char* buf = TmpData(sdslen(s) + 1);
-  memcpy(buf, s, sdslen(s) + 1);
-  sdsfree(s);
-
-  return buf;
+static sds _sdscatNodeList(sds s, const NodeList* nodeList) {
+  bool isFirst = true;
+  NodeListForEach(nodeList, n, {
+    if (isFirst) {
+      isFirst = false;
+    } else {
+      s = sdscatc(s, ' ');
+    }
+    s = sdscatnode(s, n);
+  });
+  return s;
 }
 
 
-// static void nodeArrayGrow(Memory mem, NodeArray* a, size_t addl) {
-//   u32 reqcap = a->len + addl;
-//   if (a->cap < reqcap) {
-//     u32 cap = align2(reqcap, sizeof(Node) * 4);
-//     // allocate new memory
-//     void* m2 = memalloc(mem, sizeof(Node) * cap);
-//     memcpy(m2, a->items, sizeof(Node) * a->cap);
-//     a->items = (Node**)m2;
-//     a->cap = cap;
-//   }
-// }
+// appends a short representation of an AST node to s, suitable for use in error messages.
+sds sdscatnode(sds s, const Node* n) {
+  // Note: Do not include type information.
+  // Instead, in use sites, call nodestr individually for n->type when needed.
+
+  if (n == NULL) {
+    return sdscat(s, "nil");
+  }
+
+  switch (n->kind) {
+
+  // uses no extra data
+  case NNil: // nil
+    s = sdscat(s, "nil");
+    break;
+
+  case NZeroInit: // init
+    s = sdscat(s, "init");
+    break;
+
+  case NBoolLit: // true | false
+    if (n->val.i == 0) {
+      s = sdscat(s, "false");
+    } else {
+      s = sdscat(s, "true");
+    }
+    break;
+
+  case NIntLit: // 123
+    s = sdscatfmt(s, "%U", n->val.i);
+    break;
+
+  case NFloatLit: // 12.3
+    s = sdscatprintf(s, "%f", n->val.f);
+    break;
+
+  case NComment: // #"comment"
+    s = sdscat(s, "#\"");
+    s = sdscatrepr(s, (const char*)n->str.ptr, n->str.len);
+    s = sdscatc(s, '"');
+    break;
+
+  case NIdent: // foo
+    s = sdscatsds(s, n->ref.name);
+    break;
+
+  case NBinOp: // foo+bar
+    s = sdscatnode(s, n->op.left);
+    s = sdscat(s, TokName(n->op.op));
+    s = sdscatnode(s, n->op.right);
+    break;
+
+  case NPostfixOp: // foo++
+    s = sdscatnode(s, n->op.left);
+    s = sdscat(s, TokName(n->op.op));
+    break;
+
+  case NPrefixOp: // -foo
+    s = sdscat(s, TokName(n->op.op));
+    s = sdscatnode(s, n->op.left); // note: prefix op uses left, not right.
+    break;
+
+  case NAssign: // thing=
+    s = sdscatnode(s, n->op.left);
+    s = sdscatc(s, '=');
+    break;
+
+  case NReturn: // return thing
+    s = sdscat(s, "return ");
+    s = sdscatnode(s, n->op.left);
+    break;
+
+  case NBlock: // {int}
+    s = sdscatc(s, '{');
+    s = sdscatnode(s, n->type);
+    s = sdscatc(s, '}');
+    break;
+
+  case NTuple: { // (one two 3)
+    s = sdscatc(s, '(');
+    s = _sdscatNodeList(s, &n->array.a);
+    s = sdscatc(s, ')');
+    break;
+  }
+
+  case NFile: // file
+    s = sdscat(s, "file");
+    break;
+
+  case NLet: // foo=
+    s = sdscatfmt(s, "%S=", n->field.name);
+    break;
+
+  case NArg: // foo
+    s = sdscatsds(s, n->field.name);
+    break;
+
+  case NFun: // fun foo
+    if (n->fun.name == NULL) {
+      s = sdscat(s, "fun _");
+    } else {
+      s = sdscatfmt(s, "fun %S", n->fun.name);
+    }
+    break;
+
+  case NTypeCast: // typecast<int16>
+    s = sdscat(s, "typecast<");
+    s = sdscatnode(s, n->call.receiver);
+    s = sdscatc(s, '>');
+    break;
+
+  case NCall: // call foo
+    s = sdscat(s, "call ");
+    s = sdscatnode(s, n->call.receiver);
+    break;
+
+  case NIf: // if
+    s = sdscat(s, "if");
+    break;
+
+  case NBasicType: // int
+    if (n == Type_ideal) {
+      s = sdscat(s, "ideal");
+    } else {
+      s = sdscatsds(s, n->t.basic.name);
+    }
+    break;
+
+  case NFunType: // (int int)->bool
+    if (n->t.fun.params == NULL) {
+      s = sdscat(s, "()");
+    } else {
+      s = sdscatnode(s, n->t.fun.params);
+    }
+    s = sdscat(s, "->");
+    s = sdscatnode(s, n->t.fun.params); // ok if NULL
+    break;
+
+  case NTupleType: // (int bool Foo)
+    s = sdscatc(s, '(');
+    s = _sdscatNodeList(s, &n->t.tuple);
+    s = sdscatc(s, ')');
+    break;
+
+  // The remaining types are not expected to appear. Use their kind if they do.
+  case NBad:
+  case NNone:
+  case NField: // field is not yet implemented by parser
+    s = sdscat(s, NodeKindNameTable[n->kind]);
+    break;
+
+  case _NodeKindMax:
+    break;
+  }
+
+  return s;
+}
+
+
+ConstStr nodestr(const Node* n) {
+  auto s = sdscatnode(sdsnewcap(16), n);
+  return memgcsds(s); // GC
+}
 
 
 void NodeListAppend(Memory mem, NodeList* a, Node* n) {

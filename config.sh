@@ -19,7 +19,6 @@ sources=( \
   src/source.c \
   src/str.c \
   src/sym.c \
-  src/tmpdata.c \
   src/token.c \
   src/tstyle.c \
   src/typeid.c \

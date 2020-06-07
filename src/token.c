@@ -9,7 +9,7 @@ const char* TokName(Tok t) {
 
     case TKeywordsStart: return "TKeywordsStart";
 
-    #define I_ENUM(str, name) case name: return "keyword." #str;
+    #define I_ENUM(str, name) case name: return "keyword " #str;
     TOKEN_KEYWORDS(I_ENUM)
     #undef I_ENUM
 

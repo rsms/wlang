@@ -30,13 +30,13 @@ inline static void ArrayInitWithStorage(Array* a, void* storagePtr, u32 storageS
 //   a->onheap = true;
 // }
 
-// static void ArrayFree(Array* a) {
-//   if (a->onheap) {
-//     free(a->v);
-//     a->v = NULL;
-//     a->cap = 0;
-//   }
-// }
+inline static void ArrayFree(Array* a, Memory mem /* nullable */) {
+  if (a->onheap) {
+    memfree(mem, a->v);
+    a->v = NULL;
+    a->cap = 0;
+  }
+}
 
 // cap = align2(len + addl)
 void ArrayGrow(Array*, size_t addl, Memory mem /* nullable */);
