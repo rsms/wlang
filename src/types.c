@@ -26,12 +26,12 @@ const TypeCodeFlag TypeCodeFlagMap[TypeCode_MAX] = {
 const char* CTypeName(CType ct) {
   switch (ct) {
   case CType_INVALID: return "INVALID";
-  case CTypeInt:      return "int";
-  case CTypeRune:     return "rune";
-  case CTypeFloat:    return "float";
-  case CTypeStr:      return "str";
-  case CTypeBool:     return "bool";
-  case CTypeNil:      return "nil";
+  case CType_int:      return "int";
+  case CType_rune:     return "rune";
+  case CType_float:    return "float";
+  case CType_str:      return "str";
+  case CType_bool:     return "bool";
+  case CType_nil:      return "nil";
   }
   return "?";
 }

@@ -15,14 +15,13 @@
 typedef struct {
   CCtx* cc;
   u32   idealNest;  // resolves ideal types when > 0
-  CType lastCType;  // the most recent CType picked in resolveIdealType
 } ResCtx;
 
 
 static Node* resolveType(ResCtx* ctx, Node* n);
 
 void ResolveType(CCtx* cc, Node* n) {
-  ResCtx ctx = { cc, 0, 0 };
+  ResCtx ctx = { cc, 0 };
   n->type = resolveType(&ctx, n);
 }
 
@@ -56,60 +55,6 @@ static Node* resolveFunType(ResCtx* ctx, Node* n) {
 
   n->type = ft;
   return ft;
-}
-
-
-// resolveIdealType resolves types of "untyped" expressions.
-//
-// Returns NULL to signal "pass through" meaning this function doesn't handle n->kind.
-// In this case the caller should traverse the AST at n and call resolveIdealType as needed
-// when untyped nodes are found. This simplifies the implementation and avoids duplicate
-// traversal code in resolveIdealType and resolveType.
-//
-static Node* resolveIdealType(ResCtx* ctx, Node* n) {
-  assert(n != NULL);
-  assert(NodeIsUntyped(n));
-
-  dlog("resolveIdealType n->kind = %s", NodeKindName(n->kind));
-
-  switch (n->kind) {
-
-  case NIntLit:
-  case NFloatLit:
-    // Note: NBoolLit is always typed
-    ctx->lastCType = n->val.ct;
-    return n->type = IdealType(n->val.ct);
-
-  case NBinOp:
-    switch (n->op.op) {
-      case TEq:       // "=="
-      case TNEq:      // "!="
-      case TLt:       // "<"
-      case TLEq:      // "<="
-      case TGt:       // ">"
-      case TGEq:      // ">="
-      case TAndAnd:   // "&&
-      case TPipePipe: // "||
-        return n->type = Type_bool;
-
-      case TShl:
-      case TShr:
-        // shifts are always of left (receiver) type
-        return n->type = resolveType(ctx, n->op.left);
-
-      default: {
-        auto lt  = resolveType(ctx, n->op.left);
-        auto lct = ctx->lastCType;
-        auto rt  = resolveType(ctx, n->op.right);
-        auto rct = ctx->lastCType;
-        return n->type = (lct > rct) ? lt : rt;
-      }
-    }
-
-  default:
-    dlog("TODO resolveIdealType kind %s", NodeKindName(n->kind));
-    return NULL;
-  }
 }
 
 
@@ -379,3 +324,59 @@ static Node* resolveType(ResCtx* ctx, Node* n) {
 
   return n->type;
 }
+
+
+
+/*
+// resolveIdealType resolves types of "untyped" expressions.
+//
+// Returns NULL to signal "pass through" meaning this function doesn't handle n->kind.
+// In this case the caller should traverse the AST at n and call resolveIdealType as needed
+// when untyped nodes are found. This simplifies the implementation and avoids duplicate
+// traversal code in resolveIdealType and resolveType.
+//
+static Node* resolveIdealType(ResCtx* ctx, Node* n) {
+  assert(n != NULL);
+  assert(NodeIsUntyped(n));
+
+  dlog("resolveIdealType n->kind = %s", NodeKindName(n->kind));
+
+  switch (n->kind) {
+
+  case NIntLit:
+  case NFloatLit:
+    // Note: NBoolLit is always typed
+    ctx->lastCType = n->val.ct;
+    return n->type = IdealType(n->val.ct);
+
+  case NBinOp:
+    switch (n->op.op) {
+      case TEq:       // "=="
+      case TNEq:      // "!="
+      case TLt:       // "<"
+      case TLEq:      // "<="
+      case TGt:       // ">"
+      case TGEq:      // ">="
+      case TAndAnd:   // "&&
+      case TPipePipe: // "||
+        return n->type = Type_bool;
+
+      case TShl:
+      case TShr:
+        // shifts are always of left (receiver) type
+        return n->type = resolveType(ctx, n->op.left);
+
+      default: {
+        auto lt  = resolveType(ctx, n->op.left);
+        auto lct = ctx->lastCType;
+        auto rt  = resolveType(ctx, n->op.right);
+        auto rct = ctx->lastCType;
+        return n->type = (lct > rct) ? lt : rt;
+      }
+    }
+
+  default:
+    dlog("TODO resolveIdealType kind %s", NodeKindName(n->kind));
+    return NULL;
+  }
+}*/

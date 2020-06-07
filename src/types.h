@@ -70,12 +70,12 @@ static_assert(TypeCode_NUM_END <= 32, "there must be no more than 32 numeric typ
 // takes precedence over a CType with a lower value in cases like untyped binary operations.
 typedef enum CType {
   CType_INVALID,
-  CTypeInt,
-  CTypeRune,
-  CTypeFloat,
-  CTypeStr,
-  CTypeBool,
-  CTypeNil,
+  CType_int,
+  CType_rune,
+  CType_float,
+  CType_str,
+  CType_bool,
+  CType_nil,
 } CType;
 const char* CTypeName(CType ct);
 

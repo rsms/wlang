@@ -48,13 +48,13 @@ const Node* NodeEffectiveType(const Node* n) {
 
 Node* IdealType(CType ct) {
   switch (ct) {
-  case CTypeInt:   return Type_int;
-  case CTypeFloat: return Type_float64;
-  case CTypeStr:   return Type_str;
-  case CTypeBool:  return Type_bool;
-  case CTypeNil:   return Type_nil;
+  case CType_int:   return Type_int;
+  case CType_float: return Type_float64;
+  case CType_str:   return Type_str;
+  case CType_bool:  return Type_bool;
+  case CType_nil:   return Type_nil;
 
-  case CTypeRune:
+  case CType_rune:
   case CType_INVALID: break;
   }
   dlog("err: unexpected CType %d", ct);
@@ -72,7 +72,7 @@ CType NodeIdealCType(const Node* n) {
 
   switch (n->kind) {
   default:
-    return CTypeNil;
+    return CType_nil;
 
   case NIntLit:
   case NFloatLit:
@@ -96,7 +96,7 @@ CType NodeIdealCType(const Node* n) {
       case TGEq:      // ">="
       case TAndAnd:   // "&&
       case TPipePipe: // "||
-        return CTypeBool;
+        return CType_bool;
 
       case TShl:
       case TShr:
@@ -164,23 +164,23 @@ static Str reprEmpty(Str s, const ReprCtx* ctx) {
 Str NValFmt(Str s, const NVal* v) {
   switch (v->ct) {
 
-  case CTypeInt:
+  case CType_int:
     if (v->i > 0x7fffffffffffffff) {
       return sdscatprintf(s, "%llu", v->i);
     } else {
       return sdscatprintf(s, "%lld", (i64)v->i);
     }
 
-  case CTypeRune:
-  case CTypeFloat:
-  case CTypeStr:
+  case CType_rune:
+  case CType_float:
+  case CType_str:
     dlog("TODO NValFmt");
     break;
 
-  case CTypeBool:
+  case CType_bool:
     return sdscat(s, v->i == 0 ? "false" : "true");
 
-  case CTypeNil:
+  case CType_nil:
     sdscat(s, "nil");
 
   case CType_INVALID:

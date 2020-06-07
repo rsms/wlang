@@ -16,7 +16,7 @@
 // #define W_SYM_RUN_GENERATOR
 
 
-//-- BEGIN gen_constants() at src/sym.c:320
+//-- BEGIN gen_constants() at src/sym.c:348
 
 const Sym sym_as = "\0\0\0\0\0\0\0\x8D\x20\x25\x5E\x02\x00\x02\x00\x0A""as" + 16;
 const Sym sym_break = "\0\0\0\0\0\0\0\x78\x81\x64\xC9\x05\x00\x05\x00\x12""break" + 16;
@@ -103,9 +103,9 @@ Node* Type_uint = (Node*)&_Type_uint;
 static const Node _Type_str = {NBasicType,{0,0,0},NULL,{.t={sym_s,.basic={TypeCode_str,sym_str}}}};
 Node* Type_str = (Node*)&_Type_str;
 
-static const Node _Const_true = {NBoolLit,{0,0,0},(Node*)&_Type_bool,{.val={TypeCode_bool,.i=1}}};
+static const Node _Const_true = {NBoolLit,{0,0,0},(Node*)&_Type_bool,{.val={CType_bool,.i=1}}};
 Node* Const_true = (Node*)&_Const_true;
-static const Node _Const_false = {NBoolLit,{0,0,0},(Node*)&_Type_bool,{.val={TypeCode_bool,.i=0}}};
+static const Node _Const_false = {NBoolLit,{0,0,0},(Node*)&_Type_bool,{.val={CType_bool,.i=0}}};
 Node* Const_false = (Node*)&_Const_false;
 
 static RBNode n_int64 = { sym_int64, true, null, null };
@@ -160,14 +160,15 @@ static const char* const debugSymCheck =
   "int64 uint64 float32 float64 int uint str true:bool=1 false:bool=0 _ ";
 #endif
 
-//-- END gen_constants() at src/sym.c:508
+//-- END gen_constants() at src/sym.c:535
+
 
 
 // nil is special and implemented without macros since its sym is defined by TOKEN_KEYWORDS
 static const Node _Type_nil = {NBasicType,{0,0,0},NULL,{.t={"0",.basic={TypeCode_nil,sym_nil}}}};
 Node* Type_nil = (Node*)&_Type_nil;
 
-static const Node _Const_nil = {NNil,{0,0,0},(Node*)&_Type_nil,{.val={TypeCode_nil,.i=0}}};
+static const Node _Const_nil = {NNil,{0,0,0},(Node*)&_Type_nil,{.val={CType_nil,.i=0}}};
 Node* Const_nil = (Node*)&_Const_nil;
 
 // ideal
@@ -477,16 +478,15 @@ __attribute__((constructor)) static void gen_constants() {
 
   // PREDEFINED_CONSTANTS
   printf("\n");
-  #define SYM_DEF(name, type, value)                                            \
-    printf(                                                                     \
-      "static const Node _Const_%s = {%s,{0,0,0},(Node*)&_Type_%s,{.%s=%s}};\n" \
-      "Node* Const_%s = (Node*)&_Const_%s;\n",                                  \
-      #name,                                                                    \
-      #type == "bool" ? "NBoolLit" : "NIntLit",                                 \
-      #type,                                                                    \
-      "val", /* u field. depends on type */                                     \
-      "{TypeCode_" #type ",.i=" #value "}",                                     \
-      #name, #name                                                              \
+  #define SYM_DEF(name, type, value)                                             \
+    printf(                                                                      \
+      "static const Node _Const_%s = {%s,{0,0,0},(Node*)&_Type_%s,{.val=%s}};\n" \
+      "Node* Const_%s = (Node*)&_Const_%s;\n",                                   \
+      #name,                                                                     \
+      #type == "bool" ? "NBoolLit" : "NIntLit",                                  \
+      #type,                                                                     \
+      /*NVal*/ "{CType_" #type ",.i=" #value "}",                                \
+      #name, #name                                                               \
     );
   PREDEFINED_CONSTANTS(SYM_DEF)
   #undef SYM_DEF

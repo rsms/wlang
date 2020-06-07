@@ -539,7 +539,7 @@ static Node* PIntLit(P* p, PFlag fl) {
     syntaxerrp(p, n->pos, "invalid integer literal");
   }
   next(p);
-  n->val.ct = CTypeInt;
+  n->val.ct = CType_int;
   n->type = Type_ideal;
   return n;
 }

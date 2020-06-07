@@ -60,18 +60,18 @@ static const u64 maxIntVal[TypeCode_NUM_END] = {
 static bool convvalToInt(CCtx* cc, Node* srcnode, NVal* v, TypeCode tc) {
   assert(TypeCodeIsInt(tc));
   switch (v->ct) {
-    case CTypeInt:
+    case CType_int:
       // int -> int; check overflow and simply leave as-is (reinterpret.)
       if ((i64)v->i < minIntVal[tc] || maxIntVal[tc] < v->i) {
         CCtxErrorf(cc, srcnode->pos, "constant %s overflows %s", NValStr(v), TypeCodeName(tc));
       }
       return true;
 
-    case CTypeRune:
-    case CTypeFloat:
-    case CTypeStr:
-    case CTypeBool:
-    case CTypeNil:
+    case CType_rune:
+    case CType_float:
+    case CType_str:
+    case CType_bool:
+    case CType_nil:
       dlog_mod("TODO convert %s -> %s", CTypeName(v->ct), TypeCodeName(tc));
       break;
 
@@ -153,7 +153,7 @@ Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
 
   case NIdent:
     assert(n->ref.target != NULL);
-    n->ref.target = _convlit(cc, n->ref.target, t, /* explicit */ false);
+    n->ref.target = _convlit(cc, (Node*)n->ref.target, t, /* explicit */ false);
     break;
 
   case NLet:
