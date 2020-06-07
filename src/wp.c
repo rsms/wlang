@@ -72,7 +72,7 @@ void parsefile(Str filename, Scope* pkgscope) {
   printf("BUILD IR\n");
   // build some IR
   IRBuilder irbuilder = {};
-  IRBuilderInit(&irbuilder, IRBuilderComments | IRBuilderOpt, "foo"); // start a new package
+  IRBuilderInit(&irbuilder, IRBuilderComments /*| IRBuilderOpt*/, "foo"); // start a new package
   IRBuilderAdd(&irbuilder, &cc, file); // add ast to current package
 
   printf("————————————————————————————————————————————————————————————————\n");

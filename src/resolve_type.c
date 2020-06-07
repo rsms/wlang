@@ -334,24 +334,8 @@ static Node* resolveType(ResCtx* ctx, Node* n) {
     auto thent = resolveType(ctx, n->cond.thenb);
     if (n->cond.elseb) {
       auto elset = resolveType(ctx, n->cond.elseb);
-      // branches must be of the same type.
-
-      if (thent == Type_ideal) {
-        dlog("thent == Type_ideal");
-      }
-      if (thent == Type_nil) {
-        dlog("thent == Type_nil");
-      }
-
-      if (elset == Type_ideal) {
-        dlog("elset == Type_ideal");
-      }
-      if (elset == Type_nil) {
-        dlog("elset == Type_nil");
-      }
-
-      // TODO: only check type when the result is used.
-      if (!TypeEquals(thent, elset)) {
+      // branches must be of the same type
+      if (thent == Type_ideal || elset == Type_ideal || !TypeEquals(thent, elset)) {
         // attempt implicit cast. E.g.
         //
         // x = 3 as int16 ; y = if true x else 0
@@ -359,7 +343,7 @@ static Node* resolveType(ResCtx* ctx, Node* n) {
         //                            int16   int
         //
         n->cond.elseb = ConvlitImplicit(ctx->cc, n->cond.elseb, thent);
-        if (!TypeEquals(n->cond.elseb->type, elset)) {
+        if (!TypeEquals(thent, n->cond.elseb->type)) {
           CCtxErrorf(ctx->cc, n->pos, "if..else branches of mixed incompatible types %s %s",
             NodeReprShort(thent), NodeReprShort(elset));
         }

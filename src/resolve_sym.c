@@ -97,7 +97,12 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
   }
 }
 
-
+//
+// IMPORTANT: symbol resolution is only run when the parser was unable to resolve all names up-
+// front. So, this code should ONLY RESOLVE stuff and apply any required transformations that the
+// parser applies after resolution, like for example "Foo(3) ; Foo = int" which is parsed as a call
+// to "Foo" ("Foo" is unknown) and must be converted to a TypeCast since Foo denotes a type.
+//
 static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   // dlog("resolve(%s, scope=%p)", NodeKindName(n->kind), scope);
 
@@ -194,21 +199,7 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
     n->call.receiver = recv;
     if (recv->kind != NFun) {
       // convert to type cast, if receiver is a type. e.g. "x = uint8(4)"
-      // TODO: when type alises are implemented, add NTuple here to support:
-      //       type Foo = (int, int); x = Foo(1,2)
       if (recv->kind == NBasicType) {
-        if (NodeKindIsConst(n->call.args->kind)) {
-          // TODO figure out a simple and elegant way to parse stuff like this:
-          //
-          //   x = int32(7)    =>  int32:(Let int32:(Ident x) int32:(Int 7))
-          //   x = 7 as int32  =>  int32:(Let int32:(Ident x) int32:(Int 7))
-          //
-          // Currently;
-          //   x = int32(7)    =>  int:(Let int:(Ident x) int32:(TypeCast int32 int32:(Int 7)))
-          //   x = 7 as int32  =>  (not implemented)
-          //
-          dlog("type cast const. n->call.args = %s", NodeReprShort(n->call.args));
-        }
         n->kind = NTypeCast;
       } else {
         CCtxErrorf(ctx->cc, n->pos, "cannot call %s", NodeReprShort(recv));
@@ -230,16 +221,8 @@ static Node* resolve(Node* n, Scope* scope, ResCtx* ctx) {
   case NIf:
     n->cond.cond = resolve(n->cond.cond, scope, ctx);
     n->cond.thenb = resolve(n->cond.thenb, scope, ctx);
-    if (n->cond.cond == Const_true && (ctx->flags & ParseOpt)) {
-      // [optimization] then branch always taken
-      return n->cond.thenb;
-    }
-    if (n->cond.elseb) {
-      n->cond.elseb = resolve(n->cond.elseb, scope, ctx);
-      if (n->cond.cond == Const_false && (ctx->flags & ParseOpt)) {
-        // [optimization] then branch is never taken
-        return n->cond.elseb;
-      }
+    if (ctx->flags & ParseOpt) {
+      n = NodeOptIfCond(n);
     }
     break;
 

@@ -31,7 +31,7 @@ fun main {
     a = 4  # avoid block elimination while working on ir builder
     y = x + 1 #a
   } else {
-    true
+    120
   }
 
   # factorial(start)

@@ -341,6 +341,7 @@ typedef struct P {
   CCtx*  cc;         // compilation context
 } P;
 Node* Parse(P*, CCtx*, ParseFlags, Scope* pkgscope);
+Node* NodeOptIfCond(Node* n); // TODO: move this and parser into a parse.h file
 
 // Symbol resolver
 Node* ResolveSym(CCtx*, ParseFlags, Node*, Scope*);

@@ -555,6 +555,9 @@ static Node* PIf(P* p, PFlag fl) {
     next(p);
     n->cond.elseb = expr(p, PREC_LOWEST, fl);
   }
+  if (p->s.flags & ParseOpt) {
+    n = NodeOptIfCond(n);
+  }
   return n;
 }
 
@@ -899,6 +902,20 @@ Node* Parse(P* p, CCtx* cc, ParseFlags fl, Scope* pkgscope) {
 
   file->array.scope = popScope(p);
   return file;
+}
+
+
+Node* NodeOptIfCond(Node* n) {
+  assert(n->kind == NIf);
+  if (n->cond.cond == Const_true) {
+    // [optimization] "then" branch always taken
+    return n->cond.thenb;
+  }
+  if (n->cond.cond == Const_false) {
+    // [optimization] "then" branch is never taken
+    return n->cond.elseb != NULL ? n->cond.elseb : Const_nil;
+  }
+  return n;
 }
 
 
