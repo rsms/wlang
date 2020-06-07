@@ -30,8 +30,8 @@ typedef enum {
   _(If,          Expr) \
   _(Let,         Expr) \
   _(BinOp,       Expr) \
-  _(PostfixOp,   Expr) \
   _(PrefixOp,    Expr) \
+  _(PostfixOp,   Expr) \
   _(Return,      Expr) \
   _(Tuple,       Expr) \
   _(TypeCast,    Expr) \
@@ -86,44 +86,8 @@ typedef struct {
 } NodeList;
 
 
-// type Val struct {
-//   // U contains one of:
-//   // bool     bool when Ctype() == CTBOOL
-//   // *Mpint   int when Ctype() == CTINT, rune when Ctype() == CTRUNE
-//   // *Mpflt   float when Ctype() == CTFLT
-//   // *Mpcplx  pair of floats when Ctype() == CTCPLX
-//   // string   string when Ctype() == CTSTR
-//   // *Nilval  when Ctype() == CTNIL
-//   U interface{}
-// }
-
-// func (v Val) Ctype() Ctype {
-//   switch x := v.U.(type) {
-//   default:
-//     Fatalf("unexpected Ctype for %T", v.U)
-//     panic("unreachable")
-//   case nil:
-//     return 0
-//   case *NilVal:
-//     return CTNIL
-//   case bool:
-//     return CTBOOL
-//   case *Mpint:
-//     if x.Rune {
-//       return CTRUNE
-//     }
-//     return CTINT
-//   case *Mpflt:
-//     return CTFLT
-//   case *Mpcplx:
-//     return CTCPLX
-//   case string:
-//     return CTSTR
-//   }
-// }
-
 typedef struct NVal {
-  TypeCode t;
+  CType ct;
   union {
     u64    i;  // BoolLit, IntLit
     double f;  // FloatLit
@@ -212,6 +176,17 @@ static inline bool NodeKindIsExpr(NodeKind kind) { return NodeClassTable[kind] =
 // Retrieve the effective "printable" type of a node.
 // For nodes which are lazily typed, like IntLit, this returns the default type of the constant.
 const Node* NodeEffectiveType(const Node* n);
+
+// NodeIdealCType returns a type for an arbitrary "ideal" (untyped constant) expression like "3".
+CType NodeIdealCType(const Node* n);
+
+// IdealType returns the constant type node for a ctype
+Node* IdealType(CType ct);
+
+// NodeIsUntyped returns true for untyped constants, like for example "x = 123"
+inline static bool NodeIsUntyped(const Node* n) {
+  return n->type == Type_ideal;
+}
 
 // Format an NVal
 Str NValFmt(Str s, const NVal* v);

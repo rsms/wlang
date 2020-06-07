@@ -7,6 +7,7 @@
 typedef enum IRBuilderFlags {
   IRBuilderDefault  = 0,
   IRBuilderComments = 1 << 1,  // include comments in some values, for formatting
+  IRBuilderOpt      = 1 << 2,  // apply construction-pass [optimization]s
 } IRBuilderFlags;
 
 
@@ -15,7 +16,6 @@ typedef struct IRBuilder {
   PtrMap         funs; // Node* => IRFun* -- generated functions
   IRBuilderFlags flags;
   IRPkg*         pkg;
-  bool           optimize;  // apply construction-pass [optimization]s
 
   // state used during building
   const CCtx* cc; // current source context (source-file specific)

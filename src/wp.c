@@ -52,11 +52,15 @@ void parsefile(Str filename, Scope* pkgscope) {
   if (errcount != 0) { goto end; }
 
   // resolve symbols and types
-  printf("————————————————————————————————————————————————————————————————\n");
-  printf("RESOLVE NAMES\n");
-  ResolveSym(&cc, parser.s.flags, file, pkgscope);
-  // printAst(file);
-  if (errcount != 0) { goto end; }
+  if (parser.unresolved == 0) {
+    printf("(no unresolved names; not running sym resolver)\n");
+  } else {
+    printf("————————————————————————————————————————————————————————————————\n");
+    printf("RESOLVE NAMES\n");
+    ResolveSym(&cc, parser.s.flags, file, pkgscope);
+    printAst(file);
+    if (errcount != 0) { goto end; }
+  }
 
   printf("————————————————————————————————————————————————————————————————\n");
   printf("RESOLVE TYPES\n");
@@ -68,7 +72,7 @@ void parsefile(Str filename, Scope* pkgscope) {
   printf("BUILD IR\n");
   // build some IR
   IRBuilder irbuilder = {};
-  IRBuilderInit(&irbuilder, IRBuilderComments, "foo"); // start a new package
+  IRBuilderInit(&irbuilder, IRBuilderComments | IRBuilderOpt, "foo"); // start a new package
   IRBuilderAdd(&irbuilder, &cc, file); // add ast to current package
 
   printf("————————————————————————————————————————————————————————————————\n");

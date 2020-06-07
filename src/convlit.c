@@ -2,6 +2,26 @@
 #include "typeid.h"
 #include "ir/op.h"
 
+// #define DEBUG_MODULE "convlit"
+
+#ifdef DEBUG_MODULE
+  #define dlog_mod(format, ...) dlog("[" DEBUG_MODULE "] " format, ##__VA_ARGS__)
+#else
+  #define dlog_mod(...) do{}while(0)
+#endif
+
+
+static void errInvalidBinOp(CCtx* cc, Node* n) {
+  assert(n->kind == NBinOp);
+  auto ltype = NodeEffectiveType(n->op.left);
+  auto rtype = NodeEffectiveType(n->op.right);
+  CCtxErrorf(cc, n->pos,
+    "invalid operation: %s (mismatched types %s and %s)",
+    TokName(n->op.op),
+    NodeReprShort(ltype),
+    NodeReprShort(rtype));
+}
+
 
 static const i64 minIntVal[TypeCode_NUM_END] = {
   (i64)0,                   // bool
@@ -35,64 +55,65 @@ static const u64 maxIntVal[TypeCode_NUM_END] = {
   0xffffffff,          // uint == uint32
 };
 
-// convert an intrinsic numeric value v to an integer of type tc
+// convert an intrinsic numeric value v to an integer of type tc.
+// Note: tc is the target type, not the type of v.
 static bool convvalToInt(CCtx* cc, Node* srcnode, NVal* v, TypeCode tc) {
-  assert(tc < TypeCode_NUM_END);
-  if (TypeCodeIsInt(tc)) {
-    // int -> int; check overflow and simply leave as-is (reinterpret.)
-    if ((i64)v->i < minIntVal[tc] || maxIntVal[tc] < v->i) {
-      CCtxErrorf(cc, srcnode->pos, "constant %s overflows %s", NValStr(v), TypeCodeName(tc));
-    }
-    return true;
+  assert(TypeCodeIsInt(tc));
+  switch (v->ct) {
+    case CTypeInt:
+      // int -> int; check overflow and simply leave as-is (reinterpret.)
+      if ((i64)v->i < minIntVal[tc] || maxIntVal[tc] < v->i) {
+        CCtxErrorf(cc, srcnode->pos, "constant %s overflows %s", NValStr(v), TypeCodeName(tc));
+      }
+      return true;
+
+    case CTypeRune:
+    case CTypeFloat:
+    case CTypeStr:
+    case CTypeBool:
+    case CTypeNil:
+      dlog_mod("TODO convert %s -> %s", CTypeName(v->ct), TypeCodeName(tc));
+      break;
+
+    case CType_INVALID:
+      assert(0 && "unexpected CType");
+      break;
   }
-  dlog("TODO convvalToInt tc=%s", TypeCodeName(tc));
   return false;
 }
+
 
 // convert an intrinsic numeric value v to a floating point number of type tc
 static bool convvalToFloat(CCtx* cc, Node* srcnode, NVal* v, TypeCode t) {
-  dlog("TODO convvalToFloat");
+  dlog_mod("TODO");
   return false;
 }
 
 
-// convval converts v into a representation appropriate for t.
+// convval converts v into a representation appropriate for targetType.
 // If no such representation exists, return false.
-static bool convval(CCtx* cc, Node* srcnode, NVal* v, Node* t, bool explicit) {
-  // TODO use explicit for allowing "bigger" conversions like for example int -> str.
-  switch (t->kind) {
-
-  case NBasicType: {
-    auto tc = t->t.basic.typeCode;
-    if (TypeCodeIsInt(tc)) {
-      if (tc >= TypeCode_NUM_END) {
-        assert(tc == TypeCode_int || tc == TypeCode_uint);
-        tc = (tc == TypeCode_int) ? TypeCode_int32 : TypeCode_uint32;
-      }
-      return convvalToInt(cc, srcnode, v, tc);
-    } else if (TypeCodeIsFloat(tc)) {
-      return convvalToFloat(cc, srcnode, v, tc);
-    }
+static bool convval(CCtx* cc, Node* srcnode, NVal* v, Node* targetType, bool explicit) {
+  // TODO use 'explicit' to allow "greater" conversions like for example int -> str.
+  if (targetType->kind != NBasicType) {
+    dlog_mod("TODO targetType->kind %s", NodeKindName(targetType->kind));
+    return false;
   }
-  break;
 
-  default:
-    dlog("TODO convval t->kind %s", NodeKindName(t->kind));
-    break;
+  auto tc = targetType->t.basic.typeCode;
+  auto tcfl = TypeCodeFlagMap[tc];
+
+  // * -> integer
+  if (tcfl & TypeCodeFlagInt) {
+    return convvalToInt(cc, srcnode, v, tc);
   }
+
+  // * -> float
+  if (tcfl & TypeCodeFlagFloat) {
+    return convvalToFloat(cc, srcnode, v, tc);
+  }
+
+  dlog_mod("TODO * -> BasicType(%s)", TypeCodeName(tc));
   return false;
-}
-
-
-static void errInvalidBinOp(CCtx* cc, Node* n) {
-  assert(n->kind == NBinOp);
-  auto ltype = NodeEffectiveType(n->op.left);
-  auto rtype = NodeEffectiveType(n->op.right);
-  CCtxErrorf(cc, n->pos,
-    "invalid operation: %s (mismatched types %s and %s)",
-    TokName(n->op.op),
-    NodeReprShort(ltype),
-    NodeReprShort(rtype));
 }
 
 
@@ -100,18 +121,22 @@ static void errInvalidBinOp(CCtx* cc, Node* n) {
 // If n is already of type t, n is simply returned.
 Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
   assert(t != NULL);
+  assert(t != Type_ideal);
   assert(NodeKindIsType(t->kind));
-  dlog("[convlit] %s as %s", NodeReprShort(n), NodeReprShort(t));
 
-  if (n->type != NULL && n->type != Type_nil) {
+  dlog_mod("[%s] %s of type %s as %s",
+    explicit ? "explicit" : "implicit",
+    NodeReprShort(n), NodeReprShort(n->type), NodeReprShort(t));
+
+  if (n->type != NULL && n->type != Type_nil && n->type != Type_ideal) {
     if (!explicit) {
       // in implicit mode, if something is typed already, we don't try and convert the type.
-      dlog("[convlit/implicit] no-op -- n is already typed: %s", NodeReprShort(n->type));
+      dlog_mod("[implicit] no-op -- n is already typed: %s", NodeReprShort(n->type));
       return n;
     }
     if (TypeEquals(n->type, t)) {
       // in both modes: if n is already of target type, stop here.
-      dlog("[convlit] no-op -- n is already of target type %s", NodeReprShort(n->type));
+      dlog_mod("no-op -- n is already of target type %s", NodeReprShort(n->type));
       return n;
     }
   }
@@ -126,39 +151,45 @@ Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
     }
     break;
 
+  case NIdent:
+    assert(n->ref.target != NULL);
+    n->ref.target = _convlit(cc, n->ref.target, t, /* explicit */ false);
+    break;
+
+  case NLet:
+    assert(n->field.init != NULL);
+    n->field.init = _convlit(cc, n->field.init, t, /* explicit */ false);
+    break;
+
   case NBinOp:
     if (t->kind == NBasicType) {
       auto tc = t->t.basic.typeCode;
-      dlog("IROpFromAST tc=%s", TypeCodeName(tc));
       // check to see if there is an operation on t; if the type cast is valid
       if (IROpFromAST(n->op.op, tc, tc) == OpNil) {
         errInvalidBinOp(cc, n);
         break;
       }
-      auto left2  = _convlit(cc, n->op.left, t, /* explicit */ false);
-      auto right2 = _convlit(cc, n->op.right, t, /* explicit */ false);
-      if (left2 == NULL || right2 == NULL) {
-        errInvalidBinOp(cc, n);
-        break;
-      }
-      n->op.left = left2;
-      n->op.right = right2;
+      n->op.left  = _convlit(cc, n->op.left, t, /* explicit */ false);
+      n->op.right = _convlit(cc, n->op.right, t, /* explicit */ false);
       if (!TypeEquals(n->op.left->type, n->op.right->type)) {
         errInvalidBinOp(cc, n);
         break;
       }
       n->type = n->op.left->type;
     } else {
-      dlog("TODO convlit %s as %s", NodeReprShort(n), NodeReprShort(t));
+      dlog_mod("TODO NBinOp %s as %s", NodeReprShort(n), NodeReprShort(t));
     }
     break;
 
   default:
-    dlog("[convlit] ignoring n->kind %s", NodeKindName(n->kind));
+    dlog_mod("TODO n->kind %s", NodeKindName(n->kind));
     break;
   }
 
-  return NULL;
+  if (n->type == Type_ideal) {
+    n->type = t;
+  }
+  return n;
 }
 
 

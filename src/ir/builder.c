@@ -317,7 +317,7 @@ static IRValue* addBinOp(IRBuilder* u, Node* n) {
 static IRValue* addLet(IRBuilder* u, Node* n) {
   assert(n->kind == NLet);
   assert(n->field.init != NULL);
-  if (n->type == NULL) {
+  if (n->type == NULL || n->type == Type_ideal) {
     // this means the let binding is unused; the type resolver never bothered
     // resolving it as nothing referenced it.
     dlog("[ir/builder] discard unused let %s", NodeReprShort(n));
@@ -368,14 +368,24 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
   auto control = addExpr(u, n->cond.cond);
   if (control->type != TypeCode_bool) {
     // AST should not contain conds that are non-bool
-    // dlog("n->cond.cond->pos")
     errorf(u, n->cond.cond->pos,
       "invalid non-bool type in condition %s", NodeReprShort(n->cond.cond));
   }
 
-  // [optimization] Early optimization of constant conditions
-  if (u->optimize && IROpInfo(control->op)->flags & IROpFlagConstant) {
-    dlog("[if] [optimize] short-circuit constant cond");
+  // [optimization] Early optimization of constant boolean condition
+  if ((u->flags & IRBuilderOpt) != 0 && (IROpInfo(control->op)->aux & IRAuxBool)) {
+    dlog("[ir/builder if] short-circuit constant cond");
+    if (control->auxInt != 0) {
+      // then branch always taken
+      return addExpr(u, n->cond.thenb);
+    } else {
+      // else branch always taken
+      if (n->cond.elseb == NULL) {
+        dlog("[ir/builder TODO produce nil value]");
+        return IRValueNew(u->f, u->b, OpNil, TypeCode_nil, &n->pos);
+      }
+      return addExpr(u, n->cond.elseb);
+    }
     // TODO
   }
 

@@ -7,7 +7,7 @@
 # >>
 # >>=
 
-fun main (arg0 bool) int {
+fun main {
   # a, b = 1, 2 + 1
   # z = 20 as int8
   # a = z as int16
@@ -18,18 +18,21 @@ fun main (arg0 bool) int {
   # x = 1     # (Let x (Int 1))
   # y = x + 3 as int32 # (Let y (Op + (Ref x) (Int 2)))
 
-  k = 3 as int
-  U = 4 + k
+  # k = 3 as int
+  # U = 4 + k
 
-  # x = 3 as int32
-  # z = if true {
-  #   a = 4  # avoid block elimination while working on ir builder
-  #   y = x + a
-  #   E = y + 1
-  #   U = 4 + 2
-  #   U
-  # }
-  # z
+  # a = 1
+  # b = a + (2 as int16)
+  # d = (3 as int64) + a
+
+  # a = 5
+  x = 3 as int32
+  z = if true {
+    a = 4  # avoid block elimination while working on ir builder
+    y = x + 1 #a
+  } else {
+    true
+  }
 
   # factorial(start)
 }

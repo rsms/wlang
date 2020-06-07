@@ -300,18 +300,31 @@ static Node* PIdent(P* p, PFlag fl) {
   //   ...we get:
   //   "MyBool = bool" parses as (Let (Ident MyBool) (Type bool))
   //
+
   Node* target = NULL;
   if ((fl & PFlagRValue) != 0) {
     target = (Node*)ScopeLookup(p->scope, p->s.name);
-    if (target != NULL && !NodeKindIsExpr(target->kind)) {
+    if (target == NULL) {
+      p->unresolved++;
+    } else if (!NodeKindIsExpr(target->kind)) {
       next(p);
       return target;
     }
   }
+
   auto n = PNewNode(p, NIdent);
   n->ref.name = p->s.name;
   n->ref.target = target;
   next(p);
+
+  if ((fl & PFlagRValue) == 0 && p->s.tok != TAssign) {
+    // identifier is lvalue and not followed by '=' -- attempt to resolve
+    n->ref.target = (Node*)ScopeLookup(p->scope, p->s.name);
+    if (n->ref.target == NULL) {
+      p->unresolved++;
+    }
+  }
+
   return n;
 }
 
@@ -526,8 +539,8 @@ static Node* PIntLit(P* p, PFlag fl) {
     syntaxerrp(p, n->pos, "invalid integer literal");
   }
   next(p);
-  // TODO: if prefixed by "-", negate
-  n->val.t = n->val.i > 0x7fffffffffffffff ? TypeCode_uint : TypeCode_int;
+  n->val.ct = CTypeInt;
+  n->type = Type_ideal;
   return n;
 }
 

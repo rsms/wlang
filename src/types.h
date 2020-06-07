@@ -43,6 +43,7 @@ typedef enum TypeCodeFlag {
   _( list      , '[', 0 ) _( listEnd   , ']', 0 ) \
   _( struct    , '{', 0 ) _( structEnd , '}', 0 ) \
   /* special type codes used in IR */ \
+  _( ideal     ,  0 , 0 ) /* untyped numeric constants */ \
   _( param1    , 'P', 0 ) /* parameteric. For IR, matches other type, e.g. output == input */ \
   _( param2    , 'P', 0 )
 /*END TYPE_CODES*/
@@ -63,6 +64,20 @@ static_assert(TypeCode_int32+1 == TypeCode_uint32, "integer order incorrect");
 static_assert(TypeCode_int64+1 == TypeCode_uint64, "integer order incorrect");
 // must be less than 32 numeric types
 static_assert(TypeCode_NUM_END <= 32, "there must be no more than 32 numeric types");
+
+// CType describes the constant kind of an "ideal" (untyped) constant.
+// These are ordered from less dominant to more dominant -- a CType with a higher value
+// takes precedence over a CType with a lower value in cases like untyped binary operations.
+typedef enum CType {
+  CType_INVALID,
+  CTypeInt,
+  CTypeRune,
+  CTypeFloat,
+  CTypeStr,
+  CTypeBool,
+  CTypeNil,
+} CType;
+const char* CTypeName(CType ct);
 
 // named types exported in the global scope.
 // IMPORTANT: These must match the list of TypeCodes up until CONCRETE_END.

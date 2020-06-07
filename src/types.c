@@ -23,6 +23,20 @@ const TypeCodeFlag TypeCodeFlagMap[TypeCode_MAX] = {
   #undef  I_ENUM
 };
 
+const char* CTypeName(CType ct) {
+  switch (ct) {
+  case CType_INVALID: return "INVALID";
+  case CTypeInt:      return "int";
+  case CTypeRune:     return "rune";
+  case CTypeFloat:    return "float";
+  case CTypeStr:      return "str";
+  case CTypeBool:     return "bool";
+  case CTypeNil:      return "nil";
+  }
+  return "?";
+}
+
+
 // const char* TypeCodeName(TypeCode tc) {
 //   assert(tc > 0 && tc < TypeCode_MAX);
 //   return _TypeCodeName[tc];

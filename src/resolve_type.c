@@ -3,25 +3,32 @@
 #include "typeid.h"
 #include "convlit.h"
 
-// #define DEBUG_TYPE_RESOLUTION 1
+#define DEBUG_MODULE "typeres"
 
-// CFlag describes the context of resolution
-typedef enum CFlag {
-  CFlagNone = 0,
-  CFlagLit  = 1 << 0, // literal resolution deferred
-} CFlag;
+#ifdef DEBUG_MODULE
+  #define dlog_mod(format, ...) dlog("[" DEBUG_MODULE "] " format, ##__VA_ARGS__)
+#else
+  #define dlog_mod(...) do{}while(0)
+#endif
 
 
-static Node* resolveType(CCtx* cc, Node* n, CFlag fl);
+typedef struct {
+  CCtx* cc;
+  u32   idealNest;  // resolves ideal types when > 0
+  CType lastCType;  // the most recent CType picked in resolveIdealType
+} ResCtx;
 
+
+static Node* resolveType(ResCtx* ctx, Node* n);
 
 void ResolveType(CCtx* cc, Node* n) {
-  n->type = resolveType(cc, n, CFlagNone);
+  ResCtx ctx = { cc, 0, 0 };
+  n->type = resolveType(&ctx, n);
 }
 
 
-static Node* resolveFunType(CCtx* cc, Node* n, CFlag fl) {
-  Node* ft = NewNode(cc->mem, NFunType);
+static Node* resolveFunType(ResCtx* ctx, Node* n) {
+  Node* ft = NewNode(ctx->cc->mem, NFunType);
   auto result = n->type;
 
   // Important: To avoid an infinite loop when resolving a function which calls itself,
@@ -29,20 +36,20 @@ static Node* resolveFunType(CCtx* cc, Node* n, CFlag fl) {
   n->type = ft;
 
   if (n->fun.params) {
-    resolveType(cc, n->fun.params, fl);
+    resolveType(ctx, n->fun.params);
     ft->t.fun.params = (Node*)n->fun.params->type;
   }
 
   if (result) {
-    ft->t.fun.result = (Node*)resolveType(cc, result, fl);
+    ft->t.fun.result = (Node*)resolveType(ctx, result);
   }
 
   if (n->fun.body) {
-    auto bodyType = resolveType(cc, n->fun.body, fl);
+    auto bodyType = resolveType(ctx, n->fun.body);
     if (ft->t.fun.result == NULL) {
       ft->t.fun.result = bodyType;
     } else if (!TypeEquals(ft->t.fun.result, bodyType)) {
-      CCtxErrorf(cc, n->fun.body->pos, "cannot use type %s as return type %s",
+      CCtxErrorf(ctx->cc, n->fun.body->pos, "cannot use type %s as return type %s",
         NodeReprShort(bodyType), NodeReprShort(ft->t.fun.result));
     }
   }
@@ -52,61 +59,101 @@ static Node* resolveFunType(CCtx* cc, Node* n, CFlag fl) {
 }
 
 
-// static Node* resolveBinOpType(CCtx* cc, Node* n, Tok op, Node* ltype, Node* rtype) {
-//   switch (op) {
-//     case TGt:   // >
-//     case TLt:   // <
-//     case TEq:   // ==
-//     case TNEq:  // !=
-//     case TLEq:  // <=
-//     case TGEq:  // >=
-//       return Type_bool;
-//     case TPlus:  // +
-//     case TMinus: // -
-//     case TSlash: // /
-//     case TStar:  // *
-//       return rtype;
-//     default:
-//       dlog("TODO resolveBinOpType %s", TokName(op));
-//       return rtype;
-//   }
-// }
+// resolveIdealType resolves types of "untyped" expressions.
+//
+// Returns NULL to signal "pass through" meaning this function doesn't handle n->kind.
+// In this case the caller should traverse the AST at n and call resolveIdealType as needed
+// when untyped nodes are found. This simplifies the implementation and avoids duplicate
+// traversal code in resolveIdealType and resolveType.
+//
+static Node* resolveIdealType(ResCtx* ctx, Node* n) {
+  assert(n != NULL);
+  assert(NodeIsUntyped(n));
+
+  dlog("resolveIdealType n->kind = %s", NodeKindName(n->kind));
+
+  switch (n->kind) {
+
+  case NIntLit:
+  case NFloatLit:
+    // Note: NBoolLit is always typed
+    ctx->lastCType = n->val.ct;
+    return n->type = IdealType(n->val.ct);
+
+  case NBinOp:
+    switch (n->op.op) {
+      case TEq:       // "=="
+      case TNEq:      // "!="
+      case TLt:       // "<"
+      case TLEq:      // "<="
+      case TGt:       // ">"
+      case TGEq:      // ">="
+      case TAndAnd:   // "&&
+      case TPipePipe: // "||
+        return n->type = Type_bool;
+
+      case TShl:
+      case TShr:
+        // shifts are always of left (receiver) type
+        return n->type = resolveType(ctx, n->op.left);
+
+      default: {
+        auto lt  = resolveType(ctx, n->op.left);
+        auto lct = ctx->lastCType;
+        auto rt  = resolveType(ctx, n->op.right);
+        auto rct = ctx->lastCType;
+        return n->type = (lct > rct) ? lt : rt;
+      }
+    }
+
+  default:
+    dlog("TODO resolveIdealType kind %s", NodeKindName(n->kind));
+    return NULL;
+  }
+}
 
 
-static Node* resolveType(CCtx* cc, Node* n, CFlag fl) {
+static Node* resolveType(ResCtx* ctx, Node* n) {
   assert(n != NULL);
 
-  #if DEBUG_TYPE_RESOLUTION
-  auto nc = NodeClassTable[n->kind];
-  dlog("resolveType fl=%d %s %p (%s class) type %s",
-    fl,
+  dlog_mod("resolveType %s %p (%s class) type %s",
     NodeKindName(n->kind),
     n,
-    NodeClassName(nc),
+    NodeClassName(NodeClassTable[n->kind]),
     NodeReprShort(n->type));
-  #endif
 
   if (NodeKindIsType(n->kind)) {
-    #if DEBUG_TYPE_RESOLUTION
-    dlog("  => %s", NodeReprShort(n));
-    #endif
+    dlog_mod("  => %s", NodeReprShort(n));
     return n;
   }
 
   if (n->kind == NFun) {
     // type already resolved
     if (n->type && n->type->kind == NFunType) {
-      #if DEBUG_TYPE_RESOLUTION
-      dlog("  => %s", NodeReprShort(n->type));
-      #endif
+      dlog_mod("  => %s", NodeReprShort(n->type));
       return n->type;
     }
   } else if (n->type != NULL) {
     // type already resolved
-    #if DEBUG_TYPE_RESOLUTION
-    dlog("  => %s", NodeReprShort(n->type));
-    #endif
-    return n->type;
+    if (ctx->idealNest > 0 && n->type == Type_ideal) {
+      // n is untyped and idealNest indicates that we are allowed to resolve "ideal" types to
+      // concrete types. It's really only constant literals which are actually of ideal type,
+      // so switch on those and lower CType to concrete type.
+      // In case n is not a constant literal, we simply continue as the AST at n is a compound
+      // which contains one or more untyped constants. I.e. continue to traverse AST.
+      switch (n->kind) {
+        case NIntLit:
+        case NFloatLit:
+          // Note: NBoolLit is always typed
+          return n->type = IdealType(n->val.ct);
+        default: break;
+      }
+      // continue
+      n->type = Type_nil;
+    } else {
+      dlog_mod("  => %s", NodeReprShort(n->type));
+      return n->type;
+    }
   } else {
     // Set type to nil here to break any self-referencing cycles.
     // NFun is special-cased as it stores result type in n->type. Note that resolveFunType
@@ -123,7 +170,7 @@ static Node* resolveType(CCtx* cc, Node* n, CFlag fl) {
   case NFile:
     n->type = Type_nil;
     NodeListForEach(&n->array.a, n,
-      resolveType(cc, n, fl)
+      resolveType(ctx, n)
     );
     break;
 
@@ -135,10 +182,12 @@ static Node* resolveType(CCtx* cc, Node* n, CFlag fl) {
         // Last node, in which case we set the flag to resolve literals
         // so that implicit return values gets properly typed.
         // This also becomes the type of the block.
-        n->type = resolveType(cc, e->node, fl | CFlagLit);
+        ctx->idealNest++;
+        n->type = resolveType(ctx, e->node);
+        ctx->idealNest--;
         break;
       } else {
-        resolveType(cc, e->node, fl);
+        resolveType(ctx, e->node);
         e = e->next;
       }
     }
@@ -147,14 +196,14 @@ static Node* resolveType(CCtx* cc, Node* n, CFlag fl) {
   }
 
   case NTuple: {
-    Node* tt = NewNode(cc->mem, NTupleType);
+    Node* tt = NewNode(ctx->cc->mem, NTupleType);
     NodeListForEach(&n->array.a, n, {
-      auto t = resolveType(cc, n, fl);
+      auto t = resolveType(ctx, n);
       if (!t) {
         t = (Node*)NodeBad;
-        CCtxErrorf(cc, n->pos, "unknown type");
+        CCtxErrorf(ctx->cc, n->pos, "unknown type");
       }
-      NodeListAppend(cc->mem, &tt->t.tuple, t);
+      NodeListAppend(ctx->cc->mem, &tt->t.tuple, t);
     });
     n->type = tt;
     break;
@@ -162,38 +211,58 @@ static Node* resolveType(CCtx* cc, Node* n, CFlag fl) {
 
   // uses u.fun
   case NFun:
-    n->type = resolveFunType(cc, n, fl);
+    n->type = resolveFunType(ctx, n);
     break;
 
   // uses u.op
-  case NBinOp:
   case NPostfixOp:
   case NPrefixOp:
-  case NAssign:
   case NReturn: {
-    if (n->op.right == NULL) {
-      n->type = resolveType(cc, n->op.left, fl | CFlagLit);
+    ctx->idealNest++;
+    n->type = resolveType(ctx, n->op.left);
+    ctx->idealNest--;
+    break;
+  }
+  case NBinOp:
+  case NAssign: {
+    assert(n->op.right != NULL);
+    // for the target type of the operation, pick first, in order:
+    // 1. use already-resolved type of LHS, else
+    // 2. use already-resolved type of RHS, else
+    // 3. resolve type of LHS, in concrete mode, and use that.
+    //
+    // temporarily disable ideal resolution, in case of e.g.
+    //   "{ a = 1 ; lastexpr = a + (4 as int16) }"
+    // which would run the resolver with idealNest>0 for lastexpr, which would incorrectly
+    // cause a to be resolved to "int".
+    auto idealNest = ctx->idealNest;
+    ctx->idealNest = 0;
+    auto lt = resolveType(ctx, n->op.left);
+    auto rt = resolveType(ctx, n->op.right);
+    ctx->idealNest = idealNest;
+
+    if (lt == rt || (lt != Type_ideal && TypeEquals(lt, rt))) {
+      // left and right are of same type and none of them are untyped.
+      n->type = lt;
     } else {
-      // for the target type of the operation, pick first, in order:
-      // 1. already-resolved type of LHS
-      // 2. already-resolved type of RHS
-      // 3. resolve type of LHS and use that
-      Node* t = n->op.left->type;
-      if (t == NULL) {
-        t = n->op.right->type;
-        if (t == NULL) {
-          t = resolveType(cc, n->op.left, fl | CFlagLit);
+      auto t = lt;
+      if (t == Type_ideal) {
+        t = rt;
+        if (t == Type_ideal) {
+          assert(ctx->idealNest <= 0); // resolve to ideal must mean idealNest is inactive
+          ctx->idealNest++;
+          t = resolveType(ctx, n->op.left);
+          ctx->idealNest--;
         }
       }
-      fl &= ~CFlagLit; // clear literal resolve flag
-      resolveType(cc, n->op.left, fl);
-      resolveType(cc, n->op.right, fl);
-      auto n2 = ConvlitImplicit(cc, n, t);
-      if (n2 != NULL && n2 != n) {
+      auto n2 = ConvlitImplicit(ctx->cc, n, t);
+      if (n2 != n) {
         // replace node
+        assert(n2->type != NULL);
         memcpy(n, n2, sizeof(Node));
+      } else {
+        n->type = t;
       }
-      assert(n->type != NULL);
     }
     break;
   }
@@ -202,38 +271,40 @@ static Node* resolveType(CCtx* cc, Node* n, CFlag fl) {
   case NTypeCast: {
     assert(n->call.receiver != NULL);
     if (!NodeKindIsType(n->call.receiver->kind)) {
-      CCtxErrorf(cc, n->pos, "invalid conversion to non-type %s", NodeReprShort(n->call.receiver));
+      CCtxErrorf(ctx->cc, n->pos,
+        "invalid conversion to non-type %s",
+        NodeReprShort(n->call.receiver));
       break;
     }
-    auto argstype = resolveType(cc, n->call.args, fl);
-    n->type = resolveType(cc, n->call.receiver, fl);
+    auto argstype = resolveType(ctx, n->call.args);
+    n->type = resolveType(ctx, n->call.receiver);
     if (argstype != NULL && TypeEquals(argstype, n->type)) {
       // eliminate type cast since source is already target type
       memcpy(n, n->call.args, sizeof(Node));
       break;
     }
     // attempt conversion to eliminate type cast
-    auto expr = ConvlitExplicit(cc, n->call.args, n->call.receiver);
-    if (expr != NULL) {
-      memcpy(n, expr, sizeof(Node));
+    n->call.args = ConvlitExplicit(ctx->cc, n->call.args, n->call.receiver);
+    if (TypeEquals(n->call.args->type, n->type)) {
+      memcpy(n, n->call.args, sizeof(Node));
     }
     break;
   }
   case NCall: {
-    auto argstype = resolveType(cc, n->call.args, fl);
+    auto argstype = resolveType(ctx, n->call.args);
     // Note: resolveFunType breaks handles cycles where a function calls itself,
     // making this safe (i.e. will not cause an infinite loop.)
-    auto recvt = resolveType(cc, n->call.receiver, fl);
+    auto recvt = resolveType(ctx, n->call.receiver);
     assert(recvt != NULL);
     if (recvt->kind != NFunType) {
-      CCtxErrorf(cc, n->pos, "cannot call %s", NodeReprShort(n->call.receiver));
+      CCtxErrorf(ctx->cc, n->pos, "cannot call %s", NodeReprShort(n->call.receiver));
       break;
     }
     // Note: Consider arguments with defaults:
     // fun foo(a, b int, c int = 0)
     // foo(1, 2) == foo(1, 2, 0)
     if (!TypeEquals(recvt->t.fun.params, argstype)) {
-      CCtxErrorf(cc, n->pos, "incompatible arguments %s in function call. Expected %s",
+      CCtxErrorf(ctx->cc, n->pos, "incompatible arguments %s in function call. Expected %s",
         NodeReprShort(argstype), NodeReprShort(recvt->t.fun.params));
     }
     n->type = recvt->t.fun.result;
@@ -245,7 +316,7 @@ static Node* resolveType(CCtx* cc, Node* n, CFlag fl) {
   case NArg:
   case NField: {
     if (n->field.init) {
-      n->type = resolveType(cc, n->field.init, fl);
+      n->type = resolveType(ctx, n->field.init);
     } else {
       n->type = Type_nil;
     }
@@ -255,19 +326,43 @@ static Node* resolveType(CCtx* cc, Node* n, CFlag fl) {
   // uses u.cond
   case NIf: {
     auto cond = n->cond.cond;
-    auto condt = resolveType(cc, cond, fl);
+    auto condt = resolveType(ctx, cond);
     if (condt != Type_bool) {
-      CCtxErrorf(cc, cond->pos, "non-bool %s (type %s) used as condition",
+      CCtxErrorf(ctx->cc, cond->pos, "non-bool %s (type %s) used as condition",
         NodeReprShort(cond), NodeReprShort(condt));
     }
-    auto thent = resolveType(cc, n->cond.thenb, fl);
+    auto thent = resolveType(ctx, n->cond.thenb);
     if (n->cond.elseb) {
-      auto elset = resolveType(cc, n->cond.elseb, fl);
+      auto elset = resolveType(ctx, n->cond.elseb);
       // branches must be of the same type.
+
+      if (thent == Type_ideal) {
+        dlog("thent == Type_ideal");
+      }
+      if (thent == Type_nil) {
+        dlog("thent == Type_nil");
+      }
+
+      if (elset == Type_ideal) {
+        dlog("elset == Type_ideal");
+      }
+      if (elset == Type_nil) {
+        dlog("elset == Type_nil");
+      }
+
       // TODO: only check type when the result is used.
       if (!TypeEquals(thent, elset)) {
-        CCtxErrorf(cc, n->pos, "if..else branches of incompatible types %s %s",
-          NodeReprShort(thent), NodeReprShort(elset));
+        // attempt implicit cast. E.g.
+        //
+        // x = 3 as int16 ; y = if true x else 0
+        //                              ^      ^
+        //                            int16   int
+        //
+        n->cond.elseb = ConvlitImplicit(ctx->cc, n->cond.elseb, thent);
+        if (!TypeEquals(n->cond.elseb->type, elset)) {
+          CCtxErrorf(ctx->cc, n->pos, "if..else branches of mixed incompatible types %s %s",
+            NodeReprShort(thent), NodeReprShort(elset));
+        }
       }
     }
     n->type = thent;
@@ -277,24 +372,13 @@ static Node* resolveType(CCtx* cc, Node* n, CFlag fl) {
   case NIdent:
     if (n->ref.target) {
       // NULL when identifier failed to resolve
-      n->type = resolveType(cc, (Node*)n->ref.target, fl);
+      n->type = resolveType(ctx, (Node*)n->ref.target);
     }
     break;
 
   case NBoolLit:
-    assert(n->type == Type_bool); // always typed
-    break;
   case NIntLit:
   case NFloatLit:
-    if (fl & CFlagLit) {
-      dlog("resolve literal type");
-      n->type = TypeCodeToTypeNode(n->val.t);
-    } else {
-      n->type = NULL;
-    }
-    break;
-
-  // all other: does not have children or are types themselves
   case NBad:
   case NNil:
   case NComment:
@@ -304,6 +388,7 @@ static Node* resolveType(CCtx* cc, Node* n, CFlag fl) {
   case NTupleType:
   case NZeroInit:
   case _NodeKindMax:
+    assert(0 && "expected to be typed");
     break;
 
   }  // switch (n->kind)

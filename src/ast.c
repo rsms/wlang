@@ -38,14 +38,79 @@ const char* NodeClassName(NodeClass c) {
 const Node* NodeEffectiveType(const Node* n) {
   auto t = n->type;
   if (t == NULL) {
-    if (n->kind == NIntLit || n->kind == NFloatLit) {
-      // numeric literals are lazily typed
-      t = TypeCodeToTypeNode(n->val.t);
-    } else {
-      t = Type_nil;
-    }
+    t = Type_nil;
+  } else if (NodeIsUntyped(n)) {
+    t = IdealType(NodeIdealCType(n));
   }
   return t;
+}
+
+
+Node* IdealType(CType ct) {
+  switch (ct) {
+  case CTypeInt:   return Type_int;
+  case CTypeFloat: return Type_float64;
+  case CTypeStr:   return Type_str;
+  case CTypeBool:  return Type_bool;
+  case CTypeNil:   return Type_nil;
+
+  case CTypeRune:
+  case CType_INVALID: break;
+  }
+  dlog("err: unexpected CType %d", ct);
+  assert(0 && "unexpected CType");
+  return NULL;
+}
+
+
+// NodeIdealCType returns a type for an arbitrary "ideal" (untyped constant) expression like "3".
+CType NodeIdealCType(const Node* n) {
+  if (n == NULL || !NodeIsUntyped(n)) {
+    return CType_INVALID;
+  }
+  dlog("NodeIdealCType n->kind = %s", NodeKindName(n->kind));
+
+  switch (n->kind) {
+  default:
+    return CTypeNil;
+
+  case NIntLit:
+  case NFloatLit:
+    // Note: NBoolLit is always typed
+    return n->val.ct;
+
+  case NPrefixOp:
+  case NPostfixOp:
+    return NodeIdealCType(n->op.left);
+
+  case NIdent:
+    return NodeIdealCType(n->ref.target);
+
+  case NBinOp:
+    switch (n->op.op) {
+      case TEq:       // "=="
+      case TNEq:      // "!="
+      case TLt:       // "<"
+      case TLEq:      // "<="
+      case TGt:       // ">"
+      case TGEq:      // ">="
+      case TAndAnd:   // "&&
+      case TPipePipe: // "||
+        return CTypeBool;
+
+      case TShl:
+      case TShr:
+        // shifts are always of left (receiver) type
+        return NodeIdealCType(n->op.left);
+
+      default: {
+        auto L = NodeIdealCType(n->op.left);
+        auto R = NodeIdealCType(n->op.right);
+        return max(L, R); // pick the dominant type
+      }
+    }
+
+  }
 }
 
 
@@ -97,18 +162,32 @@ static Str reprEmpty(Str s, const ReprCtx* ctx) {
 
 
 Str NValFmt(Str s, const NVal* v) {
-  switch (v->t) {
-  case TypeCode_bool:
+  switch (v->ct) {
+
+  case CTypeInt:
+    if (v->i > 0x7fffffffffffffff) {
+      return sdscatprintf(s, "%llu", v->i);
+    } else {
+      return sdscatprintf(s, "%lld", (i64)v->i);
+    }
+
+  case CTypeRune:
+  case CTypeFloat:
+  case CTypeStr:
+    dlog("TODO NValFmt");
+    break;
+
+  case CTypeBool:
     return sdscat(s, v->i == 0 ? "false" : "true");
-  case TypeCode_int:
-    return sdscatprintf(s, "%lld", (i64)v->i);
-  case TypeCode_uint:
-    return sdscatprintf(s, "%llu", v->i);
-  default:
+
+  case CTypeNil:
+    sdscat(s, "nil");
+
+  case CType_INVALID:
+    assert(0 && "unexpected CType");
     break;
   }
-  dlog("TODO NValStr %s", TypeCodeName(v->t));
-  return sdscatfmt(s, "NVal(%s)", TypeCodeName(v->t));
+  return sdscat(s, "?");
 }
 
 
@@ -349,7 +428,11 @@ static Str nodeRepr(const Node* n, Str s, ReprCtx* ctx, int depth) {
 
   case NBasicType:
     s = TStyleBlue(s);
-    s = sdscatsds(s, n->t.basic.name);
+    if (n == Type_ideal) {
+      s = sdscatlen(s, "*", 1);
+    } else {
+      s = sdscatsds(s, n->t.basic.name);
+    }
     s = TStyleNoColor(s);
     break;
 

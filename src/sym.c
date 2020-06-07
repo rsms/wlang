@@ -164,10 +164,18 @@ static const char* const debugSymCheck =
 
 
 // nil is special and implemented without macros since its sym is defined by TOKEN_KEYWORDS
-static const Node _Type_nil = {NBasicType,{0,0,0},NULL,{.t={0,.basic={TypeCode_nil,sym_nil}}}};
+static const Node _Type_nil = {NBasicType,{0,0,0},NULL,{.t={"0",.basic={TypeCode_nil,sym_nil}}}};
 Node* Type_nil = (Node*)&_Type_nil;
+
 static const Node _Const_nil = {NNil,{0,0,0},(Node*)&_Type_nil,{.val={TypeCode_nil,.i=0}}};
 Node* Const_nil = (Node*)&_Const_nil;
+
+// ideal
+const Sym sym_ideal = "\0\0\0\0\0\0\0\x64\x23\xD2\x03\x05\x00\x05\x00\x02""ideal" + 16;
+static const Node _Type_ideal = {NBasicType,{0,0,0},NULL,{
+  .t={"\0",.basic={TypeCode_ideal,sym_ideal}}
+}};
+Node* Type_ideal = (Node*)&_Type_ideal;
 
 
 // -----------------------------------------------------------------------------------------

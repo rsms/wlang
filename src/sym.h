@@ -98,6 +98,9 @@ TYPE_SYMS(SYM_DEF)
 Node* Type_nil;
 Node* Const_nil;
 
+// ideal is the type of untyped constants
+Node* Type_ideal;
+
 // TypeCodeToTypeNode returns the type Node for TypeCode t.
 static Node* TypeCodeToTypeNode(TypeCode t);
 Node* const _TypeCodeToTypeNodeMap[TypeCode_CONCRETE_END];

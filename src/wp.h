@@ -72,7 +72,7 @@ typedef double                 f64;
   #define logerr(format, ...) \
     fprintf(stderr, format " (%s:%d)\n", ##__VA_ARGS__, __FILE__, __LINE__)
 #else
-  #define dlog(...)
+  #define dlog(...)  do{}while(0)
   #define logerr(format, ...) \
     fprintf(stderr, format "\n", ##__VA_ARGS__)
 #endif
@@ -334,10 +334,11 @@ void CCtxErrorf(const CCtx* cc, SrcPos pos, const char* format, ...);
 
 // parser
 typedef struct P {
-  S      s;      // scanner
-  u32    fnest;  // function nesting level (for error handling)
-  Scope* scope;  // current scope
-  CCtx*  cc;     // compilation context
+  S      s;          // scanner
+  u32    fnest;      // function nesting level (for error handling)
+  u32    unresolved; // number of unresolved identifiers
+  Scope* scope;      // current scope
+  CCtx*  cc;         // compilation context
 } P;
 Node* Parse(P*, CCtx*, ParseFlags, Scope* pkgscope);
 
