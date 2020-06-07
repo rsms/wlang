@@ -2,7 +2,7 @@
 #include "typeid.h"
 #include "ir/op.h"
 
-#define DEBUG_MODULE "convlit"
+// #define DEBUG_MODULE "convlit"
 
 #ifdef DEBUG_MODULE
   #define dlog_mod(format, ...) dlog("[" DEBUG_MODULE "] " format, ##__VA_ARGS__)
@@ -18,8 +18,8 @@ static void errInvalidBinOp(CCtx* cc, Node* n) {
   CCtxErrorf(cc, n->pos,
     "invalid operation: %s (mismatched types %s and %s)",
     TokName(n->op.op),
-    nodestr(ltype),
-    nodestr(rtype));
+    fmtnode(ltype),
+    fmtnode(rtype));
 }
 
 
@@ -119,24 +119,24 @@ static bool convval(CCtx* cc, Node* srcnode, NVal* v, Node* targetType, bool exp
 
 // convlit converts an expression n to type t.
 // If n is already of type t, n is simply returned.
-Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
+Node* convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
   assert(t != NULL);
   assert(t != Type_ideal);
   assert(NodeKindIsType(t->kind));
 
   dlog_mod("[%s] %s of type %s as %s",
     explicit ? "explicit" : "implicit",
-    nodestr(n), nodestr(n->type), nodestr(t));
+    fmtnode(n), fmtnode(n->type), fmtnode(t));
 
   if (n->type != NULL && n->type != Type_nil && n->type != Type_ideal) {
     if (!explicit) {
       // in implicit mode, if something is typed already, we don't try and convert the type.
-      dlog_mod("[implicit] no-op -- n is already typed: %s", nodestr(n->type));
+      dlog_mod("[implicit] no-op -- n is already typed: %s", fmtnode(n->type));
       return n;
     }
     if (TypeEquals(n->type, t)) {
       // in both modes: if n is already of target type, stop here.
-      dlog_mod("no-op -- n is already of target type %s", nodestr(n->type));
+      dlog_mod("no-op -- n is already of target type %s", fmtnode(n->type));
       return n;
     }
   }
@@ -153,12 +153,12 @@ Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
 
   case NIdent:
     assert(n->ref.target != NULL);
-    n->ref.target = _convlit(cc, (Node*)n->ref.target, t, /* explicit */ false);
+    n->ref.target = convlit(cc, (Node*)n->ref.target, t, /* explicit */ false);
     break;
 
   case NLet:
     assert(n->field.init != NULL);
-    n->field.init = _convlit(cc, n->field.init, t, /* explicit */ false);
+    n->field.init = convlit(cc, n->field.init, t, /* explicit */ false);
     break;
 
   case NBinOp:
@@ -169,15 +169,15 @@ Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit) {
         errInvalidBinOp(cc, n);
         break;
       }
-      n->op.left  = _convlit(cc, n->op.left, t, /* explicit */ false);
-      n->op.right = _convlit(cc, n->op.right, t, /* explicit */ false);
+      n->op.left  = convlit(cc, n->op.left, t, /* explicit */ false);
+      n->op.right = convlit(cc, n->op.right, t, /* explicit */ false);
       if (!TypeEquals(n->op.left->type, n->op.right->type)) {
         errInvalidBinOp(cc, n);
         break;
       }
       n->type = n->op.left->type;
     } else {
-      dlog_mod("TODO NBinOp %s as %s", nodestr(n), nodestr(t));
+      dlog_mod("TODO NBinOp %s as %s", fmtnode(n), fmtnode(t));
     }
     break;
 

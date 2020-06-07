@@ -11,10 +11,10 @@ static Node* ConvlitExplicit(CCtx* cc, Node* n, Node* t);
 static Node* ConvlitImplicit(CCtx* cc, Node* n, Node* t);
 
 
-Node* _convlit(CCtx* cc, Node* n, Node* t, bool explicit);
+Node* convlit(CCtx* cc, Node* n, Node* t, bool explicit);
 inline static Node* ConvlitExplicit(CCtx* cc, Node* n, Node* t) {
-  return _convlit(cc, n, t, /*explicit*/ true);
+  return convlit(cc, n, t, /*explicit*/ true);
 }
 inline static Node* ConvlitImplicit(CCtx* cc, Node* n, Node* t) {
-  return _convlit(cc, n, t, /*explicit*/ false);
+  return convlit(cc, n, t, /*explicit*/ false);
 }

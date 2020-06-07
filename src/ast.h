@@ -108,7 +108,7 @@ typedef struct Node {
     } str;
     struct { // Ident
       Sym   name;
-      const Node* target;
+      Node* target;
     } ref;
     struct { // Op, PrefixOp, Return, Assign
       Node* left;
@@ -163,12 +163,12 @@ typedef struct Node {
 // inline static void NodeFree(Node* _) {}
 Str NodeRepr(const Node* n, Str s); // return human-readable printable text representation
 
-// nodestr returns a short representation of an AST node, suitable for use in error messages.
+// fmtnode returns a short representation of an AST node, suitable for use in error messages.
 // Note: The returned string is garbage collected.
-ConstStr nodestr(const Node*);
+ConstStr fmtnode(const Node*);
 
 // sdscatnode appends a short representation of an AST node to s.
-// It produces the same result as nodestr.
+// It produces the same result as fmtnode.
 sds sdscatnode(sds s, const Node* n);
 
 // NodeKindIs{Type|Const|Expr} returns true if kind is of class Type, Const or Expr.

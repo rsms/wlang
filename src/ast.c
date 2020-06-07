@@ -506,7 +506,7 @@ static sds _sdscatNodeList(sds s, const NodeList* nodeList) {
 // appends a short representation of an AST node to s, suitable for use in error messages.
 sds sdscatnode(sds s, const Node* n) {
   // Note: Do not include type information.
-  // Instead, in use sites, call nodestr individually for n->type when needed.
+  // Instead, in use sites, call fmtnode individually for n->type when needed.
 
   if (n == NULL) {
     return sdscat(s, "nil");
@@ -662,7 +662,7 @@ sds sdscatnode(sds s, const Node* n) {
 }
 
 
-ConstStr nodestr(const Node* n) {
+ConstStr fmtnode(const Node* n) {
   auto s = sdscatnode(sdsnewcap(16), n);
   return memgcsds(s); // GC
 }

@@ -25,9 +25,8 @@ fun main {
   # b = a + (2 as int16)
   # d = (3 as int64) + a
 
-  a = 3
-  z = if true 2 as int16 else 1
-  # z = if true 1 else (2 as int16)
+  a = 1 + 2
+  y = if true a else 3
 
   0
 
