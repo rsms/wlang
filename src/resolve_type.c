@@ -3,7 +3,7 @@
 #include "typeid.h"
 #include "convlit.h"
 
-// #define DEBUG_MODULE "typeres"
+#define DEBUG_MODULE "typeres"
 
 #ifdef DEBUG_MODULE
   #define dlog_mod(format, ...) dlog("[" DEBUG_MODULE "] " format, ##__VA_ARGS__)
@@ -49,6 +49,7 @@ inline static Node* requestedType(ResCtx* ctx) {
 
 inline static void requestedTypePush(ResCtx* ctx, Node* t) {
   assert(NodeIsType(t));
+  assert(t != Type_ideal);
   dlog_mod("push requestedType %s", fmtnode(t));
   ArrayPush(&ctx->reqestedTypeStack, t, ctx->cc->mem);
 }
@@ -92,14 +93,10 @@ static Node* resolveFunType(ResCtx* ctx, Node* n, RFlag fl) {
 }
 
 
-static Node* resolveIdealType(ResCtx* ctx, Node* n, RFlag fl) {
+static Node* resolveIdealType(ResCtx* ctx, Node* n, Node* reqtype, RFlag fl) {
   // lower ideal types in all cases but NLet
-  Node* reqtype = requestedType(ctx);
-  if (reqtype != NULL) {
-    dlog_mod("resolve ideal type of %s to %s", fmtnode(n), fmtnode(reqtype));
-  } else {
-    dlog_mod("resolve ideal type of %s to default", fmtnode(n));
-  }
+  dlog_mod("resolve ideal type of %s to %s", fmtnode(n), fmtnode(reqtype));
+
   // It's really only constant literals which are actually of ideal type, so switch on those
   // and lower CType to concrete type.
   // In case n is not a constant literal, we simply continue as the AST at n is a compound
@@ -107,14 +104,13 @@ static Node* resolveIdealType(ResCtx* ctx, Node* n, RFlag fl) {
   switch (n->kind) {
     case NIntLit:
     case NFloatLit:
-      if (reqtype != NULL) {
+      if (reqtype == NULL) {
+        n->type = IdealType(n->val.ct);
+      } else {
         auto n2 = convlit(ctx->cc, n, reqtype, /*explicit*/(fl & RFlagExplicitTypeCast));
-        // dlog("ConvlitImplicit %s (type %s) => %s", fmtnode(n), fmtnode(reqtype), fmtnode(n2));
         if (n2 != n) {
           memcpy(n, n2, sizeof(Node));
         }
-      } else {
-        n->type = IdealType(n->val.ct);
       }
       break;
 
@@ -154,14 +150,17 @@ static Node* resolveType(ResCtx* ctx, Node* n, RFlag fl) {
   } else if (n->type != NULL) {
     // Has type already. Constant literals might have ideal type.
     if (n->kind != NLet && n->type == Type_ideal) {
-      n->type = resolveIdealType(ctx, n, fl);
-      if (n->type == Type_ideal) {
-        n->type = Type_nil;
-        // continue
-      } else {
+      auto reqt = requestedType(ctx);
+      if (reqt != NULL) {
+        n->type = resolveIdealType(ctx, n, reqt, fl);
+      }
+      // if (n->type == Type_ideal) {
+      //   n->type = Type_nil;
+      //   // continue
+      // } else {
         // resolve successful
         return n->type;
-      }
+      // }
     } else {
       // already typed
       dlog_mod("  => %s", fmtnode(n->type));
@@ -235,26 +234,106 @@ static Node* resolveType(ResCtx* ctx, Node* n, RFlag fl) {
   case NBinOp:
   case NAssign: {
     assert(n->op.right != NULL);
-    // for the target type of the operation, pick first, in order:
-    // 1. use already-resolved type of LHS, else
-    // 2. use already-resolved type of RHS, else
-    // 3. resolve type of LHS, in concrete mode, and use that.
-    auto lt = resolveType(ctx, n->op.left, fl);
-    auto rt = resolveType(ctx, n->op.right, fl);
-    if (lt == rt || TypeEquals(lt, rt)) {
-      // left and right are of same type and none of them are untyped.
-      n->type = lt;
-    } else {
-      auto t = lt != NULL ? lt : rt;
-      auto n2 = ConvlitImplicit(ctx->cc, n, t);
-      if (n2 != n) {
-        // replace node
-        assert(n2->type != NULL);
-        memcpy(n, n2, sizeof(Node));
+
+    Node* lt = NULL;
+    Node* rt = NULL;
+
+    // This is a bit of a mess, but what's going on here is making sure that untyped
+    // operands are requested to become the type of typed operands.
+    // For example:
+    //   x = 3 as int64
+    //   y = x + 2
+    // Parses to:
+    //   int64:(Let x int64:(IntLit 3))
+    //   ?:(Let y ?:(BinOp "+"
+    //                ?:(Ident x)
+    //                *:(IntLit 2)))
+    // If we were to simply resolve types by visiting the two operands without requesting
+    // a type, we'd get mixed types, specifically the untyped constant 2 is int, not int64:
+    //   ...        (BinOp "+"
+    //                int64:(Ident x)
+    //                int:(IntLit 2)))
+    // To remedy this, we check operands. When one is untyped and the other is not, we first
+    // resolve the operand with a concrete type, then set that type as the requested type and
+    // finally we resolve the other, untyped, operand in the context of the requested type.
+    //
+    dlog("● %s", fmtast(n));
+
+    lt = resolveType(ctx, n->op.left, fl);
+    rt = resolveType(ctx, n->op.right, fl);
+
+    if (lt == Type_ideal) {
+      if (rt == Type_ideal) {
+        dlog("►►►  1  left & right are untyped");
+        lt = resolveIdealType(ctx, n->op.left, requestedType(ctx), fl);
+        // note: fallthrough to statement outside these if blocks
       } else {
-        n->type = t;
+        dlog("►►►  2  left is untyped, right is typed (%s)", fmtnode(rt));
+        dlog("converting left %s", fmtast(n->op.left));
+        n->op.left = ConvlitImplicit(ctx->cc, n->op.left, rt);
+        dlog("converted left to: %s", fmtast(n->op.left));
+        n->type = rt;
+        break;
       }
+    } else if (rt == Type_ideal) {
+      dlog("►►►  3  left is typed (%s), right is untyped", fmtnode(lt));
+      n->op.right = ConvlitImplicit(ctx->cc, n->op.right, lt);
+      n->type = lt;
+      break;
+    } else {
+      dlog("►►►  4  left & right are typed (%s, %s)", fmtnode(lt) , fmtnode(rt));
     }
+
+    // we get here from either of the two conditions:
+    // - left & right are both untyped
+    // - left & right are both typed
+    if (!TypeEquals(lt, rt)) {
+      dlog("lt != rt. convert to %s", fmtnode(lt));
+      n->op.right = ConvlitImplicit(ctx->cc, n->op.right, lt);
+    }
+    n->type = lt;
+
+    // if (n->op.left->type == Type_ideal) {
+    //   if (n->op.right->type == Type_ideal) {
+    //     dlog(" CASE 1  left & right are untyped");
+    //     lt = resolveType(ctx, n->op.left, fl);
+    //     rt = resolveType(ctx, n->op.right, fl);
+    //   } else {
+    //     dlog(" CASE 2  left is untyped, right is typed");
+    //     rt = resolveType(ctx, n->op.right, fl);
+    //     requestedTypePush(ctx, rt);
+    //     lt = resolveType(ctx, n->op.left, fl);
+    //     requestedTypePop(ctx);
+    //   }
+    // } else if (n->op.right->type == Type_ideal) {
+    //   dlog(" CASE 3  left is typed, right is untyped");
+    //   lt = resolveType(ctx, n->op.left, fl);
+    //   requestedTypePush(ctx, lt);
+    //   rt = resolveType(ctx, n->op.right, fl);
+    //   requestedTypePop(ctx);
+    // } else {
+    //   dlog(" CASE 4  left & right are typed");
+    //   lt = resolveType(ctx, n->op.left, fl);
+    //   requestedTypePush(ctx, lt);
+    //   rt = resolveType(ctx, n->op.right, fl);
+    //   requestedTypePop(ctx);
+    // }
+
+    // if (lt == rt || TypeEquals(lt, rt)) {
+    //   // left and right are of same type and none of them are untyped.
+    //   n->type = lt;
+    // } else {
+    //   auto t = lt != NULL ? lt : rt;
+    //   auto n2 = ConvlitImplicit(ctx->cc, n, t);
+    //   if (n2 != n) {
+    //     // replace node
+    //     assert(n2->type != NULL);
+    //     memcpy(n, n2, sizeof(Node));
+    //   } else {
+    //     n->type = t;
+    //   }
+    // }
+
     break;
   }
 
@@ -367,8 +446,14 @@ static Node* resolveType(ResCtx* ctx, Node* n, RFlag fl) {
       assert(target->kind == NLet);
       assert(target->field.init != NULL); // let always has init
       assert(NodeIsConst(target->field.init)); // only constants can be of "ideal" type
-      memcpy(n, target->field.init, sizeof(Node)); // convert n to copy of value of let binding.
-      resolveIdealType(ctx, n, fl);
+      auto reqt = requestedType(ctx);
+      if (reqt != NULL) {
+        memcpy(n, target->field.init, sizeof(Node)); // convert n to copy of value of let binding.
+        resolveIdealType(ctx, n, reqt, fl);
+      } else {
+        // leave untyped for now
+        n->type = Type_ideal;
+      }
       break;
     }
 
@@ -388,6 +473,7 @@ static Node* resolveType(ResCtx* ctx, Node* n, RFlag fl) {
   case NTupleType:
   case NZeroInit:
   case _NodeKindMax:
+    dlog("unexpected %s", fmtast(n));
     assert(0 && "expected to be typed");
     break;
 

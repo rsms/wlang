@@ -668,6 +668,12 @@ ConstStr fmtnode(const Node* n) {
 }
 
 
+ConstStr fmtast(const Node* n) {
+  auto s = NodeRepr(n, sdsnewcap(32));
+  return memgcsds(s); // GC
+}
+
+
 void NodeListAppend(Memory mem, NodeList* a, Node* n) {
   auto l = (NodeListLink*)memalloc(mem, sizeof(NodeListLink));
   l->node = n;

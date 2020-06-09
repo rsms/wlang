@@ -163,6 +163,10 @@ typedef struct Node {
 // inline static void NodeFree(Node* _) {}
 Str NodeRepr(const Node* n, Str s); // return human-readable printable text representation
 
+// fmtast returns an s-expression representation of an AST.
+// Note: The returned string is garbage collected.
+ConstStr fmtast(const Node*);
+
 // fmtnode returns a short representation of an AST node, suitable for use in error messages.
 // Note: The returned string is garbage collected.
 ConstStr fmtnode(const Node*);

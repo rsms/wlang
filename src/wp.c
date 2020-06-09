@@ -30,7 +30,7 @@ static void printIR(const IRPkg* pkg) {
 void parsefile(Str filename, Scope* pkgscope) {
 
   // load file contents
-  size_t len;
+  size_t len = 0;
   auto buf = os_readfile(filename, &len, NULL);
   if (!buf) {
     die("%s: %s", filename, strerror(errno));
@@ -86,6 +86,10 @@ void parsefile(Str filename, Scope* pkgscope) {
 
 
 int main(int argc, char **argv) {
+  if (getTestMode() == WTestModeExclusive) {
+    return 0;
+  }
+
   if (argc < 2) {
     fprintf(stderr, "usage: %s <input>...\n", argv[0]);
     exit(1);

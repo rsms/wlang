@@ -1,7 +1,6 @@
-#include "wp.h"
-
 #include <unistd.h> // sysconf
-
+#include "defs.h"
+#include "os.h"
 
 static size_t _mempagesize = 0;
 
@@ -18,8 +17,8 @@ size_t os_mempagesize() {
 }
 
 
-u8* os_readfile(const char* filename, size_t* bufsize_out, Memory mem) {
-  // TODO: use mmap
+u8* os_readfile(const char* filename, size_t* size_inout, Memory mem) {
+  assert(size_inout != NULL);
 
   int fd = open(filename, O_RDONLY);
   if (fd < 0) {
@@ -33,19 +32,24 @@ u8* os_readfile(const char* filename, size_t* bufsize_out, Memory mem) {
   }
 
   size_t bufsize = (size_t)st.st_size;
-  u8* buf = (u8*)memalloc(mem, bufsize); // TODO use feelist
+  size_t limit = *size_inout;
+  if (limit > 0 && limit < bufsize) {
+    bufsize = limit;
+  }
+
+  u8* buf = (u8*)memalloc(mem, bufsize);
 
   auto nread = read(fd, buf, bufsize);
   close(fd);
-  if (nread != bufsize) {
-    die("TODO: parsefile read() partial");
-  }
   if (nread < 0) {
     memfree(mem, buf);
+    *size_inout = 0;
     return NULL;
   }
 
-  *bufsize_out = bufsize;
+  assert(nread == bufsize);
+
+  *size_inout = bufsize;
   return buf;
 }
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "defs.h"
 #include "dlmalloc.h"
 #include "sds.h"
 
@@ -11,30 +12,30 @@
 typedef mspace Memory;
 
 // memalloc allocates memory. Returned memory is zeroed.
-static void* memalloc(Memory mem/*NULL=global*/, size_t size);
+static void* memalloc(Memory nullable mem, size_t size) nonull_return;
 
 // memalloct is a convenience for: (MyStructType*)memalloc(m, sizeof(MyStructType))
 #define memalloct(mem, TYPE) ((TYPE)*memalloc(mem, sizeof(TYPE)))
 
 // memalloc reallocates some memory. Additional memory is NOT zeroed.
-static void* memrealloc(Memory mem/*NULL=global*/, void* ptr, size_t newsize);
+static void* memrealloc(Memory nullable mem, void* nullable ptr, size_t newsize) nonull_return;
 
 // memfree frees memory, if ptr is at the tail, else does nothing (leaves hole.)
-static void memfree(Memory mem/*NULL=global*/, void* ptr);
+static void memfree(Memory nullable mem, void* nonull ptr);
 
 // memallocCStr is like strdup
-char* memallocCStr(Memory mem/*NULL=global*/, const char* pch, size_t len);
+char* memallocCStr(Memory nullable mem, const char* nonull pch, size_t len);
 
 // memallocCStrConcat concatenates up to 20 c-strings together.
 // Arguments must be terminated with NULL.
-char* memallocCStrConcat(Memory mem/*NULL=global*/, const char* s1, ...);
+char* memallocCStrConcat(Memory nullable mem, const char* nonull s1, ...);
 
 // -----------------------------------------------------------------------------------------------
 // Rudimentary garbage collector for short-lived data.
 
 // memgcalloc allocates memory that will be free'd automatically.
 // This is equivalent to: memgc(memalloc(NULL, size))
-void* memgcalloc(size_t size);
+void* memgcalloc(size_t size) nonull_return;
 
 // memgcalloct is a convenience for: (MyStructType*)memgcalloc(sizeof(MyStructType))
 #define memgcalloct(mem, TYPE) ((TYPE)*memgcalloc(mem, sizeof(TYPE)))
@@ -46,7 +47,7 @@ void* memgcalloc(size_t size);
 #define memgc(ptr) ({ _memgc(ptr); (ptr); })
 
 // memgcsds marks an sds string for garbage collection, including Sym or Str.
-static sds memgcsds(sds s);
+static sds memgcsds(sds nonull s) nonull_return;
 
 // memgc_collect performs very basic garbage collection.
 // Each Memory space maintains two lists for gc: gen1 and gen2. memgc(ptr) adds to gen1.
@@ -70,8 +71,8 @@ void MemoryFree(Memory mem);        // free all memory allocated by mem
 // -----------------------------------------------------------------------------------------------
 // inline and internal implementations
 
-void _memgc(void* ptr);
-Memory _GlobalMemory();
+void _memgc(void* nonull ptr);
+Memory _GlobalMemory() nonull_return;
 
 inline static void* memalloc(Memory mem, size_t size) {
   return mspace_calloc(mem == NULL ? _GlobalMemory() : mem, 1, size);

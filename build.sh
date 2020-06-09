@@ -7,6 +7,7 @@ OPT_G=false
 OPT_CLEAN=false
 OPT_ANALYZE=false
 OPT_QUIET=false
+OPT_TEST=false
 USAGE_EXIT_CODE=0
 
 # parse args
@@ -28,7 +29,11 @@ while [[ $# -gt 0 ]]; do
     OPT_ANALYZE=true
     shift
     ;;
-  -quiet|--quiet)
+  -t|-test|--test)
+    OPT_TEST=true
+    shift
+    ;;
+  -q|-quiet|--quiet)
     OPT_QUIET=true
     shift
     ;;
@@ -52,9 +57,56 @@ if $OPT_HELP; then
   echo "  -clean        Clean ./build directory before building."
   echo "  -g            Build debug build instead of release build."
   echo "  -a, -analyze  Run static analyzer (Infer https://fbinfer.com) on sources."
-  echo "  -quiet        Only print errors."
+  echo "  -t, -test     Run tests, including code coverage analysis."
+  echo "  -q, -quiet    Only print errors."
   exit $USAGE_EXIT_CODE
 fi
+
+function fn_ninja {
+  if $OPT_QUIET; then
+    ninja "$@" >/dev/null
+  else
+    ninja "$@"
+  fi
+}
+
+# fn_find_llvm attempts to find the path to llvm binaries, first considering PATH.
+function fn_find_llvm {
+  LLVM_PATH=$(which llvm-cov)
+  if [[ "$LLVM_PATH" != "" ]]; then
+    echo $(dirname "$LLVM_PATH")
+    return 0
+  fi
+  test_paths=()
+  if (which clang >/dev/null); then
+    CLANG_PATH=$(clang -print-search-dirs | grep programs: | awk '{print $2}' | sed 's/^=//')
+    if [[ "$CLANG_PATH" != "" ]]; then
+      test_paths+=( "$CLANG_PATH" )
+    fi
+  fi
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    test_paths+=( /Library/Developer/CommandLineTools/usr/bin )
+  # elif [[ "$OSTYPE" == "linux"* ]]; then
+  #   echo "linux"
+  # elif [[ "$OSTYPE" == "cygwin" ]] || \
+  #      [[ "$OSTYPE" == "msys" ]] || \
+  #      [[ "$OSTYPE" == "win32" ]] || \
+  #      [[ "$OSTYPE" == "win64" ]]
+  # then
+  #   echo "win"
+  fi
+  for path in ${test_paths[@]}; do
+    if [[ -f "$path/llvm-cov" ]]; then
+      echo "$path"
+      return 0
+    fi
+  done
+  echo "llvm not found in PATH. Also searched:" >&2
+  for path in ${test_paths[@]}; do
+    echo "  $path" >&2
+  done
+  return 1
+}
 
 if $OPT_CLEAN; then
   rm -rf build
@@ -69,12 +121,8 @@ if $OPT_ANALYZE; then
     echo "'infer' not found in PATH. See https://fbinfer.com/ on how to install" >&2
     exit 1
   fi
-  if $OPT_QUIET; then
-    ninja debug >/dev/null
-  else
-    ninja debug
-  fi
-  ninja -t compdb compile_obj > build/debug-compilation-database.json
+  fn_ninja debug
+  fn_ninja -t compdb compile_obj > build/debug-compilation-database.json
   if $OPT_QUIET; then
     infer capture --no-progress-bar --compilation-database build/debug-compilation-database.json
     infer analyze --no-progress-bar
@@ -82,18 +130,44 @@ if $OPT_ANALYZE; then
     infer capture --compilation-database build/debug-compilation-database.json
     infer analyze
   fi
+elif $OPT_TEST; then
+  # https://clang.llvm.org/docs/SourceBasedCodeCoverage.html
+  LLVM_PATH=$(fn_find_llvm)
+  echo "PATH $PATH"
+  fn_ninja test  # build test product
+
+  # run built-in unit tests
+  LLVM_PROFILE_FILE=build/unit-tests.profraw W_TEST_MODE=exclusive build/wp.test
+  LLVM_PROFILE_FILE=build/ast1.profraw build/wp.test example/factorial.w >/dev/null
+
+  # index coverage data
+  "$LLVM_PATH/llvm-profdata" merge -sparse -o build/test.profdata build/*.profraw
+  rm build/*.profraw
+
+  # generate & print report
+  "$LLVM_PATH/llvm-cov" report build/wp.test -instr-profile=build/test.profdata
+  # llvm-cov show build/wp.test -instr-profile=build/test.profdata  # extremely verbose
+
+  mkdir -p build/cov
+  "$LLVM_PATH/llvm-cov" show build/wp.test \
+    -instr-profile=build/test.profdata \
+    -ignore-filename-regex='dlmalloc.*' \
+    -format=html \
+    -tab-size=4 \
+    -output-dir=build/cov
+  echo "Report generated at build/cov/index.html"
+  if [[ "$(lsof +c 0 -sTCP:LISTEN -iTCP:8186 | tail -1)" == "" ]]; then
+    echo "To view in a live-reloading web server, run this in a separate terminal."
+    echo "The report will update live as this script is re-run."
+    echo "  serve-http -p 8186 '$PWD/build/cov'"
+  fi
+
+
+
 elif $OPT_G; then
-  if $OPT_QUIET; then
-    ninja debug >/dev/null
-  else
-    ninja debug
-  fi
+  fn_ninja debug
 else
-  if $OPT_QUIET; then
-    ninja release >/dev/null
-  else
-    ninja release
-  fi
+  fn_ninja release
 fi
 
 

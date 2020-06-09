@@ -5,15 +5,19 @@ builddir = build
 cflags = $
   -std=c11 $
   -Wall -Wuninitialized -Wmissing-field-initializers -Wconditional-uninitialized $
+  -Wno-nullability-completeness $
   -fcolor-diagnostics
-
-cflags_opt = $cflags -Oz -DNDEBUG
-cflags_dev = $cflags -O0 -g -DDEBUG
 
 lflags =
 
-lflags_opt = $lflags -O3 -flto
-lflags_dev = $lflags -g -O0 -fno-lto
+cflags_opt = $cflags -Oz -DNDEBUG
+lflags_opt  = $lflags -O3 -flto
+
+cflags_dev = $cflags -O0 -g -DDEBUG
+lflags_dev  = $lflags -g -O0 -fno-lto
+
+cflags_test = $cflags_dev -DW_TEST_BUILD -fprofile-instr-generate -fcoverage-mapping
+lflags_test = $lflags_dev -fprofile-instr-generate -fcoverage-mapping
 
 # https://clang.llvm.org/docs/AddressSanitizer.html
 #
@@ -51,5 +55,6 @@ build $builddir/gen_parselet_map.marker: gen_parselet_map src/parse.c
 
 build release: phony | $builddir/gen_parselet_map.marker $builddir/wp
 build debug:   phony | $builddir/gen_parselet_map.marker $builddir/wp.g
+build test:    phony | $builddir/gen_parselet_map.marker $builddir/wp.test
 
 default debug

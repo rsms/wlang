@@ -29,13 +29,13 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
 
     if (target == NULL) {
       // dlog("  LOOKUP %s", n->ref.name);
-      target = ScopeLookup(scope, n->ref.name);
+      target = (Node*)ScopeLookup(scope, n->ref.name);
       if (target == NULL) {
         CCtxErrorf(ctx->cc, n->pos, "undefined symbol %s", name);
-        ((Node*)n)->ref.target = NodeBad;
+        n->ref.target = (Node*)NodeBad;
         return n;
       }
-      ((Node*)n)->ref.target = target;
+      n->ref.target = target;
       // dlog("  UNWIND %s => %s", n->ref.name, NodeKindName(target->kind));
     }
 
@@ -44,7 +44,7 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
       case NIdent:
         // note: all built-ins which are const have targets, meaning the code above will
         // not mutate those nodes.
-        n = (Node*)target;
+        n = target;
         break; // continue unwind loop
 
       case NLet:
@@ -84,7 +84,7 @@ static Node* resolveIdent(Node* n, Scope* scope, ResCtx* ctx) {
           //   (assign (tuple (int 1) (int 2)) (tuple (int 1) (int 2)))
           return n;
         }
-        return (Node*)target;
+        return target;
 
       default:
         assert(!NodeKindIsConst(target->kind)); // should be covered in case-statements above

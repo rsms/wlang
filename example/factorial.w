@@ -25,18 +25,24 @@ fun main {
   # b = a + (2 as int16)
   # d = (3 as int64) + a
 
-  a = 1 + 2
-  y = if true a else 3
+  # a = 1 + 2
+  # y = if true a else 3
+  # 0
 
-  0
+  x = 3 as int32
+  k = 9
+  # y = 3 + k
+  y = k + x
 
-  # x = 3 as int32
+  # y = x + x + (1 + 2 + x) + (3 + k)
+
   # z = if true {
   #   a = 4  # avoid block elimination while working on ir builder
   #   y = x + 1 #a
   # } else {
   #   120
   # }
+  # z
 
   # factorial(start)
 }
