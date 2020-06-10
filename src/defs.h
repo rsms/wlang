@@ -7,7 +7,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <assert.h>
 
 // target endianess
 #if !defined(W_BYTE_ORDER_LE) && !defined(W_BYTE_ORDER_BE)
@@ -78,6 +77,26 @@ typedef double                 f64;
 #elif
   #define DEBUG 0
 #endif
+
+// WFormatForValue returns a printf formatting pattern for the type of x
+#define WFormatForValue(x) _Generic((x), \
+  unsigned long long: "%llu", \
+  unsigned long:      "%lu", \
+  unsigned int:       "%u", \
+  long long:          "%lld", \
+  long:               "%ld", \
+  int:                "%d", \
+  char:               "%c", \
+  unsigned char:      "%C", \
+  const char*:        "%s", \
+  char*:              "%s", \
+  void*:              "%p", \
+  const void*:        "%p", \
+  default:            "%p" \
+)
+
+#include "assert.h"
+
 #if DEBUG
   #include <stdio.h>
   #define dlog(format, ...) \

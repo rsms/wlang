@@ -78,6 +78,7 @@ void parsefile(Str filename, Scope* pkgscope) {
   printf("————————————————————————————————————————————————————————————————\n");
   // print IR SLC
   printIR(irbuilder.pkg);
+  IRBuilderFree(&irbuilder);
 
   end:
   CCtxFree(&cc);

@@ -2,7 +2,7 @@
 #include "typeid.h"
 #include "ir/op.h"
 
-#define DEBUG_MODULE "convlit"
+// #define DEBUG_MODULE "convlit"
 
 #ifdef DEBUG_MODULE
   #define dlog_mod(format, ...) dlog("[" DEBUG_MODULE "] " format, ##__VA_ARGS__)

@@ -1,4 +1,5 @@
 #pragma once
+#include "str.h"
 
 typedef enum {
   TStyle_bold,         // : sfn('1', '1', '22'),
@@ -45,3 +46,6 @@ static inline Str TStyleOrange(Str s) { return sdscat(s, TStyleTable[TStyle_oran
 
 static inline Str TStyleNone(Str s) { return sdscat(s, TStyle_none); }
 static inline Str TStyleNoColor(Str s) { return sdscat(s, TStyle_noColor); }
+
+bool TSTyleStdoutIsTTY();
+bool TSTyleStderrIsTTY();

@@ -7,6 +7,7 @@ typedef struct {
 } IRRepr;
 
 
+
 static void reprValue(IRRepr* r, const IRValue* v) {
   assert(v->op < Op_MAX);
 
@@ -60,37 +61,73 @@ static void reprValue(IRRepr* r, const IRValue* v) {
 }
 
 
+
 static void reprBlock(IRRepr* r, const IRBlock* b) {
-  r->buf = sdscatfmt(r->buf, "  b%u:\n", b->id);
-  // TODO: predecessors, e.g. "b3: <- b1, b4"
+  // start of block header
+  r->buf = sdscatfmt(r->buf, "  b%u:", b->id);
+
+  // predecessors
+  if (b->preds[0] != NULL) {
+    if (b->preds[1] != NULL) {
+      r->buf = sdscatfmt(r->buf, " <- b%u b%u", b->preds[0]->id, b->preds[1]->id);
+    } else {
+      r->buf = sdscatfmt(r->buf, " <- b%u", b->preds[0]->id);
+    }
+  } else {
+    assertf(b->preds[1] == NULL, "preds are not dense");
+  }
+
+  // end block header
+  if (b->comment != NULL) {
+    r->buf = sdscatfmt(r->buf, "\t # %s", b->comment);
+  }
+  r->buf = sdscatc(r->buf, '\n');
+
+  // values
   ArrayForEach(&b->values, IRValue*, v, {
     reprValue(r, v);
   });
 
-  // TODO: control and successors e.g. "if v4 -> b2, b1"
+  // successors
   switch (b->kind) {
   case IRBlockInvalid:
     r->buf = sdscat(r->buf, "  ?\n");
     break;
 
-  case IRBlockCont:
-    r->buf = sdscatfmt(r->buf, "  cont\n");
-    // TODO successors
+  case IRBlockCont: {
+    auto contb = b->succs[0];
+    if (contb != NULL) {
+      r->buf = sdscatfmt(r->buf, "  cont -> b%u\n", contb->id);
+    } else {
+      r->buf = sdscatfmt(r->buf, "  cont -> ?\n");
+    }
     break;
+  }
 
   case IRBlockFirst:
-    r->buf = sdscatfmt(r->buf, "  first\n");
+  case IRBlockIf: {
+    auto thenb = b->succs[0];
+    auto elseb = b->succs[1];
+    assert(thenb != NULL && elseb != NULL);
+    assertf(b->control != NULL, "missing control value");
+    r->buf = sdscatfmt(r->buf,
+      "  %s v%u -> b%u b%u\n",
+      b->kind == IRBlockIf ? "if" : "first",
+      b->control->id,
+      thenb->id,
+      elseb->id
+    );
     break;
-
-  case IRBlockIf:
-    r->buf = sdscatfmt(r->buf, "  if\n");
-    break;
+  }
 
   case IRBlockRet:
     assert(b->control != NULL);
     r->buf = sdscatfmt(r->buf, "  ret v%u\n", b->control->id);
     break;
+
   }
+
+  r->buf = sdscatc(r->buf, '\n');
 }
 
 

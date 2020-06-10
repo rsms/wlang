@@ -15,7 +15,7 @@ typedef mspace Memory;
 static void* memalloc(Memory nullable mem, size_t size) nonull_return;
 
 // memalloct is a convenience for: (MyStructType*)memalloc(m, sizeof(MyStructType))
-#define memalloct(mem, TYPE) ((TYPE)*memalloc(mem, sizeof(TYPE)))
+#define memalloct(mem, TYPE) ((TYPE*)memalloc(mem, sizeof(TYPE)))
 
 // memalloc reallocates some memory. Additional memory is NOT zeroed.
 static void* memrealloc(Memory nullable mem, void* nullable ptr, size_t newsize) nonull_return;
@@ -29,6 +29,9 @@ char* memallocCStr(Memory nullable mem, const char* nonull pch, size_t len);
 // memallocCStrConcat concatenates up to 20 c-strings together.
 // Arguments must be terminated with NULL.
 char* memallocCStrConcat(Memory nullable mem, const char* nonull s1, ...);
+
+// memsprintf is like sprintf but uses memory from mem.
+char* memsprintf(Memory mem, const char* format, ...);
 
 // -----------------------------------------------------------------------------------------------
 // Rudimentary garbage collector for short-lived data.

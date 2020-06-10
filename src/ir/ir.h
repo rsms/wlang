@@ -56,7 +56,7 @@ typedef struct IRBlock {
   IRBlockKind kind;     // kind of block
   bool        sealed;   // true if no further predecessors will be added
   SrcPos      pos;      // source position
-  Str         comment;  // short comment for IR formatting. May be NULL.
+  const char* comment;  // short comment for IR formatting. May be NULL.
   IRBlock*    succs[2]; // Successor/subsequent blocks (CFG)
   IRBlock*    preds[2]; // Predecessors (CFG)
 
@@ -116,6 +116,7 @@ IRValue* IRFunGetConstBool(IRFun* f, bool value);
 IRValue* IRFunGetConstInt(IRFun* f, TypeCode t, u64 n);
 IRValue* IRFunGetConstFloat(IRFun* f, TypeCode t, double n);
 void     IRFunInvalidateCFG(IRFun*);
+void     IRFunMoveBlockToEnd(IRFun*, u32 blockIndex); // moves block at index to end of f->blocks
 
 
 IRPkg*   IRPkgNew(Memory, const char* name/*null*/);

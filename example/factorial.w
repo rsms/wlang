@@ -15,34 +15,23 @@ fun main {
   # b = int64(arg0)
   # k = x / y * z # oops! Right-associate but should be left-associative
 
-  # x = 1     # (Let x (Int 1))
-  # y = x + 3 as int32 # (Let y (Op + (Ref x) (Int 2)))
+  # a = 1 + 2                         # 1  left & right are untyped
+  # a = 2 + (1 as uint32)             # 2  left is untyped, right is typed
+  # a = (1 as uint32) + 2             # 3  left is typed, right is untyped
+  # a = (1 as uint32) + (2 as uint32) # 4  left & right are typed
 
-  # k = 3 as int
-  # U = 4 + k
+  # a = 4
+  # b = a
+  # y = b + 1
 
-  # a = 1
-  # b = a + (2 as int16)
-  # d = (3 as int64) + a
+  z = if true {
+    a = 4  # avoid block elimination while working on ir builder
+    y = a + 1
+  } else {
+    8
+  }
 
-  # a = 1 + 2
-  # y = if true a else 3
-  # 0
-
-  x = 3 as int32
-  k = 9
-  # y = 3 + k
-  y = k + x
-
-  # y = x + x + (1 + 2 + x) + (3 + k)
-
-  # z = if true {
-  #   a = 4  # avoid block elimination while working on ir builder
-  #   y = x + 1 #a
-  # } else {
-  #   120
-  # }
-  # z
+  z
 
   # factorial(start)
 }

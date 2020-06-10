@@ -2,6 +2,25 @@
 #include "builder.h"
 
 
+static sds sdscatval(sds s, const IRValue* v, int indent) {
+  s = sdscatfmt(s, "v%u(op=%s type=%s args=[", v->id, IROpName(v->op), TypeCodeName(v->type));
+  if (v->argslen > 0) {
+    for (int i = 0; i < v->argslen; i++) {
+      s = sdscatprintf(s, "\n  %*s", (indent * 2), "");
+      s = sdscatval(s, v->args[i], indent + 1);
+    }
+    s = sdscatprintf(s, "\n%*s", (indent * 2), "");
+  }
+  s = sdscat(s, "])");
+  return s;
+}
+
+static ConstStr fmtval(const IRValue* v) {
+  auto s = sdscatval(sdsnewcap(32), v, 0);
+  return memgcsds(s); // GC
+}
+
+
 static bool addTopLevel(IRBuilder* u, Node* n);
 
 
@@ -25,23 +44,6 @@ bool IRBuilderAdd(IRBuilder* u, const CCtx* cc, Node* n) {
   u->cc = NULL;
   return ok;
 }
-
-
-static void errorf(IRBuilder* u, SrcPos pos, const char* format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  auto msg = sdsempty();
-  if (strlen(format) > 0) {
-    msg = sdscatvprintf(msg, format, ap);
-    assert(sdslen(msg) > 0); // format may contain %S which is not supported by sdscatvprintf
-  }
-  va_end(ap);
-  if (u->cc) {
-    u->cc->errh(&u->cc->src, pos, msg, u->cc->userdata);
-  }
-  sdsfree(msg);
-}
-
 
 
 // sealBlock sets b.sealed=true, indicating that no further predecessors will be added
@@ -166,6 +168,7 @@ static IRValue* readVariable(IRBuilder* u, Sym name, Node* typeNode, IRBlock* b/
   // // global value numbering
   // return u.readVariableRecursive(name, t, b)
 
+  dlog("TODO");
   return TODO_Value(u);
 }
 
@@ -179,7 +182,8 @@ static IRValue* addExpr(IRBuilder* u, Node* n);
 static IRValue* addIntConst(IRBuilder* u, Node* n) {
   assert(n->kind == NIntLit);
   assert(n->type->kind == NBasicType);
-  return IRFunGetConstInt(u->f, n->type->t.basic.typeCode, n->val.i);
+  auto v = IRFunGetConstInt(u->f, n->type->t.basic.typeCode, n->val.i);
+  return v;
 }
 
 
@@ -285,6 +289,9 @@ static IRValue* addBinOp(IRBuilder* u, Node* n) {
   auto left  = addExpr(u, n->op.left);
   auto right = addExpr(u, n->op.right);
 
+  dlog("[BinOp] left:  %s", fmtval(left));
+  dlog("[BinOp] right: %s", fmtval(right));
+
   // lookup IROp
   IROp op = IROpFromAST(n->op.op, left->type, right->type);
   assert(op != OpNil);
@@ -368,9 +375,11 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
   auto control = addExpr(u, n->cond.cond);
   if (control->type != TypeCode_bool) {
     // AST should not contain conds that are non-bool
-    errorf(u, n->cond.cond->pos,
+    CCtxErrorf(u->cc, n->cond.cond->pos,
       "invalid non-bool type in condition %s", fmtnode(n->cond.cond));
   }
+
+  assert(n->cond.thenb != NULL);
 
   // [optimization] Early optimization of constant boolean condition
   if ((u->flags & IRBuilderOpt) != 0 && (IROpInfo(control->op)->aux & IRAuxBool)) {
@@ -378,17 +387,153 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
     if (control->auxInt != 0) {
       // then branch always taken
       return addExpr(u, n->cond.thenb);
-    } else {
-      // else branch always taken
-      if (n->cond.elseb == NULL) {
-        dlog("[ir/builder TODO produce nil value]");
-        return IRValueNew(u->f, u->b, OpNil, TypeCode_nil, &n->pos);
-      }
-      return addExpr(u, n->cond.elseb);
     }
-    // TODO
+    // else branch always taken
+    if (n->cond.elseb == NULL) {
+      dlog("TODO ir/builder produce nil value");
+      return IRValueNew(u->f, u->b, OpNil, TypeCode_nil, &n->pos);
+    }
+    return addExpr(u, n->cond.elseb);
   }
 
+  // end predecessor block (leading up to and including "if")
+  auto ifb = endBlock(u);
+  ifb->kind = IRBlockIf;
+  IRBlockSetControl(ifb, control);
+
+  // create blocks for then and else branches
+  auto thenb = IRBlockNew(u->f, IRBlockCont, &n->cond.thenb->pos);
+  auto elsebIndex = u->f->blocks.len; // may be used later for moving blocks
+  auto elseb = IRBlockNew(u->f, IRBlockCont,
+    n->cond.elseb == NULL ? &n->pos : &n->cond.elseb->pos);
+  ifb->succs[0] = thenb;
+  ifb->succs[1] = elseb; // if -> then, else
+
+  // begin "then" block
+  dlog("[if] begin \"then\" block");
+  thenb->preds[0] = ifb; // then <- if
+  startSealedBlock(u, thenb);
+  auto thenv = addExpr(u, n->cond.thenb);  // generate "then" body
+  thenb = endBlock(u);
+
+  if (n->cond.elseb != NULL) {
+    // "else"
+
+    // allocate "cont" block; the block following both thenb and elseb
+    auto contbIndex = u->f->blocks.len;
+    auto contb = IRBlockNew(u->f, IRBlockCont, &n->pos);
+
+    // begin "else" block
+    dlog("[if] begin \"else\" block");
+    elseb->preds[0] = ifb; // else <- if
+    startSealedBlock(u, elseb);
+    auto elsev = addExpr(u, n->cond.elseb);  // generate "else" body
+    elseb = endBlock(u);
+    elseb->succs[0] = contb; // else -> cont
+    thenb->succs[0] = contb; // then -> cont
+    contb->preds[0] = thenb;
+    contb->preds[1] = elseb; // cont <- then, else
+    startSealedBlock(u, contb);
+
+    // move cont block to end (in case blocks were created by "else" body)
+    IRFunMoveBlockToEnd(u->f, contbIndex);
+
+    if (u->flags & IRBuilderComments) {
+      thenb->comment = memsprintf(u->mem, "b%u.then", ifb->id);
+      elseb->comment = memsprintf(u->mem, "b%u.else", ifb->id);
+      contb->comment = memsprintf(u->mem, "b%u.end", ifb->id);
+    }
+
+    assertf(thenv->type == elsev->type,
+      "branch type mismatch %s, %s", TypeCodeName(thenv->type), TypeCodeName(elsev->type));
+
+    // make Phi
+    auto phi = IRValueNew(u->f, u->b, OpPhi, thenv->type, &n->pos);
+    assertf(u->b->preds[0] != NULL, "phi in block without predecessors");
+    phi->args[0] = thenv;
+    phi->args[1] = elsev;
+    thenv->uses++;
+    elsev->uses++;
+    phi->argslen = 2;
+    return phi;
+
+  } else {
+    // no "else" block
+    thenb->succs[0] = elseb; // then -> else
+    elseb->preds[0] = ifb;
+    elseb->preds[1] = thenb; // else <- if, then
+    startSealedBlock(u, elseb);
+
+    // move ending block to end
+    // r.f.blocks.copyWithin(elsebidx, elsebidx+1)
+    // r.f.blocks[r.f.blocks.length-1] = elseb
+
+    // move cont block to end (in case blocks were created by "then" body)
+    IRFunMoveBlockToEnd(u->f, elsebIndex);
+
+    if (u->flags & IRBuilderComments) {
+      thenb->comment = memsprintf(u->mem, "b%u.then", ifb->id);
+      elseb->comment = memsprintf(u->mem, "b%u.end", ifb->id);
+    }
+
+    // Consider and decide what semantics we want for if..then expressions without else.
+    // There are at least three possibilities:
+    //
+    //   A. zero initialized value of the then-branch type:
+    //
+    //      "x = if y 3"                 typeof(x) => int       If false: 0
+    //      "x = if y Account{ id: 1 }"  typeof(x) => Account   If false: Account{id:0}
+    //
+    //   B. zero initialized basic types, higher-level types become optional:
+    //
+    //      "x = if y 3"                 typeof(x) => int       If false: 0
+    //      "x = if y Account{ id: 1 }"  typeof(x) => Account?  If false: nil
+    //
+    //   C. any type becomes optional:
+    //
+    //      "x = if y 3"                 typeof(x) => int?      If false: nil
+    //      "x = if y Account{ id: 1 }"  typeof(x) => Account?  If false: nil
+    //
+    // Discussion:
+    //
+    //   C implies that the language has a concept of pointers beyond reference types.
+    //   i.e. is an int? passed to a function copy-by-value or not? Probably not because then
+    //   "fun foo(x int)" vs "fun foo(x int?)" would be equivalent, which doesn't make sense.
+    //   Okay, so C is out.
+    //
+    //   B is likely the best choice here, assuming the language has a concept of optional.
+    //   To implement B, we need to:
+    //
+    //   - Add support to resolve_type so that the effective type of the the if expression is
+    //     optional for higher-level types (but not for basic types.)
+    //
+    //   - Decide on a representation of optional. Likely actually null; the constant 0.
+    //     In that case, we have two options for IR branch block generation:
+    //
+    //       1. Store 0 to the result before evaluating the condition expression, or
+    //
+    //       2. generate an implicit "else" block that stores 0 to the result.
+    //
+    //     Approach 1 introduces possibly unnecessary stores while the second approach introduces
+    //     Phi joints always. Also, the second approach introduces additional branching in the
+    //     final generated code.
+    //
+    //     Because of this, approach 1 is the better one. It has optimization opportunities as
+    //     well, like for instance if we know that the storage of the result of the if expression
+    //     is already zero (e.g. from calloc), we can skip storing zero before the branch.
+    //
+    // Conclusion:
+    //
+    // - B. zero initialized basic types, higher-level types become optional.
+    // - Store zero before branch, rather than generating implicit "else" branches.
+    // - Introduce "optional" as a concept in the language.
+    // - Update resolve_type to convert type to optional when there is no "else" branch.
+    //
+  }
+
+  // TODO
+
+  dlog("TODO");
   return TODO_Value(u);
 }
 
@@ -438,7 +583,7 @@ static IRValue* addExpr(IRBuilder* u, Node* n) {
     case NNone:
     case NBad:
     case _NodeKindMax:
-      errorf(u, n->pos, "invalid AST node %s", NodeKindName(n->kind));
+      CCtxErrorf(u->cc, n->pos, "invalid AST node %s", NodeKindName(n->kind));
       break;
   }
   return TODO_Value(u);
@@ -533,7 +678,7 @@ static bool addTopLevel(IRBuilder* u, Node* n) {
     case NTypeCast:
     case NZeroInit:
     case _NodeKindMax:
-      errorf(u, n->pos, "invalid top-level AST node %s", NodeKindName(n->kind));
+      CCtxErrorf(u->cc, n->pos, "invalid top-level AST node %s", NodeKindName(n->kind));
       break;
   }
   return false;

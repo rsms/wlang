@@ -592,8 +592,9 @@ sds sdscatnode(sds s, const Node* n) {
     s = sdscat(s, "file");
     break;
 
-  case NLet: // foo=
-    s = sdscatfmt(s, "%S=", n->field.name);
+  case NLet: // let
+    // s = sdscatfmt(s, "%S=", n->field.name);
+    s = sdscat(s, "let");
     break;
 
   case NArg: // foo

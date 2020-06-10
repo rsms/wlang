@@ -1,7 +1,14 @@
 #pragma once
 #include "assert.h"
-
+//
 // testing
+//
+// Preprocessor macros:
+//   W_TEST_BUILD is defined for the "test" target product (but not for "debug".)
+//   W_UNIT_TEST_ENABLED is defined for "test" and "debug" targets (since DEBUG is.)
+//   W_UNIT_TEST(name, body) defines a unit test to be run before main()
+//
+
 #if DEBUG
   #define W_UNIT_TEST_ENABLED 1
   #define W_UNIT_TEST(name, body) \

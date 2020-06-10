@@ -58,6 +58,27 @@ IRValue* IRFunGetConstFloat(IRFun* f, TypeCode t, double value) {
   return getConst64(f, t, ivalue);
 }
 
+void IRFunMoveBlockToEnd(IRFun* f, u32 blockIndex) {
+  // moves block at index to end of f->blocks
+  assert(f->blocks.len > blockIndex);
+  if (f->blocks.len > blockIndex + 1) {
+    // not last
+    auto b = checknull(f->blocks.v[blockIndex]);
+
+    // shift all blocks after blockIndex one step to the left
+    // e.g. given blockIndex=2:
+    //  0 1 2 3 4
+    // [a,b,c,d,e]
+    // [a,b,d,d,e]
+    // [a,b,d,e,e]
+    u32 end = f->blocks.len - 1;
+    u32 i = blockIndex;
+    for (; i < end; i++) {
+      f->blocks.v[i] = f->blocks.v[i + 1];
+    }
+    f->blocks.v[i] = b;
+  }
+}
 
 void IRFunInvalidateCFG(IRFun* f) {
   // TODO

@@ -76,7 +76,7 @@ fi
 
 function dev_run_exec {
   set +e
-  ASAN_OPTIONS=detect_stack_use_after_return=1 ./build/wp.g "$@"
+  ASAN_OPTIONS=detect_stack_use_after_return=1 W_TEST_MODE=on ./build/wp.g "$@"
   DEV_RUN_STATUS=$?
   set -e
   # if [ $DEV_RUN_STATUS -ne 0 ] && [ $DEV_RUN_STATUS -ne 1 ]; then
@@ -97,7 +97,9 @@ function dev_run {
   else
     if $OPT_LLDB; then
       echo lldb -bo r ./build/wp.g "$@"
-      ASAN_OPTIONS=detect_stack_use_after_return=1 lldb -bo r ./build/wp.g "$@"
+      ASAN_OPTIONS=detect_stack_use_after_return=1 \
+      W_TEST_MODE=on \
+        lldb -bo r ./build/wp.g "$@"
     else
       dev_run_exec "$@" &
       pid=$!

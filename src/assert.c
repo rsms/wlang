@@ -1,13 +1,18 @@
 #include <execinfo.h>
+
 #include "defs.h"
 #include "os.h"
+#include "tstyle.h"
+
+#include "test.h"
 
 
 static bool fprintSourceFile(
   FILE* nonull fp,
   const char* nonull file,
   int line,
-  int contextLines
+  int contextLines,
+  bool colors
 ) {
   // try to read source file
   size_t srclen = 1024*1024; // read limit
@@ -24,15 +29,22 @@ static bool fprintSourceFile(
   int end = -1;
   int linestart = 0;
   bool tail = true;
+
   for (int i = 0; i < len; i++) {
     if (srcbuf[i] == '\n') {
       if (lineno == linemin) {
         start = linestart;
       }
       if (lineno == line) {
-        fprintf(fp, "% 4d > %.*s\n", lineno, i - linestart, &srcbuf[linestart]);
+        fprintf(fp, "%s%-4d >%s %.*s\n",
+          colors ? TStyleTable[TStyle_inverse] : "",
+          lineno,
+          colors ? TStyle_none : "",
+          i - linestart,
+          &srcbuf[linestart]
+        );
       } else if (linemin <= lineno && lineno <= linemax) {
-        fprintf(fp, "% 4d   %.*s\n", lineno, i - linestart, &srcbuf[linestart]);
+        fprintf(fp, "%-4d   %.*s\n", lineno, i - linestart, &srcbuf[linestart]);
       }
       if (lineno == linemax) {
         end = i;
@@ -70,13 +82,25 @@ static bool fprintStackTrace(FILE* nonull fp, int offsetFrames) {
 }
 
 
-void _wassert(bool cond, const char* msg, const char* file, int line) {
-  if (cond) {
-    return;
+void WAssertf(const char* srcfile, int srcline, const char* nonull format, ...) {
+  bool colors = TSTyleStderrIsTTY();
+  va_list ap;
+  va_start(ap, format);
+  vfprintf(stderr, format, ap);
+  va_end(ap);
+  fputc('\n', stderr);
+  if (srcfile != NULL) {
+    fprintSourceFile(stderr, srcfile, srcline, /* contextLines */ 3, colors);
   }
-  fprintf(stderr, "%s:%d: Assertion error: %s\n", file, line, msg);
-  fprintSourceFile(stderr, file, line, /* contextLines */ 3);
   fprintStackTrace(stderr, /* offsetFrames = */ 1);
-  abort();
 }
 
+
+// Note: Since this prints to stderr, only enable this in the "test" product
+#ifdef W_TEST_BUILD
+  W_UNIT_TEST(Assert, {
+    fprintf(stderr, "----- THE BELOW ASSERTION IS EXPECTED TO FAIL -----\n");
+    WAssertf(__FILE__, __LINE__, "%s:%d: test %d", __FILE__, __LINE__, 123);
+    fprintf(stderr, "----- THE ABOVE ASSERTION IS EXPECTED TO FAIL -----\n");
+  })
+#endif

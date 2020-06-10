@@ -70,6 +70,24 @@ char* memallocCStrConcat(Memory mem, const char* s1, ...) {
 }
 
 
+// memsprintf is like sprintf but uses memory from mem.
+char* memsprintf(Memory mem, const char* format, ...) {
+  va_list ap;
+  va_start(ap, format);
+  size_t bufsize = (strlen(format) * 2) + 1;
+  char* buf = memalloc(mem, bufsize);
+  size_t idealsize = (size_t)vsnprintf(buf, bufsize, format, ap);
+  if (idealsize >= bufsize) {
+    // buf is too small
+    buf = mspace_realloc(mem, buf, idealsize + 1);
+    idealsize = (size_t)vsnprintf(buf, bufsize, format, ap);
+    assert(idealsize < bufsize); // according to libc docs, this should be true
+  }
+  va_end(ap);
+  return buf;
+}
+
+
 typedef struct GC {
   Array gen1, gen2;
 } GC;

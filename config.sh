@@ -23,6 +23,7 @@ sources=( \
   src/str.c \
   src/sym.c \
   src/test.c \
+  src/thread.c \
   src/token.c \
   src/tstyle.c \
   src/typeid.c \

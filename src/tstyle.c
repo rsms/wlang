@@ -1,5 +1,8 @@
+#include <unistd.h>  // for isatty()
+
 #include "wp.h"
 #include "tstyle.h"
+
 
 const char* TStyleTable[_TStyle_MAX] = {
   "\x1b[1m",  // TStyle_bold         // : sfn('1',  '1', '22'),
@@ -23,3 +26,25 @@ const char* TStyleTable[_TStyle_MAX] = {
 
 const char* TStyle_none = "\x1b[0m";
 const char* TStyle_noColor = "\x1b[39m";
+
+
+static int _TSTyleStdoutIsTTY = -1;
+static int _TSTyleStderrIsTTY = -1;
+
+// STDIN  = 0
+// STDOUT = 1
+// STDERR = 2
+
+bool TSTyleStdoutIsTTY() {
+  if (_TSTyleStdoutIsTTY == -1) {
+    _TSTyleStdoutIsTTY = isatty(1) ? 1 : 0;
+  }
+  return !!_TSTyleStdoutIsTTY;
+}
+
+bool TSTyleStderrIsTTY() {
+  if (_TSTyleStderrIsTTY == -1) {
+    _TSTyleStderrIsTTY = isatty(1) ? 1 : 0;
+  }
+  return !!_TSTyleStderrIsTTY;
+}

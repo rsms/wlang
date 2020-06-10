@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defs.h"
+#include "assert.h"
 #include "test.h"
 #include "memory.h"
 // // shadow stdlib functions so that if we try to use them we get an error
@@ -11,7 +12,6 @@
 #include "str.h"
 #include "sym.h"
 #include "os.h"
-
 
 // Source
 typedef struct {
