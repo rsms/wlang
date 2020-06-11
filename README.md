@@ -16,6 +16,7 @@ Notes:
 - `./build.sh`               — build release product and exit
 - `./build.sh -g`            — build debug product and exit
 - `./build.sh -analyze`      — analyze entire project using ([Infer](https://fbinfer.com/))
+- `./build.sh -test`         — build & run all tests and generate code coverage reports.
 - Debug products are built with Clang address sanitizer by default.
   To disable asan/msan, edit the `build.in.ninja` file.
 
