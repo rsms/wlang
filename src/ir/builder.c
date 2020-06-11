@@ -438,9 +438,43 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
     // move cont block to end (in case blocks were created by "else" body)
     IRFunMoveBlockToEnd(u->f, contbIndex);
 
+    if (elseb->values.len == 0) {
+      // "else" body may be empty in case it refers to an existing value. For example:
+      //   x = 9 ; y = if true x + 1 else x
+      // This compiles to:
+      //   b0:
+      //     v1 = const 9
+      //     v2 = const 1
+      //   if true -> b1, b2
+      //   b1:
+      //     v3 = add v1 v2
+      //   cont -> b3
+      //   b2:                    #<-  Note: Empty
+      //   cont -> b3
+      //   b3:
+      //     v4 = phi v3 v1
+      //
+      // The above can be reduced to:
+      //   b0:
+      //     v1 = const 9
+      //     v2 = const 1
+      //   if true -> b1, b3     #<- change elseb to contb
+      //   b1:
+      //     v3 = add v1 v2
+      //   cont -> b3
+      //                         #<- remove elseb
+      //   b3:
+      //     v4 = phi v3 v1      #<- phi remains valid; no change needed
+      //
+      ifb->succs[1] = contb;  // if -> cont
+      contb->preds[1] = ifb;  // cont <- if
+      IRBlockDiscard(elseb);
+      elseb = NULL;
+    }
+
     if (u->flags & IRBuilderComments) {
       thenb->comment = memsprintf(u->mem, "b%u.then", ifb->id);
-      elseb->comment = memsprintf(u->mem, "b%u.else", ifb->id);
+      if (elseb != NULL) { elseb->comment = memsprintf(u->mem, "b%u.else", ifb->id); }
       contb->comment = memsprintf(u->mem, "b%u.end", ifb->id);
     }
 
@@ -519,19 +553,17 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
     //     final generated code.
     //
     //     Because of this, approach 1 is the better one. It has optimization opportunities as
-    //     well, like for instance if we know that the storage of the result of the if expression
-    //     is already zero (e.g. from calloc), we can skip storing zero before the branch.
+    //     well, like for instance: if we know that the storage for the result of the
+    //     if-expression is already zero (e.g. from calloc), we can skip storing zero.
     //
     // Conclusion:
     //
-    // - B. zero initialized basic types, higher-level types become optional.
+    // - B. zero-initialized basic types, higher-level types become optional.
     // - Store zero before branch, rather than generating implicit "else" branches.
     // - Introduce "optional" as a concept in the language.
     // - Update resolve_type to convert type to optional when there is no "else" branch.
     //
   }
-
-  // TODO
 
   dlog("TODO");
   return TODO_Value(u);

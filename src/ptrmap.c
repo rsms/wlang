@@ -26,7 +26,7 @@
 #define HASHMAP_KEY      void*
 #define HASHMAP_VALUE    void*
 #define HASHMAP_KEY_HASH ptrhash
-#include "hashmap.c"
+#include "hashmap.c.h"
 #undef HASHMAP_NAME
 #undef HASHMAP_KEY
 #undef HASHMAP_VALUE

@@ -102,6 +102,7 @@ void IRValueAddArg(IRValue* v, IRValue* arg);
 
 
 IRBlock* IRBlockNew(IRFun* f, IRBlockKind, const SrcPos*/*nullable*/);
+void IRBlockDiscard(IRBlock* b); // removes it from b->f and frees memory of b.
 void IRBlockAddValue(IRBlock* b, IRValue* v);
 void IRBlockSetControl(IRBlock* b, IRValue* v/*pass null to clear*/);
 void IRBlockAddEdgeTo(IRBlock* b1, IRBlock* b2); // add an edge from b1 to successor block b2

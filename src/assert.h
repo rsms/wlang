@@ -40,25 +40,18 @@ void WAssertf(const char* nullable srcfile, int srcline, const char* nonull form
       abort();                                                              \
     } })
 
-  inline static const char* _assert_join3(const char* left, const char* mid, const char* right) {
-    static char buf[64] = {0};
-    char* p = buf;
-    memcpy(p, left,  strlen(left)); p += strlen(left);
-    memcpy(p, mid,   strlen(mid)); p += strlen(mid);
-    memcpy(p, right, strlen(right)); p += strlen(right);
-    assert((buf + sizeof(buf)) > p);
-    *p = '\0';
-    return buf;
-  }
+  const char* _assert_joinstr(const char* s1, ... /* NULL terminated */);
 
-  #define asserteq(expr, expect)                                                     \
-    ({ auto actual = (expr);                                                         \
-      if (actual != (expect)) {                                                      \
-        WAssertf(__FILE__, __LINE__,                                                 \
-          _assert_join3("%s:%d: %s ; got ", WFormatForValue(expr), ", expected %s"), \
-          __FILE__, __LINE__, #expr, actual, #expect);                               \
-        abort();                                                                     \
-      }                                                                              \
+  #define asserteq(expr, expect)                                           \
+    ({ auto actual = (expr);                                               \
+       auto expected = (expect);                                           \
+      if (actual != expected) {                                            \
+        WAssertf(__FILE__, __LINE__,                                       \
+          _assert_joinstr("%s:%d: %s ; got ", WFormatForValue(actual),     \
+                          ", expected ", WFormatForValue(expected), NULL), \
+          __FILE__, __LINE__, #expr, actual, expected);                    \
+        abort();                                                           \
+      }                                                                    \
     })
 
   #define checknull(expr) \

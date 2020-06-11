@@ -138,31 +138,41 @@ elif $OPT_TEST; then
 
   # run built-in unit tests
   LLVM_PROFILE_FILE=build/unit-tests.profraw W_TEST_MODE=exclusive build/wp.test
-  LLVM_PROFILE_FILE=build/ast1.profraw build/wp.test example/factorial.w >/dev/null
+  # LLVM_PROFILE_FILE=build/ast1.profraw build/wp.test example/factorial.w >/dev/null
 
   # index coverage data
   "$LLVM_PATH/llvm-profdata" merge -sparse -o build/test.profdata build/*.profraw
   rm build/*.profraw
 
-  # generate & print report
-  "$LLVM_PATH/llvm-cov" report build/wp.test -instr-profile=build/test.profdata
-  # llvm-cov show build/wp.test -instr-profile=build/test.profdata  # extremely verbose
-
-  mkdir -p build/cov
-  "$LLVM_PATH/llvm-cov" show build/wp.test \
+  # print report
+  cov_shared_args=( \
+    -ignore-filename-regex='dlmalloc\.[hc]' \
+    -ignore-filename-regex='sds\.[hc]' \
+    -ignore-filename-regex='.+_test\.[hc]' \
+    -ignore-filename-regex='test\.[hc]' \
     -instr-profile=build/test.profdata \
-    -ignore-filename-regex='dlmalloc.*' \
+    build/wp.test \
+  )
+
+  # print report summary on stdout
+  "$LLVM_PATH/llvm-cov" report "${cov_shared_args[@]}"
+
+  # generate full report as HTML at ./build/cov/
+  rm -rf build/cov
+  mkdir -p build/cov
+  "$LLVM_PATH/llvm-cov" show \
+    "${cov_shared_args[@]}" \
+    -show-line-counts-or-regions \
     -format=html \
     -tab-size=4 \
     -output-dir=build/cov
+
   echo "Report generated at build/cov/index.html"
   if [[ "$(lsof +c 0 -sTCP:LISTEN -iTCP:8186 | tail -1)" == "" ]]; then
     echo "To view in a live-reloading web server, run this in a separate terminal."
     echo "The report will update live as this script is re-run."
     echo "  serve-http -p 8186 '$PWD/build/cov'"
   fi
-
-
 
 elif $OPT_G; then
   fn_ninja debug

@@ -8,16 +8,12 @@ but whatever.
 Main project site: https://github.com/jtsiomb/c11threads
 */
 
-#ifndef C11THREADS_H_
-#define C11THREADS_H_
+// note: assumes c11threads.h has been included
 
 #include <time.h>
 #include <errno.h>
-#include <pthread.h>
 #include <sched.h>	/* for sched_yield */
 #include <sys/time.h>
-
-#define ONCE_FLAG_INIT	PTHREAD_ONCE_INIT
 
 #ifdef __APPLE__
 /* Darwin doesn't implement timed mutexes currently */
@@ -29,32 +25,6 @@ Main project site: https://github.com/jtsiomb/c11threads
 #define C11THREADS_TIMEDLOCK_POLL_INTERVAL 5000000	/* 5 ms */
 #endif
 
-/* types */
-typedef pthread_t thrd_t;
-typedef pthread_mutex_t mtx_t;
-typedef pthread_cond_t cnd_t;
-typedef pthread_key_t tss_t;
-typedef pthread_once_t once_flag;
-
-typedef int (*thrd_start_t)(void*);
-typedef void (*tss_dtor_t)(void*);
-
-enum {
-	mtx_plain		= 0,
-	mtx_recursive	= 1,
-	mtx_timed		= 2,
-};
-
-enum {
-	thrd_success,
-	thrd_timedout,
-	thrd_busy,
-	thrd_error,
-	thrd_nomem
-};
-
-
-/* ---- thread management ---- */
 
 static inline int thrd_create(thrd_t *thr, thrd_start_t func, void *arg)
 {
@@ -269,5 +239,3 @@ static inline int timespec_get(struct timespec *ts, int base)
 	return base;
 }
 #endif	/* not C11 */
-
-#endif	/* C11THREADS_H_ */

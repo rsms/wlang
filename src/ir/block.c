@@ -4,7 +4,7 @@
 
 IRBlock* IRBlockNew(IRFun* f, IRBlockKind kind, const SrcPos* pos/*?*/) {
   assert(f->bid < 0xFFFFFFFF); // too many block IDs generated
-  auto b = (IRBlock*)memalloc(f->mem, sizeof(IRBlock));
+  auto b = memalloct(f->mem, IRBlock);
   b->f = f;
   b->id = f->bid++;
   b->kind = kind;
@@ -14,6 +14,35 @@ IRBlock* IRBlockNew(IRFun* f, IRBlockKind kind, const SrcPos* pos/*?*/) {
   ArrayInitWithStorage(&b->values, b->valuesStorage, sizeof(b->valuesStorage)/sizeof(void*));
   ArrayPush(&f->blocks, b, b->f->mem);
   return b;
+}
+
+
+void IRBlockDiscard(IRBlock* b) {
+  assert(b->f != NULL);
+  auto blocks = &b->f->blocks;
+
+  #if DEBUG
+  // make sure no other block refers to this block
+  for (int i = 0; i < blocks->len; i++) {
+    auto b2 = (IRBlock*)blocks->v[i];
+    if (b2 == b) {
+      continue;
+    }
+    assertf(b2->preds[0] != b, "b%u holds a reference to b%u (preds[0])", b2->id, b->id);
+    assertf(b2->preds[1] != b, "b%u holds a reference to b%u (preds[1])", b2->id, b->id);
+    assertf(b2->succs[0] != b, "b%u holds a reference to b%u (succs[0])", b2->id, b->id);
+    assertf(b2->succs[1] != b, "b%u holds a reference to b%u (succs[1])", b2->id, b->id);
+  }
+  #endif
+
+  if (blocks->v[blocks->len - 1] == b) {
+    blocks->len--;
+  } else {
+    auto i = ArrayIndexOf(blocks, b);
+    assert(i > -1);
+    ArrayRemove(blocks, i, 1);
+  }
+  memfree(b->f->mem, b);
 }
 
 

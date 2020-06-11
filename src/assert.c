@@ -10,8 +10,8 @@
 static bool fprintSourceFile(
   FILE* nonull fp,
   const char* nonull file,
-  int line,
-  int contextLines,
+  u32 line,
+  u32 contextLines,
   bool colors
 ) {
   // try to read source file
@@ -20,8 +20,7 @@ static bool fprintSourceFile(
   if (srcbuf == NULL) {
     return false;
   }
-  if (contextLines < 0) { contextLines = 0; }
-  int len = srclen > 0x7fffffff ? 0x7fffffff : (int)srclen;
+  int len = (int)srclen;
   int lineno = 1;
   int linemin = max(0, line - contextLines);
   int linemax = line + contextLines;
@@ -62,23 +61,20 @@ static bool fprintSourceFile(
 }
 
 
-static bool fprintStackTrace(FILE* nonull fp, int offsetFrames) {
+static void fprintStackTrace(FILE* nonull fp, int offsetFrames) {
   // try to show stack trace
-  void* callstack[4096];
+  void* callstack[200];
   int framecount = backtrace(callstack, countof(callstack));
-  if (framecount <= 0) {
-    return false;
+  if (framecount > 0) {
+    char** strs = backtrace_symbols(callstack, framecount);
+    if (strs != NULL) {
+      fprintf(fp, "Call stack:\n");
+      for (int i = offsetFrames + 1; i < framecount; ++i) {
+        fprintf(fp, "  %s\n", strs[i]);
+      }
+      free(strs);
+    }
   }
-  char** strs = backtrace_symbols(callstack, framecount);
-  if (strs == NULL) {
-    return false;
-  }
-  fprintf(fp, "Call stack:\n");
-  for (int i = offsetFrames + 1; i < framecount; ++i) {
-    fprintf(fp, "  %s\n", strs[i]);
-  }
-  free(strs);
-  return true;
 }
 
 
@@ -96,11 +92,50 @@ void WAssertf(const char* srcfile, int srcline, const char* nonull format, ...) 
 }
 
 
+const char* _assert_joinstr(const char* s1, ... /* NULL terminated */) {
+  static char buf[256] = {0};
+  char* p = buf;
+
+  size_t len = strlen(s1);
+  memcpy(p, s1, len);
+  p += len;
+
+  va_list ap;
+  va_start(ap, s1);
+  while (1) {
+    const char* s = va_arg(ap, const char*);
+    if (s == NULL) {
+      break;
+    }
+    len = strlen(s);
+    memcpy(p, s, len);
+    p += len;
+    *p = '\0';
+  }
+  va_end(ap);
+  assertf((buf + sizeof(buf)) > p, "overflow");
+  *p = '\0';
+  return buf;
+}
+
+
 // Note: Since this prints to stderr, only enable this in the "test" product
 #ifdef W_TEST_BUILD
   W_UNIT_TEST(Assert, {
-    fprintf(stderr, "----- THE BELOW ASSERTION IS EXPECTED TO FAIL -----\n");
+    const char* pch = _assert_joinstr("aa", "bb", "cc", NULL);
+    assert(memcmp(pch, "aabbcc", 6) == 0);
+    asserteq(pch[6], 0);
+
+    // non-existant file
+    fprintf(stdout, "----- START TEST OUTPUT -----\n");
+    fprintSourceFile(stdout, __FILE__ ".xxx", 1, /* contextLines */ 3, /*colors*/ true);
+    // no colors, no linebreak at end
+    fprintSourceFile(stdout, "test/file-no-final-line-break",
+      2, /* contextLines */ 3, /*colors*/ false);
+
+    fprintf(stdout, "----- THE BELOW ASSERTION IS EXPECTED TO FAIL -----\n");
     WAssertf(__FILE__, __LINE__, "%s:%d: test %d", __FILE__, __LINE__, 123);
-    fprintf(stderr, "----- THE ABOVE ASSERTION IS EXPECTED TO FAIL -----\n");
+    fprintf(stdout, "----- THE ABOVE ASSERTION IS EXPECTED TO FAIL -----\n");
+    fprintf(stdout, "----- END TEST OUTPUT -----\n");
   })
 #endif

@@ -137,7 +137,7 @@ typedef double                 f64;
   exit(1); \
 } while(0)
 
-// align2 rounds up n to closest boundary w (w must be a power of two)
+// T align2<T>(T x, T y) rounds up n to closest boundary w (w must be a power of two)
 //
 // E.g.
 //   align(0, 4) => 0
@@ -148,10 +148,11 @@ typedef double                 f64;
 //   align(5, 4) => 8
 //   ...
 //
-inline static size_t align2(size_t n, size_t w) {
-  assert((w & (w - 1)) == 0); // alignment w is not a power of two
-  return (n + (w - 1)) & ~(w - 1);
-}
+#define align2(n,w) ({ \
+  assert(((w) & ((w) - 1)) == 0); /* alignment w is not a power of two */ \
+  ((n) + ((w) - 1)) & ~((w) - 1); \
+})
+
 
 // // Attribute for opting out of address sanitation.
 // // Needed for realloc() with a null pointer.

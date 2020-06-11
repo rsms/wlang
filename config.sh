@@ -1,45 +1,10 @@
 #!/bin/bash -e
 cd "$(dirname "$0")"
 
-sources=( \
-  src/array.c \
-  src/assert.c \
-  src/ast.c \
-  src/cctx.c \
-  src/convlit.c \
-  src/dlmalloc.c \
-  src/hash.c \
-  src/memory.c \
-  src/os.c \
-  src/parse.c \
-  src/parseint.c \
-  src/ptrmap.c \
-  src/resolve_sym.c \
-  src/resolve_type.c \
-  src/scan.c \
-  src/sds.c \
-  src/sds_test.c \
-  src/source.c \
-  src/str.c \
-  src/sym.c \
-  src/test.c \
-  src/thread.c \
-  src/token.c \
-  src/tstyle.c \
-  src/typeid.c \
-  src/types.c \
-  src/unicode.c \
-  src/wp.c \
-  \
-  src/ir/block.c \
-  src/ir/builder.c \
-  src/ir/constcache.c \
-  src/ir/fun.c \
-  src/ir/op.c \
-  src/ir/pkg.c \
-  src/ir/repr.c \
-  src/ir/value.c \
-)
+sources=()
+for f in $(find src -type f -name '*.c' | sort); do
+  sources+=( $f )
+done
 
 # <name>:<executable>
 # Each name should have corresponding $cflags_<name> and $lflags_<name> defined in build.in.ninja
