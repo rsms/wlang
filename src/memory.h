@@ -20,7 +20,7 @@ static void* memalloc(Memory nullable mem, size_t size) nonull_return;
 // memalloc reallocates some memory. Additional memory is NOT zeroed.
 static void* memrealloc(Memory nullable mem, void* nullable ptr, size_t newsize) nonull_return;
 
-// memfree frees memory, if ptr is at the tail, else does nothing (leaves hole.)
+// memfree frees memory.
 static void memfree(Memory nullable mem, void* nonull ptr);
 
 // memallocCStr is like strdup
