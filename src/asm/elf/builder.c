@@ -239,6 +239,7 @@ Elf32_Sym* ELFSymtabAdd32(ELFSec* symtab, u16 shndx, const char* name, u8 bind, 
   assert(symtab->type == ELF_SHT_SYMTAB);
   auto b = checknull(symtab->builder);
   assert(b->strtab != NULL);
+  assert(b->mode == ELFMode32);
 
   auto sym = (Elf32_Sym*)BufAlloc(&symtab->data->buf, sizeof(Elf32_Sym));
   sym->st_name = ELFStrtabAppend(b->strtab, name);
@@ -257,6 +258,7 @@ Elf64_Sym* ELFSymtabAdd64(ELFSec* symtab, u16 shndx, const char* name, u8 bind, 
   assert(symtab->type == ELF_SHT_SYMTAB);
   auto b = checknull(symtab->builder);
   assert(b->strtab != NULL);
+  assert(b->mode == ELFMode64);
 
   auto sym = (Elf64_Sym*)BufAlloc(&symtab->data->buf, sizeof(Elf64_Sym));
   sym->st_name = ELFStrtabAppend(b->strtab, name);

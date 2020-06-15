@@ -69,15 +69,10 @@ typedef struct ELFBuilder {
   Memory       mem;      // allocator (NULL = global allocator)
   ELFMode      mode;
   ELFMachine   machine;
-  union {
-    Elf32_Phdr ph32;     // program header
-    Elf64_Phdr ph64;
-  };
   Array        dv;       // data segments [ELFData*]
   Array        shv;      // section headers [ELFSec*]
   Array        phv;      // program headers [ELFProg*]
-
-  // special sections
+  // special sections (pointers into shv)
   ELFSec*      shstrtab; // ".shstrtab" Section Header string table section
   ELFSec*      strtab;   // ".strtab" General string table section
   ELFSec*      symtab;   // ".symtab" General symbol table section
