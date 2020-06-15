@@ -49,7 +49,7 @@ void* memgcalloc(size_t size) nonull_return;
 // T memgc<T extends void*>(T ptr)
 #define memgc(ptr) ({ _memgc(ptr); (ptr); })
 
-// memgcsds marks an sds string for garbage collection, including Sym or Str.
+// memgcsds marks an sds string for garbage collection. (Does not work with Sym.)
 static sds memgcsds(sds nonull s) nonull_return;
 
 // memgc_collect performs very basic garbage collection.
