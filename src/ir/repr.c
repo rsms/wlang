@@ -84,9 +84,9 @@ static void reprBlock(IRRepr* r, const IRBlock* b) {
   r->buf = sdscatc(r->buf, '\n');
 
   // values
-  ArrayForEach(&b->values, IRValue*, v, {
+  ArrayForEach(&b->values, IRValue, v) {
     reprValue(r, v);
-  });
+  }
 
   // successors
   switch (b->kind) {
@@ -138,17 +138,17 @@ static void reprFun(IRRepr* r, const IRFun* f) {
     f->typeid == NULL ? "()" : f->typeid,
     f
   );
-  ArrayForEach(&f->blocks, IRBlock*, b, {
+  ArrayForEach(&f->blocks, IRBlock, b) {
     reprBlock(r, b);
-  });
+  }
 }
 
 
 static void reprPkg(IRRepr* r, const IRPkg* pkg) {
   r->buf = sdscatfmt(r->buf, "package %s\n", pkg->name);
-  ArrayForEach(&pkg->funs, IRFun*, f, {
+  ArrayForEach(&pkg->funs, IRFun, f) {
     reprFun(r, f);
-  });
+  }
 }
 
 

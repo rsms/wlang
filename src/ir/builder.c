@@ -416,6 +416,8 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
   auto thenv = addExpr(u, n->cond.thenb);  // generate "then" body
   thenb = endBlock(u);
 
+  IRValue* elsev = NULL;
+
   if (n->cond.elseb != NULL) {
     // "else"
 
@@ -427,7 +429,7 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
     dlog("[if] begin \"else\" block");
     elseb->preds[0] = ifb; // else <- if
     startSealedBlock(u, elseb);
-    auto elsev = addExpr(u, n->cond.elseb);  // generate "else" body
+    elsev = addExpr(u, n->cond.elseb);  // generate "else" body
     elseb = endBlock(u);
     elseb->succs[0] = contb; // else -> cont
     thenb->succs[0] = contb; // then -> cont
@@ -437,6 +439,9 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
 
     // move cont block to end (in case blocks were created by "else" body)
     IRFunMoveBlockToEnd(u->f, contbIndex);
+
+    assertf(thenv->type == elsev->type,
+      "branch type mismatch %s, %s", TypeCodeName(thenv->type), TypeCodeName(elsev->type));
 
     if (elseb->values.len == 0) {
       // "else" body may be empty in case it refers to an existing value. For example:
@@ -478,29 +483,12 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
       contb->comment = memsprintf(u->mem, "b%u.end", ifb->id);
     }
 
-    assertf(thenv->type == elsev->type,
-      "branch type mismatch %s, %s", TypeCodeName(thenv->type), TypeCodeName(elsev->type));
-
-    // make Phi
-    auto phi = IRValueNew(u->f, u->b, OpPhi, thenv->type, &n->pos);
-    assertf(u->b->preds[0] != NULL, "phi in block without predecessors");
-    phi->args[0] = thenv;
-    phi->args[1] = elsev;
-    thenv->uses++;
-    elsev->uses++;
-    phi->argslen = 2;
-    return phi;
-
   } else {
     // no "else" block
     thenb->succs[0] = elseb; // then -> else
     elseb->preds[0] = ifb;
     elseb->preds[1] = thenb; // else <- if, then
     startSealedBlock(u, elseb);
-
-    // move ending block to end
-    // r.f.blocks.copyWithin(elsebidx, elsebidx+1)
-    // r.f.blocks[r.f.blocks.length-1] = elseb
 
     // move cont block to end (in case blocks were created by "then" body)
     IRFunMoveBlockToEnd(u->f, elsebIndex);
@@ -561,12 +549,22 @@ static IRValue* addIf(IRBuilder* u, Node* n) {
     // - B. zero-initialized basic types, higher-level types become optional.
     // - Store zero before branch, rather than generating implicit "else" branches.
     // - Introduce "optional" as a concept in the language.
-    // - Update resolve_type to convert type to optional when there is no "else" branch.
+    // - Update resolve_type to convert higher-order types to optional in lieu of an "else" branch.
     //
+
+    // zero constant in place of "else" block, sized to match the result type
+    elsev = IRFunGetConstInt(u->f, thenv->type, 0);
   }
 
-  dlog("TODO");
-  return TODO_Value(u);
+  // make Phi, joining the two branches together
+  auto phi = IRValueNew(u->f, u->b, OpPhi, thenv->type, &n->pos);
+  assertf(u->b->preds[0] != NULL, "phi in block without predecessors");
+  phi->args[0] = thenv;
+  phi->args[1] = elsev;
+  thenv->uses++;
+  elsev->uses++;
+  phi->argslen = 2;
+  return phi;
 }
 
 

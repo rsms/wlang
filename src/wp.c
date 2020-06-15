@@ -1,5 +1,6 @@
 #include "wp.h"
 #include "ir/builder.h"
+#include "asm/asm.h"
 
 static void errorHandler(const Source* src, SrcPos pos, ConstStr msg, void* userdata) {
   u32* errcount = (u32*)userdata;
@@ -79,6 +80,9 @@ void parsefile(Str filename, Scope* pkgscope) {
   // print IR SLC
   printIR(irbuilder.pkg);
   IRBuilderFree(&irbuilder);
+
+  // assemble
+  AsmELF();
 
   end:
   CCtxFree(&cc);

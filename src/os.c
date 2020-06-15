@@ -1,4 +1,6 @@
 #include <unistd.h> // sysconf
+#include <sys/errno.h>
+
 #include "defs.h"
 #include "os.h"
 
@@ -51,5 +53,16 @@ u8* os_readfile(const char* filename, size_t* size_inout, Memory mem) {
 
   *size_inout = bufsize;
   return buf;
+}
+
+
+bool os_writefile(const char* filename, const void* ptr, size_t size) {
+  FILE* fp = fopen(filename, "w");
+  if (fp == NULL) {
+    return false;
+  }
+  auto z = fwrite(ptr, size, 1, fp);
+  fclose(fp);
+  return size == 0 ? z == 0 : z == 1;
 }
 

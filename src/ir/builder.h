@@ -12,7 +12,7 @@ typedef enum IRBuilderFlags {
 
 
 typedef struct IRBuilder {
-  Memory         mem;
+  Memory         mem;  // houses all IR data constructed by this builder
   PtrMap         funs; // Node* => IRFun* -- generated functions
   IRBuilderFlags flags;
   IRPkg*         pkg;

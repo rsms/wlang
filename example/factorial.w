@@ -28,7 +28,7 @@ fun main {
     a = 4  # avoid block elimination while working on ir builder
     y = a + 1
   } else {
-    8
+    0
   }
 
   z

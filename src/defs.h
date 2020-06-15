@@ -119,6 +119,10 @@ typedef double                 f64;
      __typeof__ (b) _b = (b); \
      _a < _b ? _a : _b; })
 
+#ifndef offsetof
+  #define offsetof(st, m) ((size_t)&(((st*)0)->m))
+#endif
+
 #define countof(x) \
   ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 

@@ -1,0 +1,52 @@
+fun main {
+  z = if true {
+    a = 4  # avoid block elimination while working on ir builder
+    y = a + 1
+  } else {
+    0
+  }
+}
+
+package foo
+fun main () 0x10bb82370
+  b0:
+    v0  bool    = ConstBool    [0x1]  # 1 use
+    v1  int     = ConstI32     [0x4]  # 1 use ; a
+    v2  int     = ConstI32     [0x1]  # 1 use
+    v4  int     = ConstI32     [0x0]  # 1 use
+  if v0 -> b1 b3
+
+  b1: <- b0  # b0.then
+    v3  int     = AddI32       v1   v2  # 1 use ; y
+  cont -> b3
+
+  b3: <- b1 b0   # b0.end
+    v5  int     = Phi          v3   v4  # 1 use ; z
+  ret v5
+
+
+————————————————————————————————————————————————————————————————————————————————————
+
+fun main {
+  z = if true {
+    a = 4  # avoid block elimination while working on ir builder
+    y = a + 1
+  }
+}
+
+package foo
+fun main () 0x10897d370
+  b0:
+    v0  bool    = ConstBool    [0x1]  # 1 use
+    v1  int     = ConstI32     [0x4]  # 1 use ; a
+    v2  int     = ConstI32     [0x1]  # 1 use
+    v4  int     = ConstI32     [0x0]  # 1 use
+  if v0 -> b1 b2
+
+  b1: <- b0  # b0.then
+    v3  int     = AddI32       v1   v2  # 1 use ; y
+  cont -> b2
+
+  b2: <- b0 b1   # b0.end
+    v5  int     = Phi          v3   v4  # 1 use ; z
+  ret v5

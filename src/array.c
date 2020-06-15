@@ -1,10 +1,30 @@
 #include "wp.h"
 #include "array.h"
+#include <stdlib.h> // for qsort_r
 
 // ARRAY_CAP_STEP defines a power-of-two which the cap must be aligned to.
 // This is used to round up growth. I.e. grow by 60 with a cap of 32 would increase the cap
 // to 96 (= 32 + (align2(60, ARRAY_CAP_STEP=32) = 64)).
 #define ARRAY_CAP_STEP 32
+
+typedef struct SortCtx {
+  ArraySortFun* f;
+  void*         userdata;
+} SortCtx;
+
+
+static int _sort(void* ctx, const void* s1p, const void* s2p) {
+  return ((SortCtx*)ctx)->f(
+    *((const void**)s1p),
+    *((const void**)s2p),
+    ((SortCtx*)ctx)->userdata
+  );
+}
+
+void ArraySort(Array* a, ArraySortFun* f, void* userdata) {
+  SortCtx ctx = { f, userdata };
+  qsort_r(a->v, a->len, sizeof(void*), &ctx, &_sort);
+}
 
 
 void ArrayGrow(Array* a, size_t addl, Memory mem) {
