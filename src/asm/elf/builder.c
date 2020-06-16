@@ -4,16 +4,29 @@
 #include "builder.h"
 
 
-static ELFMode machineMode(ELFMachine m) {
-  switch (m) {
-    case ELF_M_386:     return ELFMode32; // Intel x86
-    case ELF_M_X86_64:  return ELFMode64; // AMD x86-64
-    case ELF_M_ARM:     return ELFMode32; // ARM 32
-    case ELF_M_AARCH64: return ELFMode64; // ARM 64
-    case ELF_M_RISCV:   return ELFMode64; // RISC-V
-    case ELF_M_NONE:    break;
+static void guessModeAndEncoding(ELFBuilder* b) {
+  switch (b->machine) {
+
+  case ELF_M_ARM: // ARM is LE by default but can operate in BE.
+  case ELF_M_386: // x86
+    b->mode = ELFMode32;
+    b->encoding = ELF_DATA_2LSB;
+    break;
+
+  case ELF_M_IA_64:   // HP/Intel IA-64
+  case ELF_M_X86_64:  // AMD x86-64
+  case ELF_M_AARCH64: // ARM is LE by default but can operate in BE.
+    b->mode = ELFMode64;
+    b->encoding = ELF_DATA_2LSB;
+    break;
+
+  // Note: 2MSB is not yet implemented, also W doesn't really generate code for any other archs.
+
+  default:
+    b->mode = ELFMode32;
+    b->encoding = ELF_DATA_2LSB;
+    break;
   }
-  return ELFMode32;
 }
 
 
@@ -24,38 +37,28 @@ static void addStandardSections(ELFBuilder* b) {
   // empty section to own the undefined symbol
   ELFBuilderNewSec(b, "", ELF_SHT_NULL, NULL);
 
-  // TODO: ELF-32 / ELFMode32
-
   // Section header string table
   auto shstrtabdata = ELFBuilderNewData(b);
   b->shstrtab = ELFBuilderNewSec(b, "", ELF_SHT_STRTAB, shstrtabdata);
-  // b->shstrtab->sh64.sh_offset    = 0x0000000000000131;
-  // b->shstrtab->sh64.sh_size      = 0x0000000000000021;
-  // b->shstrtab->sh64.sh_link      = 0x00000000;
-  // b->shstrtab->sh64.sh_info      = 0x00000000;
-
   // add the name of the shstrtab itself to itself (lol)
   b->shstrtab->name = ELFStrtabAppend(b->shstrtab, ".shstrtab");
+  assert(b->shstrtab->name == 1); // should be byte 1 (not 0; byte 0 is NUL)
 
   // Generic string table
   auto strtabdata = ELFBuilderNewData(b);
   b->strtab = ELFBuilderNewSec(b, ".strtab", ELF_SHT_STRTAB, strtabdata);
-  // b->strtab->sh64.sh_offset    = 0x0000000000000118;
-  // b->strtab->sh64.sh_size      = 0x0000000000000019;
-  // b->strtab->sh64.sh_link      = 0x00000000;
-  // b->strtab->sh64.sh_info      = 0x00000000;
 }
 
 
 void ELFBuilderInit(ELFBuilder* b, ELFMachine m, Memory nullable mem) {
   b->mem = mem;
-  b->mode = machineMode(m);
   b->machine = m;
   b->shstrtab = NULL;
   b->strtab = NULL;
   ArrayInit(&b->dv);
   ArrayInit(&b->shv);
   ArrayInit(&b->phv);
+  guessModeAndEncoding(b);
   addStandardSections(b);
 }
 
@@ -148,7 +151,6 @@ ELFSec* ELFBuilderNewSec(ELFBuilder* b, const char* name, u32 type, ELFData* dat
   auto sec = memalloct(b->mem, ELFSec);
   sec->builder = b;
   sec->data = data;
-  sec->index = b->shv.len;
   sec->type = type;
   sec->name = 0;
   if (b->shstrtab != NULL) {
@@ -164,6 +166,7 @@ ELFSec* ELFBuilderNewSec(ELFBuilder* b, const char* name, u32 type, ELFData* dat
   if (data != NULL) {
     ArrayPush(&data->secv, sec, b->mem);
   }
+  sec->index = b->shv.len;
   ArrayPush(&b->shv, sec, b->mem);
   return sec;
 }
@@ -186,14 +189,14 @@ ELFProg* ELFBuilderNewProg(ELFBuilder* b, u32 type, u32 flags, ELFData* data) {
 ELFSec* ELFBuilderNewSymtab(ELFBuilder* b, const ELFSec* strtab, const char* name) {
   auto data = ELFBuilderNewData(b);
   auto sec = ELFBuilderNewSec(b, name, ELF_SHT_SYMTAB, data);
-  sec->link = checknull(strtab)->index;
+  sec->link = checknull(strtab);
   if (strcmp(name, ".symtab") == 0) {
     // the standard special ".symtab" symbol table section
     // symbol #0 is both the first entry and serves as the undefined symbol (index 0)
     if (b->mode == ELFMode32) {
-      ELFSymtabAdd32(sec, /*section*/0, /*name*/"", ELF_STB_LOCAL, ELF_STT_NOTYPE, 0);
+      ELFSymtabAdd32(sec, /*section*/NULL, /*name*/"", ELF_STB_LOCAL, ELF_STT_NOTYPE, 0);
     } else {
-      ELFSymtabAdd64(sec, /*section*/0, /*name*/"", ELF_STB_LOCAL, ELF_STT_NOTYPE, 0);
+      ELFSymtabAdd64(sec, /*section*/NULL, /*name*/"", ELF_STB_LOCAL, ELF_STT_NOTYPE, 0);
     }
     assert(b->symtab == NULL); // duplicate
     b->symtab = sec;
@@ -235,7 +238,7 @@ const char* ELFStrtabLookup(const ELFSec* sec, u32 nameindex) {
 
 
 // Add symbol with name to symtab, originating in section with index shndx
-Elf32_Sym* ELFSymtabAdd32(ELFSec* symtab, u16 shndx, const char* name, u8 bind, u8 typ, u32 value){
+Elf32_Sym* ELFSymtabAdd32(ELFSec* symtab, ELFSec* sec, const char* name, u8 bind, u8 typ, u32 val){
   assert(symtab->type == ELF_SHT_SYMTAB);
   auto b = checknull(symtab->builder);
   assert(b->strtab != NULL);
@@ -243,18 +246,19 @@ Elf32_Sym* ELFSymtabAdd32(ELFSec* symtab, u16 shndx, const char* name, u8 bind, 
 
   auto sym = (Elf32_Sym*)BufAlloc(&symtab->data->buf, sizeof(Elf32_Sym));
   sym->st_name = ELFStrtabAppend(b->strtab, name);
-  sym->st_value = value;
+  sym->st_value = val;
   sym->st_size = 0;
   sym->st_info = ELF_ST_INFO(bind, typ);
   sym->st_other = 0; // unused
-  sym->st_shndx = shndx;
-  return sym;
+  sym->st_shndx = sec == NULL ? ELF_SHN_UNDEF : sec->index;
 
-  // return symbol index
-  // return (u32)((symtab->data->buf.len / sizeof(Elf32_Sym)) - sizeof(Elf32_Sym));
+  // sec->index is expected to be the index in shv, until assembly when it changes to ELF index.
+  assert(sec == NULL || ArrayIndexOf(&b->shv, sec) == sec->index);
+
+  return sym;
 }
 
-Elf64_Sym* ELFSymtabAdd64(ELFSec* symtab, u16 shndx, const char* name, u8 bind, u8 typ, u64 value){
+Elf64_Sym* ELFSymtabAdd64(ELFSec* symtab, ELFSec* sec, const char* name, u8 bind, u8 typ, u64 val){
   assert(symtab->type == ELF_SHT_SYMTAB);
   auto b = checknull(symtab->builder);
   assert(b->strtab != NULL);
@@ -264,8 +268,12 @@ Elf64_Sym* ELFSymtabAdd64(ELFSec* symtab, u16 shndx, const char* name, u8 bind, 
   sym->st_name = ELFStrtabAppend(b->strtab, name);
   sym->st_info = ELF_ST_INFO(bind, typ);
   sym->st_other = 0; // unused
-  sym->st_shndx = shndx;
-  sym->st_value = value;
+  sym->st_shndx = sec == NULL ? ELF_SHN_UNDEF : sec->index;
+  sym->st_value = val;
   sym->st_size = 0;
+
+  // sec->index is expected to be the index in shv, until assembly when it changes to ELF index.
+  assert(sec == NULL || ArrayIndexOf(&b->shv, sec) == sec->index);
+
   return sym;
 }

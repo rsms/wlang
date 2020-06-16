@@ -15,4 +15,7 @@ bool strhasprefix(ConstStr nonull s, const char* nonull prefix);
 // using sdscatrepr which encodes non-printable ASCII chars for safe printing.
 // E.g. "foo\x00bar" if the string contains a zero byte.
 // Returns a garbage-collected string.
-ConstStr strrepr(ConstStr nonull);
+ConstStr bytesrepr(const u8* s, size_t len);
+inline static ConstStr strrepr(ConstStr s) {
+  return bytesrepr((const u8*)s, sdslen(s));
+}

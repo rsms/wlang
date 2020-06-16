@@ -31,19 +31,19 @@ typedef u32 Elf32_Word;
 
 typedef struct elf64_hdr {
   unsigned char e_ident[ELF_EI_NIDENT]; // ELF "magic" & identity
-  Elf64_Half    e_type;
-  Elf64_Half    e_machine;
-  Elf64_Word    e_version;
-  Elf64_Addr    e_entry;    // Entry point virtual address
-  Elf64_Off     e_phoff;    // Program header table file offset
-  Elf64_Off     e_shoff;    // Section header table file offset
-  Elf64_Word    e_flags;
-  Elf64_Half    e_ehsize;
-  Elf64_Half    e_phentsize;
-  Elf64_Half    e_phnum;
-  Elf64_Half    e_shentsize;
-  Elf64_Half    e_shnum;
-  Elf64_Half    e_shstrndx;
+  Elf64_Half    e_type;      // ELF file type. See ELF_FT_*
+  Elf64_Half    e_machine;   // Processor (ELFMachine constant)
+  Elf64_Word    e_version;   // ELF version. 1 = current.
+  Elf64_Addr    e_entry;     // Entry point virtual address
+  Elf64_Off     e_phoff;     // Program header table file offset
+  Elf64_Off     e_shoff;     // Section header table file offset
+  Elf64_Word    e_flags;     // Processor-specific flags. Usually 0.
+  Elf64_Half    e_ehsize;    // ELF header's size in bytes
+  Elf64_Half    e_phentsize; // size of a program header
+  Elf64_Half    e_phnum;     // number of program headers
+  Elf64_Half    e_shentsize; // size of a section header
+  Elf64_Half    e_shnum;     // number of section headers
+  Elf64_Half    e_shstrndx;  // section header table index of .shstrtab
 } Elf64_Ehdr;
 
 typedef struct elf32_hdr {
@@ -66,7 +66,7 @@ typedef struct elf32_hdr {
 // ---------------------------------------------------------------------------------------------
 // Elf64_Phdr
 typedef struct elf64_phdr {
-  Elf64_Word  p_type;
+  Elf64_Word  p_type;   // See ELF_PT_*
   Elf64_Word  p_flags;  // See ELF_PF_*
   Elf64_Off   p_offset; // Segment file offset
   Elf64_Addr  p_vaddr;  // Segment virtual address
@@ -91,50 +91,15 @@ typedef struct elf32_phdr{
 // Elf64_Shdr
 typedef struct elf64_shdr {
   Elf64_Word  sh_name;      // Section name, index in string tbl
-  // This member specifies the name of the section. Its value is an index into the
-  // section header string table section, giving the location of a null-terminated string.
-  //
   Elf64_Word  sh_type;      // Type of section. See ELF_SHT_*
-  // This member categorizes the section's contents and semantics.
-  //
   Elf64_Xword sh_flags;     // Miscellaneous section attributes. See ELF_SHF_*
-  // Sections support 1-bit flags that describe miscellaneous attributes.
-  //
   Elf64_Addr  sh_addr;      // Section virtual addr at execution
-  // If the section will appear in the memory image of a process, this member gives
-  // the address at which the section's first byte should reside. Otherwise, the
-  // member contains 0.
-  //
   Elf64_Off   sh_offset;    // Section's data file offset
-  // This member's value gives the byte offset from the beginning of the file to the
-  // first byte in the section. One section type, SHT_NOBITS, occupies no space in the file,
-  // and its sh_offset member locates the conceptual placement in the file.
-  //
   Elf64_Xword sh_size;      // Size of section in bytes
-  // This member gives the section's size in bytes. Unless the section type is
-  // SHT_NOBITS, the section occupies sh_size bytes in the file. A section of type
-  // SHT_NOBITS may have a non-zero size, but it occupies no space in the file.
-  //
   Elf64_Word  sh_link;      // Index of another section
-  // This member holds a section header table index link, whose interpretation
-  // depends on the section type.
-  //
   Elf64_Word  sh_info;      // Additional section information
-  // This member holds extra information, whose interpretation depends on the section type.
-  // If the sh_flags field for this section header includes the attribute SHF_INFO_LINK,
-  // then this member represents a section header table index.
-  //
   Elf64_Xword sh_addralign; // Section alignment
-  // Some sections have address alignment constraints. For example, if a section
-  // holds a doubleword, the system must ensure doubleword alignment for the entire
-  // section. The value of sh_addr must be congruent to 0, modulo the value of
-  // sh_addralign. Currently, only 0 and positive integral powers of two are allowed.
-  // Values 0 and 1 mean the section has no alignment constraints.
-  //
   Elf64_Xword sh_entsize;   // Entry size if section holds table
-  // Some sections hold a table of fixed-size entries, such as a symbol table. For
-  // such a section, this member gives the size in bytes of each entry. The member
-  // contains 0 if the section does not hold a table of fixed-size entries.
 } Elf64_Shdr;
 
 typedef struct elf32_shdr {
@@ -150,6 +115,57 @@ typedef struct elf32_shdr {
   Elf32_Word  sh_entsize;
 } Elf32_Shdr;
 
+/*
+
+sh_name -- Section name, index in string tbl
+  This member specifies the name of the section. Its value is an index into the
+  section header string table section, giving the location of a null-terminated string.
+
+sh_type -- Type of section. See ELF_SHT_*
+  This member categorizes the section's contents and semantics.
+
+sh_flags -- Miscellaneous section attributes. See ELF_SHF_*
+  Sections support 1-bit flags that describe miscellaneous attributes.
+
+sh_addr -- Section virtual addr at execution
+  If the section will appear in the memory image of a process, this member gives
+  the address at which the section's first byte should reside. Otherwise, the
+  member contains 0.
+
+sh_offset -- Section's data file offset
+  This member's value gives the byte offset from the beginning of the file to the
+  first byte in the section. One section type, SHT_NOBITS, occupies no space in the file,
+  and its sh_offset member locates the conceptual placement in the file.
+
+sh_size -- Size of section in bytes
+  This member gives the section's size in bytes. Unless the section type is
+  SHT_NOBITS, the section occupies sh_size bytes in the file. A section of type
+  SHT_NOBITS may have a non-zero size, but it occupies no space in the file.
+
+sh_link -- Index of another section
+  This member holds a section header table index link, whose interpretation
+  depends on the section type.
+
+sh_info -- Additional section information
+  This member holds extra information, whose interpretation depends on the section type.
+  If the sh_flags field for this section header includes the attribute SHF_INFO_LINK,
+  then this member represents a section header table index.
+
+sh_addralign -- Section alignment
+  Some sections have address alignment constraints. For example, if a section
+  holds a doubleword, the system must ensure doubleword alignment for the entire
+  section. The value of sh_addr must be congruent to 0, modulo the value of
+  sh_addralign. Currently, only 0 and positive integral powers of two are allowed.
+  Values 0 and 1 mean the section has no alignment constraints.
+
+sh_entsize -- Entry size if section holds table
+  Some sections hold a table of fixed-size entries, such as a symbol table. For
+  such a section, this member gives the size in bytes of each entry. The member
+  contains 0 if the section does not hold a table of fixed-size entries.
+
+*/
+
+
 // ---------------------------------------------------------------------------------------------
 // Elf64_Sym
 // An object file's symbol table holds information needed to locate and relocate a program's
@@ -158,41 +174,11 @@ typedef struct elf32_shdr {
 // The contents of the initial entry are specified later in this section.
 typedef struct elf64_sym {
   Elf64_Word    st_name;  // Symbol name, index in string tbl
-  // This member holds an index into the object file's symbol string table, which holds
-  // the character representations of the symbol names. If the value is non-zero, it
-  // represents a string table index that gives the symbol name. Otherwise, the symbol table
-  // entry has no name.
-  //
   unsigned char st_info;  // Type and binding attributes (ELF_STB_* and ELF_STT_*)
-  // This member specifies the symbol's type and binding attributes.
-  //
   unsigned char st_other; // No defined meaning, 0. (used for visibility in ELF32)
-  //
   Elf64_Half    st_shndx; // Associated section index (section sym "comes" from or "belongs" to)
-  // Every symbol table entry is defined in relation to some section. This member
-  // holds the relevant section header table index. As the sh_link and sh_info
-  // interpretation table and the related text describe, some section indexes
-  // indicate special meanings.
-  //   If this member contains SHN_XINDEX, then the actual section header index is too
-  // large to fit in this field. The actual value is contained in the associated
-  // section of type SHT_SYMTAB_SHNDX.
-  //
   Elf64_Addr    st_value; // Value of the symbol
-  // This member gives the value of the associated symbol. Depending on the context, this
-  // may be an absolute value, an address, and so on.
-  // - In executable and shared object files, st_value holds a virtual address.
-  //   To make these files' symbols more useful for the dynamic linker, the section offset
-  //   (file interpretation) gives way to a virtual address (memory interpretation) for which
-  //   the section number is irrelevant.
-  // - In relocatable files, st_value holds alignment constraints for a symbol whose section
-  //   index is SHN_COMMON
-  // - In relocatable files, st_value holds a section offset for a defined symbol.
-  //   st_value is an offset from the beginning of the section that st_shndx identifies.
-  //
   Elf64_Xword   st_size;  // Associated symbol size
-  // Many symbols have associated sizes. For example, a data object's size is the number of
-  // bytes contained in the object. This member holds 0 if the symbol has no size or an
-  // unknown size.
 } Elf64_Sym;  // sizeof(Elf64_Sym) = 24
 
 typedef struct elf32_sym{
@@ -203,6 +189,47 @@ typedef struct elf32_sym{
   unsigned char st_other;
   Elf32_Half    st_shndx;
 } Elf32_Sym;
+
+/*
+
+  st_name -- Symbol name, index in string tbl
+    This member holds an index into the object file's symbol string table, which holds
+    the character representations of the symbol names. If the value is non-zero, it
+    represents a string table index that gives the symbol name. Otherwise, the symbol table
+    entry has no name.
+
+  st_info -- Type and binding attributes (ELF_STB_* and ELF_STT_*)
+    This member specifies the symbol's type and binding attributes.
+
+  st_other -- No defined meaning, 0. (used for visibility in ELF32)
+
+  st_shndx -- Associated section index (section sym "comes" from or "belongs" to)
+    Every symbol table entry is defined in relation to some section. This member
+    holds the relevant section header table index. As the sh_link and sh_info
+    interpretation table and the related text describe, some section indexes
+    indicate special meanings.
+      If this member contains SHN_XINDEX, then the actual section header index is too
+    large to fit in this field. The actual value is contained in the associated
+    section of type SHT_SYMTAB_SHNDX.
+
+  st_value -- Value of the symbol
+    This member gives the value of the associated symbol. Depending on the context, this
+    may be an absolute value, an address, and so on.
+    - In executable and shared object files, st_value holds a virtual address.
+      To make these files' symbols more useful for the dynamic linker, the section offset
+      (file interpretation) gives way to a virtual address (memory interpretation) for which
+      the section number is irrelevant.
+    - In relocatable files, st_value holds alignment constraints for a symbol whose section
+      index is SHN_COMMON
+    - In relocatable files, st_value holds a section offset for a defined symbol.
+      st_value is an offset from the beginning of the section that st_shndx identifies.
+
+  st_size -- Associated symbol size
+    Many symbols have associated sizes. For example, a data object's size is the number of
+    bytes contained in the object. This member holds 0 if the symbol has no size or an
+    unknown size.
+
+*/
 
 // ---------------------------------------------------------------------------------------------
 // ELF symbol table bindings & types
@@ -239,16 +266,6 @@ typedef struct elf32_sym{
 #define ELF_FT_LOPROC 0xff00  // Processor-specific
 #define ELF_FT_HIPROC 0xffff  // Processor-specific
 //
-// ---------------------------------------------------------------------------------------------
-// ELF machine codes
-typedef enum ELFMachine {
-  ELF_M_NONE    = 0,
-  ELF_M_386     = 3,   // Intel x86
-  ELF_M_X86_64  = 62,  // AMD x86-64
-  ELF_M_ARM     = 40,  // ARM 32
-  ELF_M_AARCH64 = 183, // ARM 64
-  ELF_M_RISCV   = 243, // RISC-V
-} ELFMachine;
 
 // ---------------------------------------------------------------------------------------------
 // ELF special section indexes
@@ -385,64 +402,65 @@ typedef enum ELFMachine {
 // Encoding 2MSB specifies 2's complement values, with the most significant byte occupying the
 // lowest address. I.e. big-endian. 0x01020304 => [01 02 03 04]
 #define ELF_DATA_2MSB 2
-//
+
 // ---------------------------------------------------------------------------------------------
 // ELF_PT_* -- Program segment types
 //
-// ELF_PT_NULL The array element is unused; other members' values are undefined.
-// This type lets the program header table have ignored entries.
 #define ELF_PT_NULL    0
-//
-// ELF_PT_LOAD The array element specifies a loadable segment, described by p_filesz
-// and p_memsz. The bytes from the file are mapped to the beginning of the memory
-// segment. If the segment's memory size (p_memsz) is larger than the file size
-// (p_filesz), the ``extra'' bytes are defined to hold the value 0 and to follow
-// the segment's initialized area. The file size may not be larger than the memory
-// size. Loadable segment entries in the program header table appear in ascending
-// order, sorted on the p_vaddr member.
 #define ELF_PT_LOAD    1
-//
-// ELF_PT_DYNAMIC The array element specifies dynamic linking information
 #define ELF_PT_DYNAMIC 2
-//
-// ELF_PT_INTERP The array element specifies the location and size of a null-terminated
-// path name to invoke as an interpreter. This segment type is meaningful only for
-// executable files (though it may occur for shared objects); it may not occur more
-// than once in a file. If it is present, it must precede any loadable segment entry.
 #define ELF_PT_INTERP  3
-//
-// ELF_PT_NOTE The array element specifies the location and size of auxiliary information.
 #define ELF_PT_NOTE    4
-//
-// ELF_PT_SHLIB This segment type is reserved but has unspecified semantics.
-// Programs that contain an array element of this type do not conform to the ABI.
 #define ELF_PT_SHLIB   5
-//
-// ELF_PT_PHDR The array element, if present, specifies the location and size of the
-// program header table itself, both in the file and in the memory image of the
-// program. This segment type may not occur more than once in a file. Moreover, it
-// may occur only if the program header table is part of the memory image of the
-// program. If it is present, it must precede any loadable segment entry.
 #define ELF_PT_PHDR    6
-//
-// ELF_PT_TLS Thread-local storage segment
 #define ELF_PT_TLS     7
-//
-// ELF_PT_LOOS through ELF_PT_HIOS Values in this inclusive range are reserved for
-// operating system-specific semantics.
 #define ELF_PT_LOOS    0x60000000
 #define ELF_PT_HIOS    0x6fffffff
-//
-// ELF_PT_LOPROC through ELF_PT_HIPROC Values in this inclusive range are reserved for
-// processor-specific semantics. If meanings are specified, the processor
-// supplement explains them.
 #define ELF_PT_LOPROC  0x70000000
 #define ELF_PT_HIPROC  0x7fffffff
-
-// GNU/Linux specific
 #define ELF_PT_GNU_EH_FRAME 0x6474e550
 #define ELF_PT_GNU_PROPERTY 0x6474e553
 #define ELF_PT_GNU_STACK    (ELF_PT_LOOS + 0x474e551)
+
+/*
+  ELF_PT_NULL The array element is unused; other members' values are undefined.
+  This type lets the program header table have ignored entries.
+
+  ELF_PT_LOAD The array element specifies a loadable segment, described by p_filesz
+  and p_memsz. The bytes from the file are mapped to the beginning of the memory
+  segment. If the segment's memory size (p_memsz) is larger than the file size
+  (p_filesz), the ``extra'' bytes are defined to hold the value 0 and to follow
+  the segment's initialized area. The file size may not be larger than the memory
+  size. Loadable segment entries in the program header table appear in ascending
+  order, sorted on the p_vaddr member.
+
+  ELF_PT_DYNAMIC The array element specifies dynamic linking information
+
+  ELF_PT_INTERP The array element specifies the location and size of a null-terminated
+  path name to invoke as an interpreter. This segment type is meaningful only for
+  executable files (though it may occur for shared objects); it may not occur more
+  than once in a file. If it is present, it must precede any loadable segment entry.
+
+  ELF_PT_NOTE The array element specifies the location and size of auxiliary information.
+
+  ELF_PT_SHLIB This segment type is reserved but has unspecified semantics.
+  Programs that contain an array element of this type do not conform to the ABI.
+
+  ELF_PT_PHDR The array element, if present, specifies the location and size of the
+  program header table itself, both in the file and in the memory image of the
+  program. This segment type may not occur more than once in a file. Moreover, it
+  may occur only if the program header table is part of the memory image of the
+  program. If it is present, it must precede any loadable segment entry.
+
+  ELF_PT_TLS Thread-local storage segment
+
+  ELF_PT_LOOS through ELF_PT_HIOS Values in this inclusive range are reserved for
+  operating system-specific semantics.
+
+  ELF_PT_LOPROC through ELF_PT_HIPROC Values in this inclusive range are reserved for
+  processor-specific semantics. If meanings are specified, the processor
+  supplement explains them.
+*/
 
 //
 // ---------------------------------------------------------------------------------------------
@@ -453,3 +471,102 @@ typedef enum ELFMachine {
 #define ELF_PF_MASKOS   0x0ff00000 // Reserved for operating system-specific semantics.
 #define ELF_PF_MASKPROC 0xf0000000 // Reserved for processor-specific semantics.
 // ---------------------------------------------------------------------------------------------
+
+// ELF machine identifiers
+typedef enum ELFMachine {
+  ELF_M_NONE           = 0,
+  ELF_M_M32            = 1,   // AT&T WE 32100
+  ELF_M_SPARC          = 2,   // SPARC
+  ELF_M_386            = 3,   // Intel 80386
+  ELF_M_68K            = 4,   // Motorola 68000
+  ELF_M_88K            = 5,   // Motorola 88000
+  //ELF_M_486          = 6,   // DEPRECATED
+  ELF_M_860            = 7,   // Intel 80860
+  ELF_M_MIPS           = 8,   // MIPS I/R3000 Architecture
+  ELF_M_S370           = 9,   // IBM System/370 Processor
+  ELF_M_MIPS_RS3_LE    = 10,  // MIPS RS3000 Little-endian
+  ELF_M_PARISC         = 15,  // Hewlett-Packard PA-RISC
+  ELF_M_VPP500         = 17,  // Fujitsu VPP500
+  ELF_M_SPARC32PLUS    = 18,  // Enhanced instruction set SPARC
+  ELF_M_960            = 19,  // Intel 80960
+  ELF_M_PPC            = 20,  // PowerPC 32-bit
+  ELF_M_PPC64          = 21,  // PowerPC 64-bit
+  ELF_M_S390           = 22,  // IBM S/390 Processor
+  ELF_M_SPU            = 23,  // Cell BE SPU
+  ELF_M_V800           = 36,  // NEC V800
+  ELF_M_FR20           = 37,  // Fujitsu FR20
+  ELF_M_RH32           = 38,  // TRW RH-32
+  ELF_M_RCE            = 39,  // Motorola RCE
+  ELF_M_ARM            = 40,  // Advanced RISC Machines ARM 32-bit
+  ELF_M_ALPHA          = 41,  // Digital Alpha
+  ELF_M_SH             = 42,  // Hitachi SH / SuperH
+  ELF_M_SPARCV9        = 43,  // SPARC Version 9 64-bit
+  ELF_M_TRICORE        = 44,  // Siemens TriCore embedded processor
+  ELF_M_ARC            = 45,  // Argonaut RISC Core, Argonaut Technologies Inc.
+  ELF_M_H8_300         = 46,  // Hitachi/Renesas H8/300
+  ELF_M_H8_300H        = 47,  // Hitachi H8/300H
+  ELF_M_H8S            = 48,  // Hitachi H8S
+  ELF_M_H8_500         = 49,  // Hitachi H8/500
+  ELF_M_IA_64          = 50,  // HP/Intel IA-64
+  ELF_M_MIPS_X         = 51,  // Stanford MIPS-X
+  ELF_M_COLDFIRE       = 52,  // Motorola ColdFire
+  ELF_M_68HC12         = 53,  // Motorola M68HC12
+  ELF_M_MMA            = 54,  // Fujitsu MMA Multimedia Accelerator
+  ELF_M_PCP            = 55,  // Siemens PCP
+  ELF_M_NCPU           = 56,  // Sony nCPU embedded RISC processor
+  ELF_M_NDR1           = 57,  // Denso NDR1 microprocessor
+  ELF_M_STARCORE       = 58,  // Motorola Star*Core processor
+  ELF_M_ME16           = 59,  // Toyota ME16 processor
+  ELF_M_ST100          = 60,  // STMicroelectronics ST100 processor
+  ELF_M_TINYJ          = 61,  // Advanced Logic Corp. TinyJ embedded processor family
+  ELF_M_X86_64         = 62,  // AMD x86-64 architecture
+  ELF_M_PDSP           = 63,  // Sony DSP Processor
+  ELF_M_FX66           = 66,  // Siemens FX66 microcontroller
+  ELF_M_ST9PLUS        = 67,  // STMicroelectronics ST9+ 8/16 bit microcontroller
+  ELF_M_ST7            = 68,  // STMicroelectronics ST7 8-bit microcontroller
+  ELF_M_68HC16         = 69,  // Motorola MC68HC16 Microcontroller
+  ELF_M_68HC11         = 70,  // Motorola MC68HC11 Microcontroller
+  ELF_M_68HC08         = 71,  // Motorola MC68HC08 Microcontroller
+  ELF_M_68HC05         = 72,  // Motorola MC68HC05 Microcontroller
+  ELF_M_SVX            = 73,  // Silicon Graphics SVx
+  ELF_M_ST19           = 74,  // STMicroelectronics ST19 8-bit microcontroller
+  ELF_M_VAX            = 75,  // Digital VAX
+  ELF_M_CRIS           = 76,  // Axis Communications 32-bit embedded processor
+  ELF_M_JAVELIN        = 77,  // Infineon Technologies 32-bit embedded processor
+  ELF_M_FIREPATH       = 78,  // Element 14 64-bit DSP Processor
+  ELF_M_ZSP            = 79,  // LSI Logic 16-bit DSP Processor
+  ELF_M_MMIX           = 80,  // Donald Knuth's educational 64-bit processor
+  ELF_M_HUANY          = 81,  // Harvard University machine-independent object files
+  ELF_M_PRISM          = 82,  // SiTera Prism
+  ELF_M_AVR            = 83,  // Atmel AVR 8-bit microcontroller
+  ELF_M_FR30           = 84,  // Fujitsu FR30
+  ELF_M_D10V           = 85,  // Mitsubishi D10V
+  ELF_M_D30V           = 86,  // Mitsubishi D30V
+  ELF_M_V850           = 87,  // NEC v850
+  ELF_M_M32R           = 88,  // Mitsubishi/Renesas M32R
+  ELF_M_MN10300        = 89,  // Matsushita MN10300
+  ELF_M_MN10200        = 90,  // Matsushita MN10200
+  ELF_M_PJ             = 91,  // picoJava
+  ELF_M_OPENRISC       = 92,  // OpenRISC 32-bit embedded processor
+  ELF_M_ARCOMPACT      = 93,  // ARCompact processor
+  ELF_M_XTENSA         = 94,  // Tensilica Xtensa Architecture
+  ELF_M_BLACKFIN       = 106, // ADI Blackfin Processor
+  ELF_M_UNICORE        = 110, // UniCore-32
+  ELF_M_ALTERA_NIOS2   = 113, // Altera Nios II soft-core processor
+  ELF_M_TI_C6000       = 140, // TI C6X DSPs
+  ELF_M_HEXAGON        = 164, // QUALCOMM Hexagon
+  ELF_M_NDS32          = 167, // Andes Technology compact code size embedded RISC processor family
+  ELF_M_AARCH64        = 183, // Advanced RISC Machines ARM 64-bit
+  ELF_M_TILEPRO        = 188, // Tilera TILEPro
+  ELF_M_MICROBLAZE     = 189, // Xilinx MicroBlaze
+  ELF_M_TILEGX         = 191, // Tilera TILE-Gx
+  ELF_M_ARCV2          = 195, // ARCv2 Cores
+  ELF_M_RISCV          = 243, // RISC-V
+  ELF_M_BPF            = 247, // Linux BPF - in-kernel virtual machine
+  ELF_M_CSKY           = 252, // C-SKY
+  ELF_M_FRV            = 0x5441, // Fujitsu FR-V
+  ELF_M_CYGNUS_M32R    = 0x9041, // old m32r
+  ELF_M_S390_OLD       = 0xA390, // old S/390
+  ELF_M_CYGNUS_MN10300 = 0xbeef, // Panasonic/MEI MN10300, AM33
+} ELFMachine;
+

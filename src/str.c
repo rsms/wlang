@@ -1,10 +1,8 @@
 #include "wp.h"
 
-// strrepr returns a printable representation of an sds string (sds, Sym, etc.)
+// bytesrepr and strrepr returns a printable representation of an sds string (sds, Sym, etc.)
 // using sdscatrepr which encodes non-printable ASCII chars for safe printing.
-// Not thread safe!
-ConstStr strrepr(ConstStr s) {
-  auto len = sdslen(s);
+ConstStr bytesrepr(const u8* s, size_t len) {
   return memgcsds(sdscatrepr(sdsnewcap(len + 2), s, len));
 }
 

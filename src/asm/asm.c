@@ -4,6 +4,7 @@
 
 #include "elf/elf.h"
 #include "elf/builder.h"
+#include "elf/file.h"
 
 #include <stdio.h>
 
@@ -33,7 +34,7 @@ void AsmELF() {
   progexe->align64 = 0x200000; // 2^21
 
   #define ADD_SYM64(name, binding, type, value) \
-    ELFSymtabAdd64(symtab, textsec->index, name, binding, type, value)
+    ELFSymtabAdd64(symtab, textsec, name, binding, type, value)
 
   ADD_SYM64("", ELF_STB_LOCAL, ELF_STT_SECTION, 0x0000000000400078); // section symbol
   ADD_SYM64("_start", ELF_STB_GLOBAL, ELF_STT_NOTYPE, 0x0000000000400078);
@@ -52,6 +53,37 @@ void AsmELF() {
   if (!os_writefile("./thingy", buf.ptr, buf.len)) {
     perror("os_writefile");
   }
+
+  // // inspect
+  // ELFFile _f; auto f = &_f;
+  // ELFFileInit(f, "./thingy", buf.ptr, buf.len);
+  // if (ELFFileValidate(f, stderr)) {
+  //   ELFFilePrint(f, stdout);
+  // }
+
+  { const char* filename = "./thingy";
+    dlog("----------------------------------------------------------------\n%s", filename);
+    size_t len = 0;
+    u8* ptr = os_readfile(filename, &len, NULL);
+    ELFFile _f; auto f = &_f;
+    ELFFileInit(f, filename, ptr, len);
+    if (ELFFileValidate(f, stderr)) {
+      ELFFilePrint(f, stdout);
+    }
+    memfree(NULL, ptr);
+  }
+  { const char* filename = "./misc/min-docker/mini2.linux";
+    dlog("----------------------------------------------------------------\n%s", filename);
+    size_t len = 0;
+    u8* ptr = os_readfile(filename, &len, NULL);
+    ELFFile _f; auto f = &_f;
+    ELFFileInit(f, filename, ptr, len);
+    if (ELFFileValidate(f, stderr)) {
+      ELFFilePrint(f, stdout);
+    }
+    memfree(NULL, ptr);
+  }
+
 
   // $ hexdump -v -C mini2.linux
   //

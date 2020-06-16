@@ -5,7 +5,7 @@
 // Do not allocate more than this much extra memory in a call to BufMakeRoomFor
 #define BUF_MAX_PREALLOC (1024*1024)
 
-void BufInit(Buf* b, Memory mem, u64 cap) {
+void BufInit(Buf* b, Memory mem, size_t cap) {
   b->mem = mem;
   if (cap > 0) {
     b->ptr = (u8*)memalloc(mem, cap);
@@ -25,9 +25,9 @@ void BufFree(Buf* b) {
   #endif
 }
 
-void BufMakeRoomFor(Buf* b, u64 size) {
+void BufMakeRoomFor(Buf* b, size_t size) {
   if (b->cap - b->len < size) {
-    u64 cap = align2(b->len + size, 32);
+    size_t cap = align2(b->len + size, 32);
     // Anticipate growing more; allocate some extra space beyond what is needed:
     if (cap < BUF_MAX_PREALLOC) {
       cap *= 2;
@@ -43,20 +43,20 @@ void BufMakeRoomFor(Buf* b, u64 size) {
 }
 
 // Adds a string to the string table. Returns the strtab offset.
-void BufAppend(Buf* b, const void* ptr, u64 size) {
+void BufAppend(Buf* b, const void* ptr, size_t size) {
   BufMakeRoomFor(b, size);
   memcpy(&b->ptr[b->len], ptr, size);
   b->len += size;
 }
 
-u8* BufAlloc(Buf* b, u64 size) {
+u8* BufAlloc(Buf* b, size_t size) {
   BufMakeRoomFor(b, size);
   u8* ptr = &b->ptr[b->len];
   b->len += size;
   return ptr;
 }
 
-void BufAppendFill(Buf* b, u8 v, u64 count) {
+void BufAppendFill(Buf* b, u8 v, size_t count) {
   BufMakeRoomFor(b, count);
   memset(&b->ptr[b->len], v, count);
   b->len += count;

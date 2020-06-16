@@ -3,13 +3,13 @@
 typedef struct Buf {
   Memory mem;
   u8*    ptr;
-  u64    cap;
-  u64    len;
+  size_t cap;
+  size_t len;
 } Buf;
 
-void BufInit(Buf* nonull b, Memory nullable mem, u64 cap);
+void BufInit(Buf* nonull b, Memory nullable mem, size_t cap);
 void BufFree(Buf* nonull b);
-void BufMakeRoomFor(Buf* nonull b, u64 size); // ensures there is capacity for at least size
-void BufAppend(Buf* nonull b, const void* nonull ptr, u64 size);
-void BufAppendFill(Buf* nonull b, u8 v, u64 count); // append count bytes of value v
-u8*  BufAlloc(Buf* nonull b, u64 size); // like BufAppend but leaves allocated data untouched.
+void BufMakeRoomFor(Buf* nonull b, size_t size); // ensures there is capacity for at least size
+void BufAppend(Buf* nonull b, const void* nonull ptr, size_t size);
+void BufAppendFill(Buf* nonull b, u8 v, size_t count); // append count bytes of value v
+u8*  BufAlloc(Buf* nonull b, size_t size); // like BufAppend but leaves allocated data untouched.

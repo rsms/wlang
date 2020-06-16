@@ -21,12 +21,12 @@ typedef enum ELFMode {
 typedef struct ELFSec {
   ELFBuilder* builder; // owning builder
   ELFData*    data;    // section data pointer. May be NULL.
-  u16         index;   // section index
+  u16         index;   // section index (offset in b.shv initially, index after assembly)
   // ELF type-agnostic members of Elf32_Shdr & Elf64_Shdr
   u32         type;    // Type of section (sh_type)
   u32         name;    // Section name, index in shstrtab (sh_name)
   u32         flags;   // Bitflags ELF_SHF_* (sh_flags)
-  u32         link;    // Index of another section (sh_link)
+  ELFSec*     link;    // Index of another section (like sh_link)
   // Data used during assembly
   union {
     Elf32_Shdr sh32;
@@ -69,6 +69,7 @@ typedef struct ELFBuilder {
   Memory       mem;      // allocator (NULL = global allocator)
   ELFMode      mode;
   ELFMachine   machine;
+  u8           encoding; // ELF_DATA_* constant. Set to best-guess at init based on machine.
   Array        dv;       // data segments [ELFData*]
   Array        shv;      // section headers [ELFSec*]
   Array        phv;      // program headers [ELFProg*]
@@ -110,8 +111,8 @@ const char* ELFStrtabLookup(const ELFSec* sec, u32 nameindex);
 // Returns a pointer to the symbol.
 // The returned pointer is only valid until the next call to ELFSymtabAdd* as it
 // references memory that might change during a call.
-Elf32_Sym* ELFSymtabAdd32(ELFSec* symtab, u16 shndx, const char* name, u8 bind, u8 typ, u32 value);
-Elf64_Sym* ELFSymtabAdd64(ELFSec* symtab, u16 shndx, const char* name, u8 bind, u8 typ, u64 value);
+Elf32_Sym* ELFSymtabAdd32(ELFSec* symtab, ELFSec* sec, const char* name, u8 bind, u8 typ, u32 val);
+Elf64_Sym* ELFSymtabAdd64(ELFSec* symtab, ELFSec* sec, const char* name, u8 bind, u8 typ, u64 val);
 
 // Assemble ELF file
 ELFErr ELFBuilderAssemble(ELFBuilder* b, Buf* buf);

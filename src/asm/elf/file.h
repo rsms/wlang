@@ -5,44 +5,63 @@
 // 2. the section header lists the set of sections of the binary.
 
 typedef struct ELFFile {
-  Buf buf;
-  // u64 shstrtab; // offset of Section Header string table section
-  // u64 strtab;   // offset of General string table section
-  // u64 symtab;   // offset of Symbol table section
-  // u64 textsec;  // offset of TEXT section. NULL until created by ELFBuilderNewSection
+  const char* nullable name;
+  const u8*            buf;
+  size_t               len;
+  const char*          shstrtab; // pointer into buf of shstrtab. NULL if none.
 } ELFFile;
 
-static void ELFFileInit(ELFFile* f, Memory mem) {
-  memset(f, 0, sizeof(ELFFile));
-  BufInit(&f->buf, mem, 4096);
-}
+void ELFFileInit(ELFFile* f, const char* nullable name, const u8* data, size_t len);
+bool ELFFileValidate(const ELFFile* f, FILE* nullable errlogfp);
+static const char* ELFFileName(const ELFFile* f, const char* defaultname);
 
-static void ELFFileFree(ELFFile* f) {
-  BufFree(&f->buf);
-}
+// Access basic information
+static u8 ELFFileClass(const ELFFile* f); // ELF_CLASS_{NONE,32,64}
 
-// Access ELF-64 header
-inline static Elf64_Ehdr* ELFFileEH64(ELFFile* f) {
-  return (Elf64_Ehdr*)f->buf.ptr;
-}
+// Access headers
+static const Elf32_Ehdr* ELFFileEH32(const ELFFile* f);
+static const Elf64_Ehdr* ELFFileEH64(const ELFFile* f);
+static const Elf32_Phdr* ELFFilePH32(const ELFFile* f, u32 index);
+static const Elf64_Phdr* ELFFilePH64(const ELFFile* f, u32 index);
+static const Elf32_Shdr* ELFFileSH32(const ELFFile* f, u32 index);
+static const Elf64_Shdr* ELFFileSH64(const ELFFile* f, u32 index);
 
-// Access ELF-64 program header
-inline static Elf64_Phdr* ELFFilePH64(ELFFile* f, u32 index) {
-  // Program headers follows immediately after ELF header
-  return (Elf64_Phdr*)&f->buf.ptr[sizeof(Elf64_Ehdr) + (sizeof(Elf64_Phdr) * index)];
-}
-
-// Reset ELFFile for reuse
-static void ELFFileReset64(ELFFile* f, u32 phcount) {
-  f->buf.len = 0;
-  BufAlloc(&f->buf, sizeof(Elf64_Ehdr) + (sizeof(Elf64_Phdr) * phcount));
-}
-static void ELFFileReset32(ELFFile* f, u32 phcount) {
-  f->buf.len = 0;
-  BufAlloc(&f->buf, sizeof(Elf32_Ehdr) + (sizeof(Elf32_Phdr) * phcount));
-}
+// Print human-readable information
+void ELFFilePrint(const ELFFile* f, FILE* fp);
 
 
-// inline static Elf64_Ehdr* ELFFileSHStrtab(ELFFile* f) {
-//   return (Elf64_Ehdr*)f->buf.ptr;
-// }
+// ----------------------------------------------------------
+// inline implementations
+
+inline static const char* ELFFileName(const ELFFile* f, const char* defaultname) {
+  return f->name == NULL ? defaultname : f->name;
+}
+
+inline static u8 ELFFileClass(const ELFFile* f) {
+  return f->buf[ELF_EI_CLASS];
+}
+
+inline static const Elf32_Ehdr* ELFFileEH32(const ELFFile* f) {
+  return (const Elf32_Ehdr*)f->buf;
+}
+inline static const Elf64_Ehdr* ELFFileEH64(const ELFFile* f) {
+  return (const Elf64_Ehdr*)f->buf;
+}
+
+inline static const Elf32_Phdr* ELFFilePH32(const ELFFile* f, u32 index) {
+  auto eh = ELFFileEH32(f);
+  return (const Elf32_Phdr*)&f->buf[eh->e_phoff + (sizeof(Elf32_Phdr) * index)];
+}
+inline static const Elf64_Phdr* ELFFilePH64(const ELFFile* f, u32 index) {
+  auto eh = ELFFileEH64(f);
+  return (const Elf64_Phdr*)&f->buf[eh->e_phoff + (sizeof(Elf64_Phdr) * index)];
+}
+
+inline static const Elf32_Shdr* ELFFileSH32(const ELFFile* f, u32 index) {
+  auto eh = ELFFileEH32(f);
+  return (const Elf32_Shdr*)&f->buf[eh->e_shoff + (sizeof(Elf32_Shdr) * index)];
+}
+inline static const Elf64_Shdr* ELFFileSH64(const ELFFile* f, u32 index) {
+  auto eh = ELFFileEH64(f);
+  return (const Elf64_Shdr*)&f->buf[eh->e_shoff + (sizeof(Elf64_Shdr) * index)];
+}

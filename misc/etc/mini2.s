@@ -17,8 +17,15 @@
 #   docker run --rm -it -v "$PWD:/src" rsms/emsdk \
 #     llvm-objdump -D --syms --full-contents --all-headers mini2 > mini2.dis.txt
 #
+# Disassemble with objdump for annotated assembly and opcodes:
+#   objdump -d -S mini2
+#   objdump -d -S hello-c
+#
 # Dump to view exact contents:
 #   hexdump -v -C mini2 > mini2.hex
+#
+# View ELF details:
+#   readelf -a mini2 > mini2.readelf.txt
 #
 .text
 .globl  _start
