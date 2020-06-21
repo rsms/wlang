@@ -295,51 +295,65 @@ typedef enum Reg {
 #define PUSHU32(v)   ({ *((u32*)&buf->ptr[buf->len]) = v; buf->len += 4; })
 #define PUSHU64(v)   ({ *((u64*)&buf->ptr[buf->len]) = v; buf->len += 8; })
 
-static void emit_mov_imm32(Buf* buf, Reg dstreg, u32 imm) {
+// i32 -> reg<i64>
+static void emit_mov64_imm32(Buf* buf, Reg dstreg, u32 imm) {
   PUSHBYTE( REX_W );
   PUSHBYTE( O_MOVmi );
   PUSHBYTE( ModRM(Mod_REG, 0, dstreg) );
   PUSHU32( imm );
 }
 
-static void emit_mov_imm64(Buf* buf, Reg dstreg, u64 imm) {
+// i64 -> reg<i64>
+static void emit_mov64_imm64(Buf* buf, Reg dstreg, u64 imm) {
   PUSHBYTE( REX_W );
   PUSHBYTE( O_MOVri + dstreg );
   PUSHU64( imm );
 }
 
-static void emit_mov_reg(Buf* buf, Reg dstreg, Reg srcreg) {
+// i32 -> reg<i32>
+static void emit_mov32_imm32(Buf* buf, Reg dstreg, u32 imm) {
+  PUSHBYTE( O_MOVri + dstreg );
+  PUSHU32( imm );
 }
 
-static void emit_syscall(Buf* buf) {
+// i8 -> reg<i8>
+static void emit_mov8_imm8(Buf* buf, Reg dstreg, u8 imm) {
+  PUSHBYTE( O_MOVrib + dstreg );
+  PUSHBYTE( imm );
+}
+
+// static void emit_mov_reg(Buf* buf, Reg dstreg, Reg srcreg) {}
+
+inline static void emit_syscall(Buf* buf) {
   // Documented in the x86-64 ABI in section A.2.1:
-  //
-  // User-level applications use as integer registers for passing the sequence
-  // %rdi, %rsi, %rdx, %rcx, %r8 and %r9.
-  // The kernel interface uses %rdi, %rsi, %rdx, %r10, %r8 and %r9.
-  // A system-call is done via the syscall instruction.
-  // The kernel destroys registers %rcx and %r11.
-  // The number of the syscall has to be passed in register %rax.
-  // System-calls are limited to six arguments,no argument is passed directly on the stack.
-  // Returning from the syscall, register %rax contains the result of the system-call.
-  // A value in the range between -4095 and -1 indicates an error, it is -errno.
-  // Only values of class INTEGER or class MEMORY are passed to the kernel.
+  //   User-level applications use as integer registers for passing the sequence
+  //   %rdi, %rsi, %rdx, %rcx, %r8 and %r9.
+  //   The kernel interface uses %rdi, %rsi, %rdx, %r10, %r8 and %r9.
+  //   A system-call is done via the syscall instruction.
+  //   The kernel destroys registers %rcx and %r11.
+  //   The number of the syscall has to be passed in register %rax.
+  //   System-calls are limited to six arguments,no argument is passed directly on the stack.
+  //   Returning from the syscall, register %rax contains the result of the system-call.
+  //   A value in the range between -4095 and -1 indicates an error, it is -errno.
+  //   Only values of class INTEGER or class MEMORY are passed to the kernel.
   PUSHU16( O_SYSCALL );
 }
 
 static void gen_prog1(Buf* buf) {
   BUFGROW
-  // See https://github.com/torvalds/linux/blob/v3.13/arch/x86/syscalls/syscall_64.tbl#L69
   // syscall.write(STDOUT, &msg, len(msg))
-  emit_mov_imm32(buf, R_AX, SYSCALL_WRITE);
-  emit_mov_imm32(buf, R_DI, STDOUT);             // syscall.write arg0: fd
-  emit_mov_imm64(buf, R_SI, 0x00000000004000ac); // syscall.write arg1: ptr
-  emit_mov_imm32(buf, R_DX, 12);                 // syscall.write arg2: size
+  emit_mov64_imm32(buf, R_AX, SYSCALL_WRITE);
+  emit_mov64_imm32(buf, R_DI, STDOUT);             // syscall.write arg0: fd
+  emit_mov64_imm64(buf, R_SI, 0x00000000004000ac); // syscall.write arg1: ptr
+  emit_mov64_imm32(buf, R_DX, 12);                 // syscall.write arg2: size
   emit_syscall(buf);
   // syscall.exit(42)
-  emit_mov_imm32(buf, R_AX, SYSCALL_EXIT);
-  emit_mov_imm32(buf, R_DI, 42);  // arg0: exit status 42
+  emit_mov64_imm32(buf, R_AX, SYSCALL_EXIT);
+  emit_mov64_imm32(buf, R_DI, 42);  // arg0: exit status 42
   emit_syscall(buf);
+
+  // auto endaddr = align2(0x0000000000400078 + buf->len, 4);
+  // dlog("textlen: %zu, endaddr: %016x", buf->len, endaddr);
 }
 
 
@@ -436,7 +450,7 @@ void AsmELF() {
   gen_prog1(&textdata->buf);
 
   // .rodata
-  u64  rodataVMAStart = align2(textVMAStart + textdata->buf.len, 8);
+  u64  rodataVMAStart = align2(textVMAStart + textdata->buf.len, 4);
   auto rodata = ELFBuilderNewData(&b);
   auto rodatasec = ELFBuilderNewSec(&b, ".rodata", ELF_SHT_PROGBITS, rodata);
   rodatasec->flags = ELF_SHF_ALLOC;
