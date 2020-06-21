@@ -56,6 +56,13 @@ typedef double                 f64;
 #define nonull   _Nonnull  /* note: nonull conflicts with attribute name */
 #define nullable _Nullable
 
+#ifndef W_ASSUME_NONNULL_BEGIN
+#define W_ASSUME_NONNULL_BEGIN _Pragma("clang assume_nonnull begin")
+#endif
+#ifndef W_ASSUME_NONNULL_END
+#define W_ASSUME_NONNULL_END   _Pragma("clang assume_nonnull end")
+#endif
+
 #define auto __auto_type
 
 #if __has_c_attribute(returns_nonnull)

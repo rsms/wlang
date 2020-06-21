@@ -13,3 +13,8 @@ void BufMakeRoomFor(Buf* nonull b, size_t size); // ensures there is capacity fo
 void BufAppend(Buf* nonull b, const void* nonull ptr, size_t size);
 void BufAppendFill(Buf* nonull b, u8 v, size_t count); // append count bytes of value v
 u8*  BufAlloc(Buf* nonull b, size_t size); // like BufAppend but leaves allocated data untouched.
+
+inline static void BufAppendc(Buf* b, char c) {
+  if (b->cap <= b->len) { BufMakeRoomFor(b, 1); }
+  b->ptr[b->len++] = (u8)c;
+}

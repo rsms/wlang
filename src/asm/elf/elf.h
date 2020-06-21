@@ -372,10 +372,73 @@ typedef struct elf32_sym{
 #define ELF_SHF_LINK_ORDER       0x80
 #define ELF_SHF_OS_NONCONFORMING 0x100
 #define ELF_SHF_GROUP            0x200
-#define ELF_SHF_RELA_LIVEPATCH   0x00100000
+#define ELF_SHF_RELA_LIVEPATCH   0x00100000 // Linux-specific
 #define ELF_SHF_RO_AFTER_INIT    0x00200000
 #define ELF_SHF_MASKOS           0x0ff00000
 #define ELF_SHF_MASKPROC         0xf0000000
+
+// SHF_WRITE
+//  The section contains data that should be writable during process execution.
+//
+// SHF_ALLOC
+//   The section occupies memory during process execution. Some control sections do
+//   not reside in the memory image of an object file; this attribute is off for
+//   those sections.
+//
+// SHF_EXECINSTR
+//   The section contains executable machine instructions.
+//
+// SHF_MERGE
+//   The data in the section may be merged to eliminate duplication. Unless the
+//   SHF_STRINGS flag is also set, the data elements in the section are of a uniform
+//   size. The size of each element is specified in the section header's sh_entsize
+//   field. If the SHF_STRINGS flag is also set, the data elements consist of
+//   null-terminated character strings. The size of each character is specified in
+//   the section header's sh_entsize field.
+//
+//   Each element in the section is compared against other elements in sections with
+//   the same name, type and flags. Elements that would have identical values at
+//   program run-time may be merged. Relocations referencing elements of such
+//   sections must be resolved to the merged locations of the referenced values. Note
+//   that any relocatable values, including values that would result in run-time
+//   relocations, must be analyzed to determine whether the run-time values would
+//   actually be identical. An ABI-conforming object file may not depend on specific
+//   elements being merged, and an ABI-conforming link editor may choose not to merge
+//   specific elements.
+//
+// SHF_STRINGS
+//   The data elements in the section consist of null-terminated character strings.
+//   The size of each character is specified in the section header's sh_entsize
+//   field.
+//
+// SHF_INFO_LINK
+//   The sh_info field of this section header holds a section header table index.
+//
+// SHF_LINK_ORDER
+//   This flag adds special ordering requirements for link editors. The requirements
+//   apply if the sh_link field of this section's header references another section
+//   (the linked-to section). If this section is combined with other sections in the
+//   output file, it must appear in the same relative order with respect to those
+//   sections, as the linked-to section appears with respect to sections the
+//   linked-to section is combined with.
+//
+//   NOTE: A typical use of this flag is to build a table that references text or
+//   data sections in address order.
+//
+// SHF_OS_NONCONFORMING
+//   This section requires special OS-specific processing (beyond the standard
+//   linking rules) to avoid incorrect behavior. If this section has either an
+//   sh_type value or contains sh_flags bits in the OS-specific ranges for those
+//   fields, and a link editor processing this section does not recognize those
+//   values, then the link editor should reject the object file containing this
+//   section with an error.
+//
+// SHF_GROUP
+//   This section is a member (perhaps the only one) of a section group. The section
+//   must be referenced by a section of type SHT_GROUP. The SHF_GROUP flag may be set
+//   only for sections contained in relocatable objects (objects with the ELF header
+//   e_type member set to ET_REL). See below for further details.
+//
 
 
 // ---------------------------------------------------------------------------------------------
