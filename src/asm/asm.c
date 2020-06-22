@@ -1,5 +1,6 @@
 #include "../defs.h"
 #include "../os.h"
+#include "../ptrmap.h"
 #include "asm.h"
 
 #include "elf/elf.h"
@@ -339,6 +340,107 @@ inline static void emit_syscall(Buf* buf) {
   PUSHU16( O_SYSCALL );
 }
 
+
+typedef struct Data {
+  const void* ptr;
+  size_t      size;
+  bool        readonly;
+} Data;
+
+typedef struct Ref {
+  u64         offs;
+  const void* id;
+} Ref;
+
+typedef struct Asm {
+  Buf    buf;
+  Array  data;
+  Array  unresolved;  // [Ref]
+  PtrMap resolved;
+} Asm;
+
+
+static void AsmRegUnresolved(Asm* a, const void* id, u64 textoffs) {
+  // register unresolved memory location
+  auto ref = memalloct(a->buf.mem, Ref);
+  ref->offs = textoffs;
+  ref->id = id;
+  ArrayPush(&a->unresolved, ref, a->buf.mem);
+}
+
+
+static u64 AsmAddrof(Asm* a, const void* id, u64 textoffs) {
+  auto addr = (u64)PtrMapGet(&a->resolved, (void*)id);
+  if (addr == 0) {
+    AsmRegUnresolved(a, id, textoffs);
+  }
+  return addr;
+}
+
+
+static void dumpResolved(const void* key, void* value, bool* stop, void* userdata) {
+  dlog("  %p => VMA %016llx", key, (u64)value);
+}
+
+
+static void gen_prog2(Memory mem, Buf* textbuf, Buf* rodatabuf) {
+  Asm _a = {}; auto a = &_a;
+  ArrayInit(&a->data);
+  ArrayInit(&a->unresolved);
+  PtrMapInit(&a->resolved, 32, mem);
+
+  // list of data to generate. Instead of appending to rodatabuf as we codegen, add IR values
+  // with constant data to this list instead to maximize cache efficiency.
+  Array datalist; void* datalist_storage[32];
+  ArrayInitWithStorage(&datalist, datalist_storage, countof(datalist_storage));
+
+  // data. Eventually resides in IRValue.aux
+  auto msg1 = "Hello world\n";
+
+  // codegen
+  auto buf = textbuf;
+  BUFGROW
+  // syscall.write(STDOUT, &msg, len(msg))
+  emit_mov64_imm32(buf, R_AX, SYSCALL_WRITE);
+  emit_mov64_imm32(buf, R_DI, STDOUT);             // syscall.write arg0: fd
+  emit_mov64_imm64(buf, R_SI, 0x0000000000000000); // syscall.write arg1: ptr
+    AsmRegUnresolved(a, msg1, buf->len - 8);
+    ArrayPush(&datalist, msg1, mem); // TODO: IRValue instead of const char*
+  emit_mov64_imm32(buf, R_DX, strlen(msg1));       // syscall.write arg2: size
+  emit_syscall(buf);
+  // syscall.exit(42)
+  emit_mov64_imm32(buf, R_AX, SYSCALL_EXIT);
+  emit_mov64_imm32(buf, R_DI, 42);  // syscall.exit arg0: exit status 42
+  emit_syscall(buf);
+  // end codegen
+
+  // data
+  u64 textVMA = 0x0000000000400078;
+  u64 rodataVMA = align2(textVMA + textbuf->len, 4);
+  ArrayForEach(&datalist, const char, str) {
+    PtrMapSet(&a->resolved, str, (void*)(u64)(rodataVMA + rodatabuf->len));
+    BufAppend(rodatabuf, str, strlen(str) + 1);
+  }
+  ArrayFree(&datalist, mem);
+
+  // patch unresolved addresses in .text
+  dlog("unresolved:");
+  ArrayForEach(&a->unresolved, Ref, r) {
+    dlog("  offs=%llu, id=%p", r->offs, r->id);
+    auto addr = (u64)PtrMapGet(&a->resolved, r->id);
+    if (addr != 0) {
+      dlog("    resolve => %016llx", addr);
+      *((u64*)&textbuf->ptr[r->offs]) = addr;
+    } else {
+      dlog("    unresolved!");
+    }
+  }
+
+  dlog("resolved:");
+  PtrMapIter(&a->resolved, dumpResolved, NULL);
+}
+
+
 static void gen_prog1(Buf* buf) {
   BUFGROW
   // syscall.write(STDOUT, &msg, len(msg))
@@ -447,14 +549,16 @@ void AsmELF() {
   textsec->flags = ELF_SHF_ALLOC | ELF_SHF_EXECINSTR;
   // appendprog(&textdata->buf, prog_minimal);
   // appendprog(&textdata->buf, prog_helloworld_mini);
-  gen_prog1(&textdata->buf);
+  // gen_prog1(&textdata->buf);
 
   // .rodata
   u64  rodataVMAStart = align2(textVMAStart + textdata->buf.len, 4);
   auto rodata = ELFBuilderNewData(&b);
   auto rodatasec = ELFBuilderNewSec(&b, ".rodata", ELF_SHT_PROGBITS, rodata);
   rodatasec->flags = ELF_SHF_ALLOC;
-  BufAppend(&rodata->buf, "Hello world\n", strlen("Hello world\n") + 1);
+  // BufAppend(&rodata->buf, "Hello world\n", strlen("Hello world\n") + 1);
+
+  gen_prog2(b.mem, &textdata->buf, &rodata->buf);
 
   // program header for executable code
   auto progexe = ELFBuilderNewProg(&b, ELF_PT_LOAD, ELF_PF_R | ELF_PF_X, textdata);

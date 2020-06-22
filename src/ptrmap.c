@@ -23,7 +23,7 @@
 
 // hashmap implementation
 #define HASHMAP_NAME     PtrMap
-#define HASHMAP_KEY      void*
+#define HASHMAP_KEY      const void*
 #define HASHMAP_VALUE    void*
 #define HASHMAP_KEY_HASH ptrhash
 #include "hashmap.c.h"
@@ -34,7 +34,7 @@
 
 
 #if DEBUG
-static void testMapIterator(void* key, void* value, bool* stop, void* userdata) {
+static void testMapIterator(const void* key, void* value, bool* stop, void* userdata) {
   // dlog("\"%s\" => %zu", key, (size_t)value);
   size_t* n = (size_t*)userdata;
   (*n)++;
