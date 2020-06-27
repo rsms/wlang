@@ -90,7 +90,7 @@ typedef struct elf32_phdr{
 // ---------------------------------------------------------------------------------------------
 // Elf64_Shdr
 typedef struct elf64_shdr {
-  Elf64_Word  sh_name;      // Section name, index in string tbl
+  Elf64_Word  sh_name;      // Section name, index in shstrtab
   Elf64_Word  sh_type;      // Type of section. See ELF_SHT_*
   Elf64_Xword sh_flags;     // Miscellaneous section attributes. See ELF_SHF_*
   Elf64_Addr  sh_addr;      // Section virtual addr at execution

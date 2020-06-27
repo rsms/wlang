@@ -432,7 +432,7 @@ static void printSH64(const ELFFile* f, const Elf64_Shdr* sh, FILE* fp) {
   }
 
   fprintf(fp,
-    "      info  %u%s, align %u, entsize %llu\n",
+    "      info  %u%s, align %llu, entsize %llu\n",
     sh->sh_info, info_extra, sh->sh_addralign, sh->sh_entsize);
 
   if (sh->sh_flags != 0) {
@@ -553,6 +553,8 @@ static void print64(const ELFFile* f, FILE* fp) {
 
     int strtablenmax = 0;
     if (strtab != NULL) {
+      // TODO: FIXME: replace this and instead use symtab->sh_link which points to
+      //              the dedicated strtab for the symtab.
       for (u64 i = 0; i < nsyms; i++) {
         auto sym = (const Elf64_Sym*)&f->buf[sh->sh_offset + (i * sizeof(Elf64_Sym))];
         strtablenmax = max(strtablenmax, strlen(&strtab[sym->st_name]));

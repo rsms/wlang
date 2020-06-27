@@ -5,7 +5,7 @@ builddir = build
 cflags = $
   -std=c11 $
   -Wall -Wuninitialized -Wmissing-field-initializers -Wconditional-uninitialized $
-  -Wno-nullability-completeness $
+  -Wno-nullability-completeness -Wno-unused-function $
   -fcolor-diagnostics
 
 lflags =

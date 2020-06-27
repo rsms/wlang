@@ -100,6 +100,7 @@ static ELFErr asm64Symtab(ELFBuilder* b, ELFSec* sec, Elf64_Shdr* sh, const ELFS
 static void sortDataSegs(ELFBuilder* b) {
   // data segment layout, assigning positions (index) to segments.
   // places data for shstrtab, strtab and symtab data at the bottom.
+  // important: must be stable (since some sections makes assumptions about order.)
   auto mem = b->mem;
 
   // compact array

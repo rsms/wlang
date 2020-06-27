@@ -189,7 +189,7 @@ ELFProg* ELFBuilderNewProg(ELFBuilder* b, u32 type, u32 flags, ELFData* data) {
 ELFSec* ELFBuilderNewSymtab(ELFBuilder* b, const ELFSec* strtab, const char* name) {
   auto data = ELFBuilderNewData(b);
   auto sec = ELFBuilderNewSec(b, name, ELF_SHT_SYMTAB, data);
-  sec->link = checknull(strtab);
+  sec->link = (ELFSec*)checknull(strtab);
   if (strcmp(name, ".symtab") == 0) {
     // the standard special ".symtab" symbol table section
     // symbol #0 is both the first entry and serves as the undefined symbol (index 0)

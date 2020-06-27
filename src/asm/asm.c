@@ -352,20 +352,29 @@ typedef struct Ref {
   const void* id;
 } Ref;
 
+// Define an Array type of Ref
+DefArrayBuffer(RefArray, Ref);
+//  void RefArrayInit(RefArray* nonull a, Memory nullable mem, size_t cap);
+//  void RefArrayFree(RefArray* nonull a);
+//  Ref* RefArrayAt(RefArray* nonull a, size_t index);
+//  void RefArrayPush(RefArray* nonull a, Ref v);
+//  Ref  RefArrayPop(RefArray* nonull a);
+//  Ref* RefArrayAlloc(RefArray* nonull a, size_t count);
+//  void RefArrayMakeRoomFor(RefArray* nonull a, size_t count);
+#define RefArrayForEach(a, LOCALNAME) ArrayBufferForEach(a, Ref, LOCALNAME)
+
 typedef struct Asm {
-  Buf    buf;
-  Array  data;
-  Array  unresolved;  // [Ref]
-  PtrMap resolved;
+  Buf      buf;
+  RefArray unresolved;  // [Ref]
+  PtrMap   resolved;
 } Asm;
 
 
 static void AsmRegUnresolved(Asm* a, const void* id, u64 textoffs) {
   // register unresolved memory location
-  auto ref = memalloct(a->buf.mem, Ref);
+  auto ref = RefArrayAlloc(&a->unresolved, 1);
   ref->offs = textoffs;
   ref->id = id;
-  ArrayPush(&a->unresolved, ref, a->buf.mem);
 }
 
 
@@ -383,10 +392,9 @@ static void dumpResolved(const void* key, void* value, bool* stop, void* userdat
 }
 
 
-static void gen_prog2(Memory mem, Buf* textbuf, Buf* rodatabuf) {
+static void gen_prog2(Memory mem, Buf* textbuf, Buf* rodatabuf, u64 vmastart) {
   Asm _a = {}; auto a = &_a;
-  ArrayInit(&a->data);
-  ArrayInit(&a->unresolved);
+  RefArrayInit(&a->unresolved, mem, 16);
   PtrMapInit(&a->resolved, 32, mem);
 
   // list of data to generate. Instead of appending to rodatabuf as we codegen, add IR values
@@ -394,7 +402,10 @@ static void gen_prog2(Memory mem, Buf* textbuf, Buf* rodatabuf) {
   Array datalist; void* datalist_storage[32];
   ArrayInitWithStorage(&datalist, datalist_storage, countof(datalist_storage));
 
-  // data. Eventually resides in IRValue.aux
+  // virtual memory address start
+  u64 textVMA = vmastart;
+
+  // data. (Eventually sourced from in IRValue.aux)
   auto msg1 = "Hello world\n";
 
   // codegen
@@ -415,7 +426,6 @@ static void gen_prog2(Memory mem, Buf* textbuf, Buf* rodatabuf) {
   // end codegen
 
   // data
-  u64 textVMA = 0x0000000000400078;
   u64 rodataVMA = align2(textVMA + textbuf->len, 4);
   ArrayForEach(&datalist, const char, str) {
     PtrMapSet(&a->resolved, str, (void*)(u64)(rodataVMA + rodatabuf->len));
@@ -425,7 +435,7 @@ static void gen_prog2(Memory mem, Buf* textbuf, Buf* rodatabuf) {
 
   // patch unresolved addresses in .text
   dlog("unresolved:");
-  ArrayForEach(&a->unresolved, Ref, r) {
+  RefArrayForEach(&a->unresolved, r) {
     dlog("  offs=%llu, id=%p", r->offs, r->id);
     auto addr = (u64)PtrMapGet(&a->resolved, r->id);
     if (addr != 0) {
@@ -535,61 +545,391 @@ static void appendprog(Buf* buf, const char* prog) {
 }
 
 
-void AsmELF() {
-  ELFBuilder b = {0};
-  ELFBuilderInit(&b, ELF_M_X86_64, NULL);
+typedef struct ELF64 {
+  Buf    buf;        // Main buffer (ELF header + program headers + data segments)
+  size_t phoffsv[8]; // program header offsets into `buf`
+  size_t phnum;      // number of program headers at phoffs.
+  Buf    shbuf;      // section headers
+  Buf    strtab;     // string table
+  Buf    shstrtab;   // section header string table
+  Buf    symtab;     // symbol table
+} ELF64;
 
-  // symbol table
-  auto symtab = ELFBuilderNewSymtab(&b, b.strtab, ".symtab");
+static void ELF64Init(ELF64* e, Memory nullable mem) {
+  memset(e, 0, sizeof(ELF64));
+  // main buffer (ELF header + program headers + data segments)
+  BufInit(&e->buf, mem, 4096);
+  memset(e->buf.ptr, 0, sizeof(Elf64_Ehdr)); // reserve space for ELF header
+  e->buf.len += sizeof(Elf64_Ehdr);
 
-  // .text
-  u64  textVMAStart = 0x0000000000400078;
-  auto textdata = ELFBuilderNewData(&b);
-  auto textsec = ELFBuilderNewSec(&b, ".text", ELF_SHT_PROGBITS, textdata);
-  textsec->flags = ELF_SHF_ALLOC | ELF_SHF_EXECINSTR;
-  // appendprog(&textdata->buf, prog_minimal);
-  // appendprog(&textdata->buf, prog_helloworld_mini);
-  // gen_prog1(&textdata->buf);
+  // section headers buffer. Section header #0 is the "null"-section header.
+  BufInit(&e->shbuf, mem, sizeof(Elf64_Shdr) * 6); // usually at least 6 sections
+  memset(e->shbuf.ptr, 0, sizeof(Elf64_Shdr)); // allocate the "null"-section header.
+  e->shbuf.len += sizeof(Elf64_Shdr);
 
-  // .rodata
-  u64  rodataVMAStart = align2(textVMAStart + textdata->buf.len, 4);
-  auto rodata = ELFBuilderNewData(&b);
-  auto rodatasec = ELFBuilderNewSec(&b, ".rodata", ELF_SHT_PROGBITS, rodata);
-  rodatasec->flags = ELF_SHF_ALLOC;
-  // BufAppend(&rodata->buf, "Hello world\n", strlen("Hello world\n") + 1);
+  // strtab; string table. starts with \0. Usually just the zero name and "_start".
+  BufInit(&e->strtab, mem, 16);
+  e->strtab.ptr[0] = 0; // allocate the "null" string
+  e->strtab.len++;
 
-  gen_prog2(b.mem, &textdata->buf, &rodata->buf);
+  // shstrtab; section header string table. starts with \0
+  // Usually: "", ".text", ".rodata", ".symtab", ".strtab" and ".shstrtab".
+  BufInit(&e->shstrtab, mem, 64);
+  e->shstrtab.ptr[0] = 0; // allocate the "null" string
+  e->shstrtab.len++;
 
-  // program header for executable code
-  auto progexe = ELFBuilderNewProg(&b, ELF_PT_LOAD, ELF_PF_R | ELF_PF_X, textdata);
-  progexe->align64 = 0x200000; // 2^21
+  // symtab. usually just the "null" symbol and the "_start" symbol.
+  BufInit(&e->symtab, mem, sizeof(Elf64_Sym) * 4);
+  memset(e->symtab.ptr, 0, sizeof(Elf64_Sym)); // allocate the "null" symbol
+  e->symtab.len += sizeof(Elf64_Sym);
+}
 
-  #define ADD_SYM64(name, binding, type, value) \
-    ELFSymtabAdd64(symtab, textsec, name, binding, type, value)
+inline static Elf64_Ehdr* ELF64GetEH(ELF64* e) {
+  return (Elf64_Ehdr*)e->buf.ptr;
+}
 
-  // .text
-  ADD_SYM64("", ELF_STB_LOCAL, ELF_STT_SECTION, textVMAStart);
-  ADD_SYM64("_start", ELF_STB_GLOBAL, ELF_STT_NOTYPE, textVMAStart);
-
-  // .rodata
-  ADD_SYM64("msg1", ELF_STB_LOCAL, ELF_STT_SECTION, rodataVMAStart);
-
-  // // etc
-  // ADD_SYM64("__bss_start", ELF_STB_GLOBAL, ELF_STT_NOTYPE, 0x0000000000600084);
-  // ADD_SYM64("_edata", ELF_STB_GLOBAL, ELF_STT_NOTYPE, 0x0000000000600084);
-  // ADD_SYM64("_end", ELF_STB_GLOBAL, ELF_STT_NOTYPE, 0x0000000000600088);
-
-  // assemble ELF file
-  Buf buf;
-  BufInit(&buf, b.mem, 0);
-  if (ELFBuilderAssemble(&b, &buf) != ELF_OK) {
-    logerr("ELFBuilderAssemble failed");
+static u32 strtabAdd(Buf* buf, const char* pch, size_t size) {
+  if (size == 0) {
+    return 0; // return the null string index
   }
+  if (((u64)buf->len) + ((u64)size) >= 0xFFFFFFFF) {
+    return 0; // table is full; return the null string index
+  }
+  u32 offs = (u32)buf->len;
+
+  // append pch of size + a sentinel null byte
+  BufMakeRoomFor(buf, size + 1);
+  memcpy(buf->ptr + buf->len, pch, size);
+  buf->ptr[buf->len + size] = 0;
+  buf->len += size + 1;
+
+  return offs;
+}
+
+// ELF64AddStr adds a string to strtab. Returns the strtab index.
+inline static u32 ELF64AddStr(ELF64* e, const char* s) {
+  return strtabAdd(&e->strtab, s, strlen(s));
+}
+
+// ELF64AddSym adds a symbol to the symbol table
+// - shndx  section index of owning section (ELF_SHN_UNDEF for "no section")
+// - bind   a ELF_STB_* constant
+// - typ    a ELF_STT_* constant
+// Returned pointer is valid until the next call to ELF64AddSym.
+// You usually want to set st_value (and sometimes st_size) on the returned symbol.
+static Elf64_Sym* ELF64AddSym(ELF64* e, const char* name, u16 shndx, u8 bind, u8 typ) {
+  auto sym = (Elf64_Sym*)BufAllocz(&e->symtab, sizeof(Elf64_Sym));
+  sym->st_name = strtabAdd(&e->strtab, name, strlen(name));
+  sym->st_info = ELF_ST_INFO(bind, typ);
+  sym->st_shndx = shndx;
+  return sym;
+}
+
+// ELF64AddPH adds a program header.
+// returned pointer only valid until next call that mutates e->buf
+static Elf64_Phdr* ELF64AddPH(ELF64* e) {
+  assert(e->phnum < 8);
+  size_t offs = e->buf.len;
+  e->phoffsv[e->phnum] = offs;
+  e->phnum++;
+  return (Elf64_Phdr*)BufAllocz(&e->buf, sizeof(Elf64_Phdr));
+}
+
+inline static Elf64_Phdr* ELF64GetPH(ELF64* e, size_t index) {
+  assert(index < e->phnum);
+  return (Elf64_Phdr*)&e->buf.ptr[e->phoffsv[index]];
+}
+
+// static Elf64_Shdr* addSectionHeader(ELF64* e, const char* name) {
+//   auto sh = (Elf64_Shdr*)BufAllocz(&e->shbuf, sizeof(Elf64_Shdr));
+//   sh->sh_name = strtabAdd(&e->shstrtab, name, strlen(name));
+//   return sh;
+// }
+
+// ELF64StartSegment starts a new segment. A segment is a section header with a body.
+// returned pointer only valid until next call to ELF64StartSegment
+static Elf64_Shdr* ELF64StartSegment(ELF64* e, const char* name, u64 sh_addralign) {
+  auto align = align2(e->buf.len, sh_addralign);
+  if (align != e->buf.len) {
+    // add padding to force alignment
+    BufAllocz(&e->buf, align - e->buf.len);
+  }
+  auto sh = (Elf64_Shdr*)BufAllocz(&e->shbuf, sizeof(Elf64_Shdr));
+  sh->sh_name = strtabAdd(&e->shstrtab, name, strlen(name));
+  sh->sh_offset = e->buf.len; // section's data file offset
+  sh->sh_addralign = sh_addralign;
+  return sh;
+}
+
+
+static int _symcmp64(const void* ptr1, const void* ptr2) {
+  auto ainfo = ((const Elf64_Sym*)ptr1)->st_info;
+  auto binfo = ((const Elf64_Sym*)ptr2)->st_info;
+  if (ELF_ST_BIND(ainfo) == ELF_STB_LOCAL) {
+    if (ELF_ST_BIND(binfo) != ELF_STB_LOCAL) {
+      return -1; // a is local, b is global
+    }
+    return 0; // both are local
+  } if (ELF_ST_BIND(binfo) == ELF_STB_LOCAL) {
+    return 1;  // a is global, b is local
+  }
+  return 0;  // both are global
+}
+
+// sort symbols of SYMTYPE in buf
+// void SYMTAB64_SORT(const Buf* buf)
+#define SYMTAB64_SORT(buf) \
+  qsort((buf)->ptr, (buf)->len / sizeof(Elf64_Sym), sizeof(Elf64_Sym), &_symcmp64)
+
+// void SYMTAB_FOR_EACH(const Buf* buf, Elf32_Sym|Elf64_Sym, NAME)
+#define SYMTAB_FOR_EACH(buf, SYMTYPE, LOCALNAME) \
+  for ( \
+    auto LOCALNAME        = (SYMTYPE*)(buf)->ptr, \
+         LOCALNAME##__end = (SYMTYPE*)&(buf)->ptr[(buf)->len]; \
+    LOCALNAME < LOCALNAME##__end; \
+    LOCALNAME++ \
+  ) /* <body should follow here> */
+
+
+static Elf64_Ehdr* finalizeEH(ELF64* e, u8 encoding) {
+  auto eh = (Elf64_Ehdr*)e->buf.ptr;
+  *((u32*)&eh->e_ident[0]) = *((u32*)&"\177ELF");
+  eh->e_ident[ELF_EI_CLASS]   = ELF_CLASS_64;
+  eh->e_ident[ELF_EI_DATA]    = encoding;
+  eh->e_ident[ELF_EI_VERSION] = ELF_V_CURRENT;
+  eh->e_ident[ELF_EI_OSABI]   = ELF_OSABI_NONE;
+  eh->e_type                  = ELF_FT_EXEC;
+  eh->e_version               = ELF_V_CURRENT;
+  eh->e_flags     = 0;                   // Processor-specific flags. Usually 0.
+  eh->e_ehsize    = sizeof(Elf64_Ehdr);  // ELF header's size in bytes
+  eh->e_phentsize = sizeof(Elf64_Phdr);  // size of a program header
+  eh->e_shentsize = sizeof(Elf64_Shdr);  // size of a section header
+  return eh;
+}
+
+static void ELF64Finalize(ELF64* e, u8 encoding, u16 e_machine, u64 entryaddr) {
+  // Note: If we were to write directly to a file, we could replace the BufAppend
+  // calls here with file-write calls.
+  //
+  // When this function is called, e->buf is expected to look like this:
+  //
+  //    +————————————————————————————+
+  //    | ELF header                 |
+  //    +————————————————————————————+
+  //    | Program headers            |
+  //    | ...                        |
+  //    +————————————————————————————+
+  //    | TEXT, DATA etc segments    |
+  //    | ...                        |
+  //
+  // This function will append the following:
+  //
+  //    | .symtab segment            |
+  //    +————————————————————————————+
+  //    | .strtab segment            |
+  //    +————————————————————————————+
+  //    | .shstrtab segment          |
+  //    +————————————————————————————+
+  //    | section headers            |
+  //    | ...                        |
+  //    +————————————————————————————+
+  //
+  // Finally the ELF header is patched with information now known about section headers,
+  // program headers, virtual memory addresses, and segments.
+  //
+
+  size_t shnum = e->shbuf.len / sizeof(Elf64_Shdr); // number of section headers
+  u32 strtab_sec_index = shnum + 1;
+
+  // .symtab section
+  auto sh = ELF64StartSegment(e, ".symtab", /* sh_addralign */ 8);
+  sh->sh_type = ELF_SHT_SYMTAB;
+  sh->sh_size = e->symtab.len;
+  sh->sh_link = shnum + 1; // section index of .strtab
+  sh->sh_entsize = sizeof(Elf64_Sym);
+  // Sort symbols so that local bindings appear first: (a requirement of ELF)
+  SYMTAB64_SORT(&e->symtab);
+  u32 nlocals = 0;
+  SYMTAB_FOR_EACH(&e->symtab, Elf64_Sym, sym) {
+    if (ELF_ST_BIND(sym->st_info) != ELF_STB_LOCAL) {
+      break;
+    }
+    nlocals++;
+  }
+  // for symtab sections, sh_info should hold one greater than the symbol table index of
+  // the last local symbol.
+  sh->sh_info = nlocals;
+  BufAppend(&e->buf, e->symtab.ptr, e->symtab.len);
+
+  // .strtab section
+  sh = ELF64StartSegment(e, ".strtab", /* sh_addralign */ 1);
+  sh->sh_type = ELF_SHT_STRTAB;
+  sh->sh_size = e->strtab.len;
+  BufAppend(&e->buf, e->strtab.ptr, e->strtab.len);
+
+  // .shstrtab section
+  sh = ELF64StartSegment(e, ".shstrtab", /* sh_addralign */ 1);
+  sh->sh_type = ELF_SHT_STRTAB;
+  sh->sh_size = e->shstrtab.len;
+  BufAppend(&e->buf, e->shstrtab.ptr, e->shstrtab.len);
+
+  // write section headers, saveing section header table offset for use later in PH
+  u64 e_shoff = e->buf.len;
+  BufAppend(&e->buf, e->shbuf.ptr, e->shbuf.len);
+
+  // update section header count (after adding standard sections)
+  shnum = e->shbuf.len / sizeof(Elf64_Shdr);
+  assert(shnum <= 0xFFFF); // must fit in u16
+
+  // update ELF header
+  auto eh = finalizeEH(e, encoding);
+  eh->e_machine  = e_machine;
+  eh->e_phoff    = sizeof(Elf64_Ehdr); // Program header table file offset (follows ELF header)
+  eh->e_phnum    = e->phnum;   // number of program headers
+  eh->e_shoff    = e_shoff;    // Section header table file offset
+  eh->e_shnum    = (u16)shnum; // number of section headers
+  eh->e_entry    = entryaddr;  // Entry point virtual address
+  eh->e_shstrndx = shnum - 1;  // section header string stable section index (last section)
+}
+
+
+static void regUnresolved(RefArray* a, const void* id, u64 textoffs) {
+  // register unresolved memory location
+  auto ref = RefArrayAlloc(a, 1);
+  ref->offs = textoffs;
+  ref->id = id;
+}
+
+
+static void gen64() {
+  ELF64 _e = {}; auto e = &_e;
+  ELF64Init(e, NULL);
+  auto mem = e->buf.mem;
+
+  // add a "LOAD" program header
+  u64 vma = 0x400000;
+  { // ph not valid past next mutating call on e->buf, thus the scope.
+    auto ph = ELF64AddPH(e);
+    ph->p_type  = ELF_PT_LOAD;
+    ph->p_flags = ELF_PF_R|ELF_PF_X;
+    ph->p_vaddr = ph->p_paddr = vma;
+    ph->p_align = 0x200000; // 2^21
+  }
+
+  // start .text segment
+  auto sh = ELF64StartSegment(e, ".text", /*sh_addralign*/ 4);
+  u64 textvma = vma + sh->sh_offset;   // VMA of TEXT segment and program entry point
+  sh->sh_addr  = textvma;
+  sh->sh_type  = ELF_SHT_PROGBITS;
+  sh->sh_flags = ELF_SHF_ALLOC | ELF_SHF_EXECINSTR;
+  dlog("[gen64] .text start at VMA %08llx", textvma);
+
+  // "unresolved" holds a list of references to unresolved VMAs in e->buf
+  RefArray unresolved;
+  RefArrayInit(&unresolved, mem, 16);
+  // "datalist" is a list of data to generate. Instead of appending to rodata as we codegen,
+  // add IR values with constant data to this list instead to maximize cache efficiency.
+  Array datalist; void* datalist_storage[32];
+  ArrayInitWithStorage(&datalist, datalist_storage, countof(datalist_storage));
+
+  // add local section symbol for .text to symtab
+  auto secsym = ELF64AddSym(e, "", /*shndx=.text*/1, ELF_STB_LOCAL, ELF_STT_SECTION);
+  secsym->st_value = textvma;
+  // add exported "_start" symbol to symtab
+  auto startsym = ELF64AddSym(e, "_start", /*shndx=.text*/1, ELF_STB_GLOBAL, ELF_STT_FUNC);
+  startsym->st_value = textvma;
+
+  // .text
+  auto buf = &e->buf;
+  BUFGROW
+  // TODO: AddLabel(vma + e->buf.len, (const void*)id);
+  // TODO: AddLabelExport(vma + e->buf.len, (const void*)id, "_start"); // adds to symtab
+  // syscall.write(STDOUT, &msg, len(msg))
+  emit_mov64_imm32(buf, R_AX, SYSCALL_WRITE);
+  emit_mov64_imm32(buf, R_DI, STDOUT);             // syscall.write arg0: fd
+  emit_mov64_imm64(buf, R_SI, 0x0000000000000000); // syscall.write arg1: ptr
+    auto msg1 = "Hello world\n";                   // TODO: IRValue
+    ArrayPush(&datalist, msg1, mem);               // TODO: IRValue
+    regUnresolved(&unresolved, msg1, buf->len - 8);
+  emit_mov64_imm32(buf, R_DX, strlen(msg1));       // syscall.write arg2: size
+  emit_syscall(buf);
+  // syscall.exit(42)
+  emit_mov64_imm32(buf, R_AX, SYSCALL_EXIT);
+  emit_mov64_imm32(buf, R_DI, 42);  // syscall.exit arg0: exit status 42
+  emit_syscall(buf);
+  // end codegen
+
+  // set text section size
+  sh->sh_size = buf->len - sh->sh_offset;
+
+  // start .rodata segment
+  sh = ELF64StartSegment(e, ".rodata", /*sh_addralign*/ 4);
+  u64 rodatavma = vma + sh->sh_offset;
+  // vma += e->buf.len; // offset VMA with header size
+  sh->sh_addr  = rodatavma;
+  sh->sh_type  = ELF_SHT_PROGBITS;
+  sh->sh_flags = ELF_SHF_ALLOC;
+
+  PtrMap resolved; PtrMapInit(&resolved, 32, mem);
+  u64 symvam = rodatavma;
+  ArrayForEach(&datalist, const char, str) {
+    dlog("[rodata] assign vma %08llx to \"%s\"", symvam, str);
+    PtrMapSet(&resolved, str, (void*)symvam);
+    size_t datasize = strlen(str) + 1;
+    BufAppend(buf, str, datasize);
+
+    // add local symbol
+    auto sym = ELF64AddSym(e, "msg1", /*shndx=.text*/1, ELF_STB_LOCAL, ELF_STT_OBJECT);
+    sym->st_value = symvam;
+
+    symvam += datasize; // TODO: alignment for data that needs it
+  }
+  ArrayFree(&datalist, mem);
+
+  // set rodata section size
+  sh->sh_size = buf->len - sh->sh_offset;
+
+  // patch unresolved addresses in .text
+  dlog("unresolved:");
+  RefArrayForEach(&unresolved, r) {
+    dlog("  offs=%llu, id=%p", r->offs, r->id);
+    auto addr = (u64)PtrMapGet(&resolved, r->id);
+    if (addr != 0) {
+      dlog("    resolve => %016llx", addr);
+      *((u64*)&buf->ptr[r->offs]) = addr;
+    } else {
+      dlog("    unresolved!");
+    }
+  }
+  dlog("resolved:");
+  PtrMapIter(&resolved, dumpResolved, NULL);
+
+  // patch our main LOAD program header (spans text and rodata)
+  auto ph = ELF64GetPH(e, 0);
+  ph->p_offset = 0;            // Segment start offset in file
+  ph->p_filesz = e->buf.len;   // Segment size in file
+  ph->p_memsz  = ph->p_filesz; // Segment size in memory (can be larger than p_filesz)
+
+  // finalize ELF file
+  ELF64Finalize(e, ELF_DATA_2LSB, ELF_M_X86_64, textvma);
+
+  // PtrMapFree(&resolved);
+  // RefArrayFree(&unresolved);
 
   // write to file
-  if (!os_writefile("./thingy", buf.ptr, buf.len)) {
+  if (!os_writefile("./thingy2", buf->ptr, buf->len)) {
     perror("os_writefile");
   }
+}
+
+
+
+
+void AsmELF() {
+
+
+  // make with new functions
+  gen64();
 
   // // inspect
   // ELFFile _f; auto f = &_f;
@@ -598,7 +938,7 @@ void AsmELF() {
   //   ELFFilePrint(f, stdout);
   // }
 
-  { const char* filename = "./thingy";
+  { const char* filename = "./thingy2";
     dlog("----------------------------------------------------------------\n%s", filename);
     size_t len = 0;
     u8* ptr = os_readfile(filename, &len, NULL);
@@ -620,147 +960,145 @@ void AsmELF() {
   //   }
   //   memfree(NULL, ptr);
   // }
-
-
-  // $ hexdump -v -C mini2.linux
-  //
-  //            0  1  2  3  4  5  6  7   8  9 10 11 12 13 14 15
-  //
-  // Elf64_Ehdr -- ELF header
-  //
-  // 00000000  7f 45 4c 46 02 01 01 00  00 00 00 00 00 00 00 00  |.ELF............|
-  //           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  //                                ident
-  //
-  // 00000010  02 00 3e 00 01 00 00 00  78 00 40 00 00 00 00 00  |..>.....x.@.....|
-  //           ~~~~~ ~~~~~ ~~~~~~~~~~~  ~~~~~~~~~~~~~~~~~~~~~~~
-  //           etype   |     version          entry_addr
-  //                machine
-  //
-  // 00000020  40 00 00 00 00 00 00 00  58 01 00 00 00 00 00 00  |@.......X.......|
-  //           ~~~~~~~~~~~~~~~~~~~~~~~  ~~~~~~~~~~~~~~~~~~~~~~~
-  //                   phoff                     shoff
-  //
-  // 00000030  00 00 00 00 40 00 38 00  01 00 40 00 05 00 04 00  |....@.8...@.....|
-  //           ~~~~~~~~~~~ ~~~~~ ~~~~~  ~~~~~ ~~~~~ ~~~~~ ~~~~~
-  //              flags    ehsize  |    phnum   |   shnum   |
-  //                           phentsize    shentsize      shstrndx
-  //
-  //
-  // Elf64_Phdr -- program header
-  //
-  // 00000040  01 00 00 00 05 00 00 00  00 00 00 00 00 00 00 00  |................|
-  //           ~~~~~~~~~~~ ~~~~~~~~~~~  ~~~~~~~~~~~~~~~~~~~~~~~
-  //            type=LOAD   flags=r-x           offset=0
-  //
-  // 00000050  00 00 40 00 00 00 00 00  00 00 40 00 00 00 00 00  |..@.......@.....|
-  //           ~~~~~~~~~~~~~~~~~~~~~~~  ~~~~~~~~~~~~~~~~~~~~~~~
-  //                vaddr=0x400000           paddr=0x400000
-  //
-  // 00000060  84 00 00 00 00 00 00 00  84 00 00 00 00 00 00 00  |................|
-  //           ~~~~~~~~~~~~~~~~~~~~~~~  ~~~~~~~~~~~~~~~~~~~~~~~
-  //                  filesz=132                memsz=132
-  //
-  // 00000070  00 00 20 00 00 00 00 00
-  //           ~~~~~~~~~~~~~~~~~~~~~~~
-  //                 align=2**21
-  //
-  //
-  //                                  0x78 = section data for PROGBITS ".text" (12 bytes long)
-  //                                    |
-  // 00000070                           bb 2a 00 00 00 b8 01 00
-  // 00000080  00 00 cd 80
-  //
-  //
-  //                       padding
-  // 00000080              00 00 00 00
-  //
-  //                                  0x88 = section data for SYMTAB ".symtab" (144 bytes long)
-  // .symtab                            |
-  // 00000080                           00 00 00 00 00 00 00 00
-  // 00000090  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
-  // 000000a0  00 00 00 00 03 00 01 00  78 00 40 00 00 00 00 00
-  // 000000b0  00 00 00 00 00 00 00 00  06 00 00 00 10 00 01 00
-  // 000000c0  78 00 40 00 00 00 00 00  00 00 00 00 00 00 00 00
-  // 000000d0  01 00 00 00 10 00 01 00  84 00 60 00 00 00 00 00
-  // 000000e0  00 00 00 00 00 00 00 00  0d 00 00 00 10 00 01 00
-  // 000000f0  84 00 60 00 00 00 00 00  00 00 00 00 00 00 00 00
-  // 00000100  14 00 00 00 10 00 01 00  88 00 60 00 00 00 00 00
-  // 00000110  00 00 00 00 00 00 00 00
-  //
-  //                                  0x118 = section data for STRTAB ".strtab" (25 bytes long)
-  //                                    |
-  // 00000110                           00 5f 5f 62 73 73 5f 73  |.........__bss_s|
-  // 00000120  74 61 72 74 00 5f 65 64  61 74 61 00 5f 65 6e 64  |tart._edata._end|
-  // 00000130  00                                                |.
-  //
-  //            0x131 = section data for STRTAB ".shstrtab" (33 bytes long)
-  //              |
-  // 00000130     00 2e 73 79 6d 74 61  62 00 2e 73 74 72 74 61  |...symtab..strta|
-  // 00000140  62 00 2e 73 68 73 74 72  74 61 62 00 2e 74 65 78  |b..shstrtab..tex|
-  // 00000150  74 00                                             |t.
-  //
-  //                 padding
-  // 00000150        00 00 00 00 00 00
-  //
-  //
-  // Section tables (e_shnum=5) starting with an empty one. sizeof(Shdr)=64
-  //
-  //                                0x158 = section tables start (e_shoff)
-  //                                    |
-  // 00000150                           00 00 00 00 00 00 00 00
-  // 00000160  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
-  // 00000170  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
-  // 00000180  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
-  // 00000190  00 00 00 00 00 00 00 00
-  //
-  // 00000190                           1b 00 00 00 01 00 00 00  sh_name 1b, sh_type PROGBITS
-  // 000001a0  06 00 00 00 00 00 00 00  78 00 40 00 00 00 00 00  sh_flags, sh_addralign
-  // 000001b0  78 00 00 00 00 00 00 00  0c 00 00 00 00 00 00 00  sh_offset=0x78, sh_size=12
-  // 000001c0  00 00 00 00 00 00 00 00  04 00 00 00 00 00 00 00  sh_link, sh_info, sh_addralign
-  // 000001d0  00 00 00 00 00 00 00 00                           sh_entsize
-  //
-  // 000001d0                           01 00 00 00 02 00 00 00  sh_name 01, sh_type SYMTAB
-  // 000001e0  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  sh_flags, sh_addr
-  // 000001f0  88 00 00 00 00 00 00 00  90 00 00 00 00 00 00 00  sh_offset=0x88, sh_size=144
-  // 00000200  03 00 00 00 02 00 00 00  08 00 00 00 00 00 00 00  sh_link, sh_info, sh_addralign
-  // 00000210  18 00 00 00 00 00 00 00                           sh_entsize (18 symbols)
-  //
-  // 00000210                           09 00 00 00 03 00 00 00  sh_name 09, sh_type STRTAB
-  // 00000220  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  sh_flags, sh_addr
-  // 00000230  18 01 00 00 00 00 00 00  19 00 00 00 00 00 00 00  sh_offset=0x118, sh_size=25
-  // 00000240  00 00 00 00 00 00 00 00  01 00 00 00 00 00 00 00  sh_link, sh_info, sh_addralign
-  // 00000250  00 00 00 00 00 00 00 00                           sh_entsize
-  //
-  // 00000250                           11 00 00 00 03 00 00 00  sh_name 11, sh_type STRTAB
-  // 00000260  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  sh_flags, sh_addr
-  // 00000270  31 01 00 00 00 00 00 00  21 00 00 00 00 00 00 00  sh_offset=0x131, sh_size=33
-  // 00000280  00 00 00 00 00 00 00 00  01 00 00 00 00 00 00 00  sh_link, sh_info, sh_addralign
-  // 00000290  00 00 00 00 00 00 00 00                           sh_entsize
-  //
-
-  // u8* buf = (u8*)memalloc(NULL, 4096);
-  // u32 len = 0;
-
-  // memcpy(buf + len, &eheader, sizeof(eheader)); len += sizeof(eheader);
-  // memcpy(buf + len, &pheader, sizeof(pheader)); len += sizeof(pheader);
-  // memcpy(buf + len, programCode, sizeof(programCode)); len += sizeof(programCode);
-  // len = align2(len, 8);
-
-  // // symtab
-  // memcpy(buf + len, symbols, sizeof(symbols)); len += sizeof(symbols);
-  // len = align2(len, 8);
-
-  // memcpy(buf + len, b.strtab.ptr, b.strtab.len); len += b.strtab.len;
-  // memcpy(buf + len, b.shstrtab.ptr, b.shstrtab.len); len += b.shstrtab.len;
-
-  // len = align2(len, 8);
-  // memcpy(buf + len, &sections, sizeof(sections)); len += sizeof(sections);
-
-  // auto file = "./thingy";
-  // if (!os_writefile(file, buf, len)) {
-  //   perror("os_writefile");
-  // }
-
-  ELFBuilderFree(&b);
 }
+
+
+// $ hexdump -v -C mini2.linux
+//
+//            0  1  2  3  4  5  6  7   8  9 10 11 12 13 14 15
+//
+// Elf64_Ehdr -- ELF header
+//
+// 00000000  7f 45 4c 46 02 01 01 00  00 00 00 00 00 00 00 00  |.ELF............|
+//           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//                                ident
+//
+// 00000010  02 00 3e 00 01 00 00 00  78 00 40 00 00 00 00 00  |..>.....x.@.....|
+//           ~~~~~ ~~~~~ ~~~~~~~~~~~  ~~~~~~~~~~~~~~~~~~~~~~~
+//           etype   |     version          entry_addr
+//                machine
+//
+// 00000020  40 00 00 00 00 00 00 00  58 01 00 00 00 00 00 00  |@.......X.......|
+//           ~~~~~~~~~~~~~~~~~~~~~~~  ~~~~~~~~~~~~~~~~~~~~~~~
+//                   phoff                     shoff
+//
+// 00000030  00 00 00 00 40 00 38 00  01 00 40 00 05 00 04 00  |....@.8...@.....|
+//           ~~~~~~~~~~~ ~~~~~ ~~~~~  ~~~~~ ~~~~~ ~~~~~ ~~~~~
+//              flags    ehsize  |    phnum   |   shnum   |
+//                           phentsize    shentsize      shstrndx
+//
+//
+// Elf64_Phdr -- program header
+//
+// 00000040  01 00 00 00 05 00 00 00  00 00 00 00 00 00 00 00  |................|
+//           ~~~~~~~~~~~ ~~~~~~~~~~~  ~~~~~~~~~~~~~~~~~~~~~~~
+//            type=LOAD   flags=r-x           offset=0
+//
+// 00000050  00 00 40 00 00 00 00 00  00 00 40 00 00 00 00 00  |..@.......@.....|
+//           ~~~~~~~~~~~~~~~~~~~~~~~  ~~~~~~~~~~~~~~~~~~~~~~~
+//                vaddr=0x400000           paddr=0x400000
+//
+// 00000060  84 00 00 00 00 00 00 00  84 00 00 00 00 00 00 00  |................|
+//           ~~~~~~~~~~~~~~~~~~~~~~~  ~~~~~~~~~~~~~~~~~~~~~~~
+//                  filesz=132                memsz=132
+//
+// 00000070  00 00 20 00 00 00 00 00
+//           ~~~~~~~~~~~~~~~~~~~~~~~
+//                 align=2**21
+//
+//
+//                                  0x78 = section data for PROGBITS ".text" (12 bytes long)
+//                                    |
+// 00000070                           bb 2a 00 00 00 b8 01 00
+// 00000080  00 00 cd 80
+//
+//
+//                       padding
+// 00000080              00 00 00 00
+//
+//                                  0x88 = section data for SYMTAB ".symtab" (144 bytes long)
+// .symtab                            |
+// 00000080                           00 00 00 00 00 00 00 00
+// 00000090  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+// 000000a0  00 00 00 00 03 00 01 00  78 00 40 00 00 00 00 00
+// 000000b0  00 00 00 00 00 00 00 00  06 00 00 00 10 00 01 00
+// 000000c0  78 00 40 00 00 00 00 00  00 00 00 00 00 00 00 00
+// 000000d0  01 00 00 00 10 00 01 00  84 00 60 00 00 00 00 00
+// 000000e0  00 00 00 00 00 00 00 00  0d 00 00 00 10 00 01 00
+// 000000f0  84 00 60 00 00 00 00 00  00 00 00 00 00 00 00 00
+// 00000100  14 00 00 00 10 00 01 00  88 00 60 00 00 00 00 00
+// 00000110  00 00 00 00 00 00 00 00
+//
+//                                  0x118 = section data for STRTAB ".strtab" (25 bytes long)
+//                                    |
+// 00000110                           00 5f 5f 62 73 73 5f 73  |.........__bss_s|
+// 00000120  74 61 72 74 00 5f 65 64  61 74 61 00 5f 65 6e 64  |tart._edata._end|
+// 00000130  00                                                |.
+//
+//            0x131 = section data for STRTAB ".shstrtab" (33 bytes long)
+//              |
+// 00000130     00 2e 73 79 6d 74 61  62 00 2e 73 74 72 74 61  |...symtab..strta|
+// 00000140  62 00 2e 73 68 73 74 72  74 61 62 00 2e 74 65 78  |b..shstrtab..tex|
+// 00000150  74 00                                             |t.
+//
+//                 padding
+// 00000150        00 00 00 00 00 00
+//
+//
+// Section tables (e_shnum=5) starting with an empty one. sizeof(Shdr)=64
+//
+//                                0x158 = section tables start (e_shoff)
+//                                    |
+// 00000150                           00 00 00 00 00 00 00 00
+// 00000160  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+// 00000170  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+// 00000180  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+// 00000190  00 00 00 00 00 00 00 00
+//
+// 00000190                           1b 00 00 00 01 00 00 00  sh_name 1b, sh_type PROGBITS
+// 000001a0  06 00 00 00 00 00 00 00  78 00 40 00 00 00 00 00  sh_flags, sh_addralign
+// 000001b0  78 00 00 00 00 00 00 00  0c 00 00 00 00 00 00 00  sh_offset=0x78, sh_size=12
+// 000001c0  00 00 00 00 00 00 00 00  04 00 00 00 00 00 00 00  sh_link, sh_info, sh_addralign
+// 000001d0  00 00 00 00 00 00 00 00                           sh_entsize
+//
+// 000001d0                           01 00 00 00 02 00 00 00  sh_name 01, sh_type SYMTAB
+// 000001e0  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  sh_flags, sh_addr
+// 000001f0  88 00 00 00 00 00 00 00  90 00 00 00 00 00 00 00  sh_offset=0x88, sh_size=144
+// 00000200  03 00 00 00 02 00 00 00  08 00 00 00 00 00 00 00  sh_link, sh_info, sh_addralign
+// 00000210  18 00 00 00 00 00 00 00                           sh_entsize (18 symbols)
+//
+// 00000210                           09 00 00 00 03 00 00 00  sh_name 09, sh_type STRTAB
+// 00000220  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  sh_flags, sh_addr
+// 00000230  18 01 00 00 00 00 00 00  19 00 00 00 00 00 00 00  sh_offset=0x118, sh_size=25
+// 00000240  00 00 00 00 00 00 00 00  01 00 00 00 00 00 00 00  sh_link, sh_info, sh_addralign
+// 00000250  00 00 00 00 00 00 00 00                           sh_entsize
+//
+// 00000250                           11 00 00 00 03 00 00 00  sh_name 11, sh_type STRTAB
+// 00000260  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  sh_flags, sh_addr
+// 00000270  31 01 00 00 00 00 00 00  21 00 00 00 00 00 00 00  sh_offset=0x131, sh_size=33
+// 00000280  00 00 00 00 00 00 00 00  01 00 00 00 00 00 00 00  sh_link, sh_info, sh_addralign
+// 00000290  00 00 00 00 00 00 00 00                           sh_entsize
+//
+
+// u8* buf = (u8*)memalloc(NULL, 4096);
+// u32 len = 0;
+
+// memcpy(buf + len, &eheader, sizeof(eheader)); len += sizeof(eheader);
+// memcpy(buf + len, &pheader, sizeof(pheader)); len += sizeof(pheader);
+// memcpy(buf + len, programCode, sizeof(programCode)); len += sizeof(programCode);
+// len = align2(len, 8);
+
+// // symtab
+// memcpy(buf + len, symbols, sizeof(symbols)); len += sizeof(symbols);
+// len = align2(len, 8);
+
+// memcpy(buf + len, b.strtab.ptr, b.strtab.len); len += b.strtab.len;
+// memcpy(buf + len, b.shstrtab.ptr, b.shstrtab.len); len += b.shstrtab.len;
+
+// len = align2(len, 8);
+// memcpy(buf + len, &sections, sizeof(sections)); len += sizeof(sections);
+
+// auto file = "./thingy";
+// if (!os_writefile(file, buf, len)) {
+//   perror("os_writefile");
+// }

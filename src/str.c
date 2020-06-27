@@ -3,7 +3,7 @@
 // bytesrepr and strrepr returns a printable representation of an sds string (sds, Sym, etc.)
 // using sdscatrepr which encodes non-printable ASCII chars for safe printing.
 ConstStr bytesrepr(const u8* s, size_t len) {
-  return memgcsds(sdscatrepr(sdsnewcap(len + 2), s, len));
+  return memgcsds(sdscatrepr(sdsnewcap(len + 2), (const char*)s, len));
 }
 
 bool strhasprefix(ConstStr s, const char* prefix) {
