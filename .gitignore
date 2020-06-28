@@ -3,6 +3,8 @@
 *.a
 *.d
 *.gz
+*.elf
+*.elf.hex
 /*.sublime-*
 /_local
 /build

@@ -1,0 +1,126 @@
+
+mini1-32.elf:	file format ELF32-i386
+
+architecture: i386
+start address: 0x08048054
+
+Program Header:
+    LOAD off    0x00000000 vaddr 0x08048000 paddr 0x08048000 align 2**12
+         filesz 0x00000062 memsz 0x00000062 flags r-x
+
+Dynamic Section:
+Sections:
+Idx Name          Size     VMA      Type
+  0               00000000 00000000 
+  1 .text         0000000e 08048054 TEXT
+  2 .symtab       00000060 00000000 
+  3 .strtab       00000019 00000000 
+  4 .shstrtab     00000021 00000000 
+
+SYMBOL TABLE:
+08048054 l    d  .text	00000000 .text
+08048054         .text	00000000 _start
+08049062         .text	00000000 __bss_start
+08049062         .text	00000000 _edata
+08049064         .text	00000000 _end
+Contents of section .text:
+ 8048054 b8010000 00bb2a00 000089e5 0f34      ......*......4
+Contents of section .symtab:
+ 0000 00000000 00000000 00000000 00000000  ................
+ 0010 00000000 54800408 00000000 03000100  ....T...........
+ 0020 06000000 54800408 00000000 10000100  ....T...........
+ 0030 01000000 62900408 00000000 10000100  ....b...........
+ 0040 0d000000 62900408 00000000 10000100  ....b...........
+ 0050 14000000 64900408 00000000 10000100  ....d...........
+Contents of section .strtab:
+ 0000 005f5f62 73735f73 74617274 005f6564  .__bss_start._ed
+ 0010 61746100 5f656e64 00                 ata._end.
+Contents of section .shstrtab:
+ 0000 002e7379 6d746162 002e7374 72746162  ..symtab..strtab
+ 0010 002e7368 73747274 6162002e 74657874  ..shstrtab..text
+ 0020 00                                   .
+
+Disassembly of section .text:
+
+08048054 _start:
+ 8048054: b8 01 00 00 00               	movl	$1, %eax
+ 8048059: bb 2a 00 00 00               	movl	$42, %ebx
+ 804805e: 89 e5                        	movl	%esp, %ebp
+ 8048060: 0f 34                        	sysenter
+
+Disassembly of section .symtab:
+
+00000000 .symtab:
+		...
+      14: 54                           	pushl	%esp
+      15: 80 04 08 00                  	addb	$0, (%eax,%ecx)
+      19: 00 00                        	addb	%al, (%eax)
+      1b: 00 03                        	addb	%al, (%ebx)
+      1d: 00 01                        	addb	%al, (%ecx)
+      1f: 00 06                        	addb	%al, (%esi)
+      21: 00 00                        	addb	%al, (%eax)
+      23: 00 54 80 04                  	addb	%dl, 4(%eax,%eax,4)
+      27: 08 00                        	orb	%al, (%eax)
+      29: 00 00                        	addb	%al, (%eax)
+      2b: 00 10                        	addb	%dl, (%eax)
+      2d: 00 01                        	addb	%al, (%ecx)
+      2f: 00 01                        	addb	%al, (%ecx)
+      31: 00 00                        	addb	%al, (%eax)
+      33: 00 62 90                     	addb	%ah, -112(%edx)
+      36: 04 08                        	addb	$8, %al
+      38: 00 00                        	addb	%al, (%eax)
+      3a: 00 00                        	addb	%al, (%eax)
+      3c: 10 00                        	adcb	%al, (%eax)
+      3e: 01 00                        	addl	%eax, (%eax)
+      40: 0d 00 00 00 62               	orl	$1644167168, %eax
+      45: 90                           	nop
+      46: 04 08                        	addb	$8, %al
+      48: 00 00                        	addb	%al, (%eax)
+      4a: 00 00                        	addb	%al, (%eax)
+      4c: 10 00                        	adcb	%al, (%eax)
+      4e: 01 00                        	addl	%eax, (%eax)
+      50: 14 00                        	adcb	$0, %al
+      52: 00 00                        	addb	%al, (%eax)
+      54: 64 90                        	nop
+      56: 04 08                        	addb	$8, %al
+      58: 00 00                        	addb	%al, (%eax)
+      5a: 00 00                        	addb	%al, (%eax)
+      5c: 10 00                        	adcb	%al, (%eax)
+      5e: 01 00                        	addl	%eax, (%eax)
+
+Disassembly of section .strtab:
+
+00000000 .strtab:
+       0: 00 5f 5f                     	addb	%bl, 95(%edi)
+       3: 62 73 73                     	bound	%esi, 115(%ebx)
+       6: 5f                           	popl	%edi
+       7: 73 74                        	jae	116 <.symtab+0x7d>
+       9: 61                           	popal
+       a: 72 74                        	jb	116 <.symtab+0x80>
+       c: 00 5f 65                     	addb	%bl, 101(%edi)
+       f: 64 61                        	popal
+      11: 74 61                        	je	97 <.symtab+0x74>
+      13: 00 5f 65                     	addb	%bl, 101(%edi)
+      16: 6e                           	outsb	(%esi), %dx
+      17: 64 00                        	<unknown>
+
+Disassembly of section .shstrtab:
+
+00000000 .shstrtab:
+       0: 00 2e                        	addb	%ch, (%esi)
+       2: 73 79                        	jae	121 <.symtab+0x7d>
+       4: 6d                           	insl	%dx, %es:(%edi)
+       5: 74 61                        	je	97 <.symtab+0x68>
+       7: 62 00                        	bound	%eax, (%eax)
+       9: 2e 73 74                     	jae	116 <.symtab+0x80>
+       c: 72 74                        	jb	116 <.symtab+0x82>
+       e: 61                           	popal
+       f: 62 00                        	bound	%eax, (%eax)
+      11: 2e 73 68                     	jae	104 <.symtab+0x7c>
+      14: 73 74                        	jae	116 <.symtab+0x8a>
+      16: 72 74                        	jb	116 <.symtab+0x8c>
+      18: 61                           	popal
+      19: 62 00                        	bound	%eax, (%eax)
+      1b: 2e 74 65                     	je	101 <.symtab+0x83>
+      1e: 78 74                        	js	116 <.symtab+0x94>
+      20: 00                           	<unknown>

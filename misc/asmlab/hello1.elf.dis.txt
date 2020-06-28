@@ -1,0 +1,550 @@
+
+hello1.elf:	file format ELF64-x86-64
+
+architecture: x86_64
+start address: 0x0000000000400107
+
+Program Header:
+    LOAD off    0x0000000000000000 vaddr 0x0000000000400000 paddr 0x0000000000400000 align 2**21
+         filesz 0x0000000000000122 memsz 0x0000000000000122 flags r-x
+    LOAD off    0x0000000000000122 vaddr 0x0000000000600122 paddr 0x0000000000600122 align 2**21
+         filesz 0x000000000000000d memsz 0x0000000000000206 flags rw-
+
+Dynamic Section:
+Sections:
+Idx Name          Size     VMA              Type
+  0               00000000 0000000000000000 
+  1 .text         00000065 00000000004000b0 TEXT
+  2 .rodata       0000000d 0000000000400115 DATA
+  3 .data         0000000d 0000000000600122 DATA
+  4 .bss          000001f9 000000000060012f BSS
+  5 .symtab       000002d0 0000000000000000 
+  6 .strtab       000000ed 0000000000000000 
+  7 .shstrtab     00000034 0000000000000000 
+
+SYMBOL TABLE:
+00000000004000b0 l    d  .text	00000000 .text
+0000000000400115 l    d  .rodata	00000000 .rodata
+0000000000600122 l    d  .data	00000000 .data
+000000000060012f l    d  .bss	00000000 .bss
+0000000000000000 l    df *ABS*	00000000 /tmp/hello1-c7bf77.o
+000000000060012f l     O .bss	000001f4 BUFFER_DATA
+00000000000001f4         *ABS*	00000000 BUFFER_SIZE
+0000000000000000         *ABS*	00000000 EOF
+0000000000000641         *ABS*	00000000 O_CREAT_WRONLY_TRUNC
+0000000000000000         *ABS*	00000000 O_RDONLY
+0000000000000002         *ABS*	00000000 STDERR
+0000000000000000         *ABS*	00000000 STDIN
+0000000000000001         *ABS*	00000000 STDOUT
+0000000000000080         *ABS*	00000000 SYSCALL
+0000000000000006         *ABS*	00000000 SYS_CLOSE
+0000000000000001         *ABS*	00000000 SYS_EXIT
+0000000000000005         *ABS*	00000000 SYS_OPEN
+0000000000000003         *ABS*	00000000 SYS_READ
+0000000000000004         *ABS*	00000000 SYS_WRITE
+00000000004000e9         .text	00000000 for_cond
+00000000004000ff         .text	00000000 for_end
+0000000000400115 l     O .rodata	0000000d hellomsg
+0000000000600122 l     O .data	0000000d hellomsg2
+00000000004000da         .text	00000000 main
+00000000004000b0         .text	00000000 write_hello_to_stdout
+0000000000400107         .text	00000000 _start
+000000000060012f         .bss	00000000 __bss_start
+000000000060012f         .data	00000000 _edata
+0000000000600328         .bss	00000000 _end
+Contents of section .text:
+ 4000b0 554889e5 48c7c004 00000048 c7c30100  UH..H......H....
+ 4000c0 000048b9 15014000 00000000 48c7c20c  ..H...@.....H...
+ 4000d0 000000cd 804889ec 5dc35548 89e54883  .....H..].UH..H.
+ 4000e0 ec04c745 fc000000 00837dfc 037d10e8  ...E......}..}..
+ 4000f0 bcffffff 8b45fc83 c0018945 fcebea8b  .....E.....E....
+ 400100 45fc4889 ec5dc3e8 ceffffff 89c3b801  E.H..]..........
+ 400110 000000cd 80                          .....
+Contents of section .rodata:
+ 400115 48656c6c 6f20776f 726c640a 00        Hello world..
+Contents of section .data:
+ 600122 4f206861 6920776f 726c640a 00        O hai world..
+Contents of section .bss:
+<skipping contents of bss section at [60012f, 600328)>
+Contents of section .symtab:
+ 0000 00000000 00000000 00000000 00000000  ................
+ 0010 00000000 00000000 00000000 03000100  ................
+ 0020 b0004000 00000000 00000000 00000000  ..@.............
+ 0030 00000000 03000200 15014000 00000000  ..........@.....
+ 0040 00000000 00000000 00000000 03000300  ................
+ 0050 22016000 00000000 00000000 00000000  ".`.............
+ 0060 00000000 03000400 2f016000 00000000  ......../.`.....
+ 0070 00000000 00000000 01000000 0400f1ff  ................
+ 0080 00000000 00000000 00000000 00000000  ................
+ 0090 16000000 01000400 2f016000 00000000  ......../.`.....
+ 00a0 f4010000 00000000 22000000 0000f1ff  ........".......
+ 00b0 f4010000 00000000 00000000 00000000  ................
+ 00c0 2e000000 0000f1ff 00000000 00000000  ................
+ 00d0 00000000 00000000 32000000 0000f1ff  ........2.......
+ 00e0 41060000 00000000 00000000 00000000  A...............
+ 00f0 47000000 0000f1ff 00000000 00000000  G...............
+ 0100 00000000 00000000 50000000 0000f1ff  ........P.......
+ 0110 02000000 00000000 00000000 00000000  ................
+ 0120 57000000 0000f1ff 00000000 00000000  W...............
+ 0130 00000000 00000000 5d000000 0000f1ff  ........].......
+ 0140 01000000 00000000 00000000 00000000  ................
+ 0150 64000000 0000f1ff 80000000 00000000  d...............
+ 0160 00000000 00000000 6c000000 0000f1ff  ........l.......
+ 0170 06000000 00000000 00000000 00000000  ................
+ 0180 76000000 0000f1ff 01000000 00000000  v...............
+ 0190 00000000 00000000 7f000000 0000f1ff  ................
+ 01a0 05000000 00000000 00000000 00000000  ................
+ 01b0 88000000 0000f1ff 03000000 00000000  ................
+ 01c0 00000000 00000000 91000000 0000f1ff  ................
+ 01d0 04000000 00000000 00000000 00000000  ................
+ 01e0 9b000000 00000100 e9004000 00000000  ..........@.....
+ 01f0 00000000 00000000 a4000000 00000100  ................
+ 0200 ff004000 00000000 00000000 00000000  ..@.............
+ 0210 ac000000 01000200 15014000 00000000  ..........@.....
+ 0220 0d000000 00000000 b5000000 01000300  ................
+ 0230 22016000 00000000 0d000000 00000000  ".`.............
+ 0240 bf000000 00000100 da004000 00000000  ..........@.....
+ 0250 00000000 00000000 c4000000 00000100  ................
+ 0260 b0004000 00000000 00000000 00000000  ..@.............
+ 0270 df000000 10000100 07014000 00000000  ..........@.....
+ 0280 00000000 00000000 da000000 10000400  ................
+ 0290 2f016000 00000000 00000000 00000000  /.`.............
+ 02a0 e6000000 10000300 2f016000 00000000  ......../.`.....
+ 02b0 00000000 00000000 a7000000 10000400  ................
+ 02c0 28036000 00000000 00000000 00000000  (.`.............
+Contents of section .strtab:
+ 0000 002f746d 702f6865 6c6c6f31 2d633762  ./tmp/hello1-c7b
+ 0010 6637372e 6f004255 46464552 5f444154  f77.o.BUFFER_DAT
+ 0020 41004255 46464552 5f53495a 4500454f  A.BUFFER_SIZE.EO
+ 0030 46004f5f 43524541 545f5752 4f4e4c59  F.O_CREAT_WRONLY
+ 0040 5f545255 4e43004f 5f52444f 4e4c5900  _TRUNC.O_RDONLY.
+ 0050 53544445 52520053 5444494e 00535444  STDERR.STDIN.STD
+ 0060 4f555400 53595343 414c4c00 5359535f  OUT.SYSCALL.SYS_
+ 0070 434c4f53 45005359 535f4558 49540053  CLOSE.SYS_EXIT.S
+ 0080 59535f4f 50454e00 5359535f 52454144  YS_OPEN.SYS_READ
+ 0090 00535953 5f575249 54450066 6f725f63  .SYS_WRITE.for_c
+ 00a0 6f6e6400 666f725f 656e6400 68656c6c  ond.for_end.hell
+ 00b0 6f6d7367 0068656c 6c6f6d73 6732006d  omsg.hellomsg2.m
+ 00c0 61696e00 77726974 655f6865 6c6c6f5f  ain.write_hello_
+ 00d0 746f5f73 74646f75 74005f5f 6273735f  to_stdout.__bss_
+ 00e0 73746172 74005f65 64617461 00        start._edata.
+Contents of section .shstrtab:
+ 0000 002e7379 6d746162 002e7374 72746162  ..symtab..strtab
+ 0010 002e7368 73747274 6162002e 74657874  ..shstrtab..text
+ 0020 002e726f 64617461 002e6461 7461002e  ..rodata..data..
+ 0030 62737300                             bss.
+
+Disassembly of section .text:
+
+00000000004000b0 write_hello_to_stdout:
+  4000b0: 55                           	pushq	%rbp
+  4000b1: 48 89 e5                     	movq	%rsp, %rbp
+  4000b4: 48 c7 c0 04 00 00 00         	movq	$4, %rax
+  4000bb: 48 c7 c3 01 00 00 00         	movq	$1, %rbx
+  4000c2: 48 b9 15 01 40 00 00 00 00 00	movabsq	$4194581, %rcx
+  4000cc: 48 c7 c2 0c 00 00 00         	movq	$12, %rdx
+  4000d3: cd 80                        	int	$128
+  4000d5: 48 89 ec                     	movq	%rbp, %rsp
+  4000d8: 5d                           	popq	%rbp
+  4000d9: c3                           	retq
+
+00000000004000da main:
+  4000da: 55                           	pushq	%rbp
+  4000db: 48 89 e5                     	movq	%rsp, %rbp
+  4000de: 48 83 ec 04                  	subq	$4, %rsp
+  4000e2: c7 45 fc 00 00 00 00         	movl	$0, -4(%rbp)
+
+00000000004000e9 for_cond:
+  4000e9: 83 7d fc 03                  	cmpl	$3, -4(%rbp)
+  4000ed: 7d 10                        	jge	16 <for_end>
+  4000ef: e8 bc ff ff ff               	callq	-68 <write_hello_to_stdout>
+  4000f4: 8b 45 fc                     	movl	-4(%rbp), %eax
+  4000f7: 83 c0 01                     	addl	$1, %eax
+  4000fa: 89 45 fc                     	movl	%eax, -4(%rbp)
+  4000fd: eb ea                        	jmp	-22 <for_cond>
+
+00000000004000ff for_end:
+  4000ff: 8b 45 fc                     	movl	-4(%rbp), %eax
+  400102: 48 89 ec                     	movq	%rbp, %rsp
+  400105: 5d                           	popq	%rbp
+  400106: c3                           	retq
+
+0000000000400107 _start:
+  400107: e8 ce ff ff ff               	callq	-50 <main>
+  40010c: 89 c3                        	movl	%eax, %ebx
+  40010e: b8 01 00 00 00               	movl	$1, %eax
+  400113: cd 80                        	int	$128
+
+Disassembly of section .rodata:
+
+0000000000400115 hellomsg:
+  400115: 48 65                        	gs
+  400117: 6c                           	insb	%dx, %es:(%rdi)
+  400118: 6c                           	insb	%dx, %es:(%rdi)
+  400119: 6f                           	outsl	(%rsi), %dx
+  40011a: 20 77 6f                     	andb	%dh, 111(%rdi)
+  40011d: 72 6c                        	jb	108 <hellomsg+0x76>
+  40011f: 64 0a 00                     	orb	%fs:(%rax), %al
+
+Disassembly of section .data:
+
+0000000000600122 hellomsg2:
+  600122: 4f 20 68 61                  	andb	%r13b, 97(%r8)
+  600126: 69 20 77 6f 72 6c            	imull	$1819438967, (%rax), %esp
+  60012c: 64 0a 00                     	orb	%fs:(%rax), %al
+
+Disassembly of section .bss:
+
+000000000060012f __bss_start:
+...
+
+Disassembly of section .symtab:
+
+0000000000000000 .symtab:
+		...
+      1c: 03 00                        	addl	(%rax), %eax
+      1e: 01 00                        	addl	%eax, (%rax)
+      20: b0 00                        	movb	$0, %al
+      22: 40 00 00                     	addb	%al, (%rax)
+		...
+      31: 00 00                        	addb	%al, (%rax)
+      33: 00 03                        	addb	%al, (%rbx)
+      35: 00 02                        	addb	%al, (%rdx)
+      37: 00 15 01 40 00 00            	addb	%dl, 16385(%rip)
+		...
+      49: 00 00                        	addb	%al, (%rax)
+      4b: 00 03                        	addb	%al, (%rbx)
+      4d: 00 03                        	addb	%al, (%rbx)
+      4f: 00 22                        	addb	%ah, (%rdx)
+      51: 01 60 00                     	addl	%esp, (%rax)
+		...
+      64: 03 00                        	addl	(%rax), %eax
+      66: 04 00                        	addb	$0, %al
+      68: 2f                           	<unknown>
+      69: 01 60 00                     	addl	%esp, (%rax)
+		...
+      78: 01 00                        	addl	%eax, (%rax)
+      7a: 00 00                        	addb	%al, (%rax)
+      7c: 04 00                        	addb	$0, %al
+      7e: f1                           	<unknown>
+      7f: ff 00                        	incl	(%rax)
+		...
+      8d: 00 00                        	addb	%al, (%rax)
+      8f: 00 16                        	addb	%dl, (%rsi)
+      91: 00 00                        	addb	%al, (%rax)
+      93: 00 01                        	addb	%al, (%rcx)
+      95: 00 04 00                     	addb	%al, (%rax,%rax)
+      98: 2f                           	<unknown>
+      99: 01 60 00                     	addl	%esp, (%rax)
+      9c: 00 00                        	addb	%al, (%rax)
+      9e: 00 00                        	addb	%al, (%rax)
+      a0: f4                           	hlt
+      a1: 01 00                        	addl	%eax, (%rax)
+      a3: 00 00                        	addb	%al, (%rax)
+      a5: 00 00                        	addb	%al, (%rax)
+      a7: 00 22                        	addb	%ah, (%rdx)
+      a9: 00 00                        	addb	%al, (%rax)
+      ab: 00 00                        	addb	%al, (%rax)
+      ad: 00 f1                        	addb	%dh, %cl
+      af: ff f4                        	pushq	%rsp
+      b1: 01 00                        	addl	%eax, (%rax)
+		...
+      bf: 00 2e                        	addb	%ch, (%rsi)
+      c1: 00 00                        	addb	%al, (%rax)
+      c3: 00 00                        	addb	%al, (%rax)
+      c5: 00 f1                        	addb	%dh, %cl
+      c7: ff 00                        	incl	(%rax)
+		...
+      d5: 00 00                        	addb	%al, (%rax)
+      d7: 00 32                        	addb	%dh, (%rdx)
+      d9: 00 00                        	addb	%al, (%rax)
+      db: 00 00                        	addb	%al, (%rax)
+      dd: 00 f1                        	addb	%dh, %cl
+      df: ff 41 06                     	incl	6(%rcx)
+		...
+      ee: 00 00                        	addb	%al, (%rax)
+      f0: 47 00 00                     	addb	%r8b, (%r8)
+      f3: 00 00                        	addb	%al, (%rax)
+      f5: 00 f1                        	addb	%dh, %cl
+      f7: ff 00                        	incl	(%rax)
+		...
+     105: 00 00                        	addb	%al, (%rax)
+     107: 00 50 00                     	addb	%dl, (%rax)
+     10a: 00 00                        	addb	%al, (%rax)
+     10c: 00 00                        	addb	%al, (%rax)
+     10e: f1                           	<unknown>
+     10f: ff 02                        	incl	(%rdx)
+		...
+     11d: 00 00                        	addb	%al, (%rax)
+     11f: 00 57 00                     	addb	%dl, (%rdi)
+     122: 00 00                        	addb	%al, (%rax)
+     124: 00 00                        	addb	%al, (%rax)
+     126: f1                           	<unknown>
+     127: ff 00                        	incl	(%rax)
+		...
+     135: 00 00                        	addb	%al, (%rax)
+     137: 00 5d 00                     	addb	%bl, (%rbp)
+     13a: 00 00                        	addb	%al, (%rax)
+     13c: 00 00                        	addb	%al, (%rax)
+     13e: f1                           	<unknown>
+     13f: ff 01                        	incl	(%rcx)
+		...
+     14d: 00 00                        	addb	%al, (%rax)
+     14f: 00 64 00 00                  	addb	%ah, (%rax,%rax)
+     153: 00 00                        	addb	%al, (%rax)
+     155: 00 f1                        	addb	%dh, %cl
+     157: ff 80 00 00 00 00            	incl	(%rax)
+		...
+     165: 00 00                        	addb	%al, (%rax)
+     167: 00 6c 00 00                  	addb	%ch, (%rax,%rax)
+     16b: 00 00                        	addb	%al, (%rax)
+     16d: 00 f1                        	addb	%dh, %cl
+     16f: ff 06                        	incl	(%rsi)
+		...
+     17d: 00 00                        	addb	%al, (%rax)
+     17f: 00 76 00                     	addb	%dh, (%rsi)
+     182: 00 00                        	addb	%al, (%rax)
+     184: 00 00                        	addb	%al, (%rax)
+     186: f1                           	<unknown>
+     187: ff 01                        	incl	(%rcx)
+		...
+     195: 00 00                        	addb	%al, (%rax)
+     197: 00 7f 00                     	addb	%bh, (%rdi)
+     19a: 00 00                        	addb	%al, (%rax)
+     19c: 00 00                        	addb	%al, (%rax)
+     19e: f1                           	<unknown>
+     19f: ff 05 00 00 00 00            	incl	(%rip)
+		...
+     1ad: 00 00                        	addb	%al, (%rax)
+     1af: 00 88 00 00 00 00            	addb	%cl, (%rax)
+     1b5: 00 f1                        	addb	%dh, %cl
+     1b7: ff 03                        	incl	(%rbx)
+		...
+     1c5: 00 00                        	addb	%al, (%rax)
+     1c7: 00 91 00 00 00 00            	addb	%dl, (%rcx)
+     1cd: 00 f1                        	addb	%dh, %cl
+     1cf: ff 04 00                     	incl	(%rax,%rax)
+		...
+     1de: 00 00                        	addb	%al, (%rax)
+     1e0: 9b                           	wait
+     1e1: 00 00                        	addb	%al, (%rax)
+     1e3: 00 00                        	addb	%al, (%rax)
+     1e5: 00 01                        	addb	%al, (%rcx)
+     1e7: 00 e9                        	addb	%ch, %cl
+     1e9: 00 40 00                     	addb	%al, (%rax)
+		...
+     1f8: a4                           	movsb	(%rsi), %es:(%rdi)
+     1f9: 00 00                        	addb	%al, (%rax)
+     1fb: 00 00                        	addb	%al, (%rax)
+     1fd: 00 01                        	addb	%al, (%rcx)
+     1ff: 00 ff                        	addb	%bh, %bh
+     201: 00 40 00                     	addb	%al, (%rax)
+		...
+     210: ac                           	lodsb	(%rsi), %al
+     211: 00 00                        	addb	%al, (%rax)
+     213: 00 01                        	addb	%al, (%rcx)
+     215: 00 02                        	addb	%al, (%rdx)
+     217: 00 15 01 40 00 00            	addb	%dl, 16385(%rip)
+     21d: 00 00                        	addb	%al, (%rax)
+     21f: 00 0d 00 00 00 00            	addb	%cl, (%rip)
+     225: 00 00                        	addb	%al, (%rax)
+     227: 00 b5 00 00 00 01            	addb	%dh, 16777216(%rbp)
+     22d: 00 03                        	addb	%al, (%rbx)
+     22f: 00 22                        	addb	%ah, (%rdx)
+     231: 01 60 00                     	addl	%esp, (%rax)
+     234: 00 00                        	addb	%al, (%rax)
+     236: 00 00                        	addb	%al, (%rax)
+     238: 0d 00 00 00 00               	orl	$0, %eax
+     23d: 00 00                        	addb	%al, (%rax)
+     23f: 00 bf 00 00 00 00            	addb	%bh, (%rdi)
+     245: 00 01                        	addb	%al, (%rcx)
+     247: 00 da                        	addb	%bl, %dl
+     249: 00 40 00                     	addb	%al, (%rax)
+		...
+     258: c4 00 00                     	<unknown>
+     25b: 00 00                        	addb	%al, (%rax)
+     25d: 00 01                        	addb	%al, (%rcx)
+     25f: 00 b0 00 40 00 00            	addb	%dh, 16384(%rax)
+		...
+     26d: 00 00                        	addb	%al, (%rax)
+     26f: 00 df                        	addb	%bl, %bh
+     271: 00 00                        	addb	%al, (%rax)
+     273: 00 10                        	addb	%dl, (%rax)
+     275: 00 01                        	addb	%al, (%rcx)
+     277: 00 07                        	addb	%al, (%rdi)
+     279: 01 40 00                     	addl	%eax, (%rax)
+		...
+     288: da 00                        	fiaddl	(%rax)
+     28a: 00 00                        	addb	%al, (%rax)
+     28c: 10 00                        	adcb	%al, (%rax)
+     28e: 04 00                        	addb	$0, %al
+     290: 2f                           	<unknown>
+     291: 01 60 00                     	addl	%esp, (%rax)
+		...
+     2a0: e6 00                        	outb	%al, $0
+     2a2: 00 00                        	addb	%al, (%rax)
+     2a4: 10 00                        	adcb	%al, (%rax)
+     2a6: 03 00                        	addl	(%rax), %eax
+     2a8: 2f                           	<unknown>
+     2a9: 01 60 00                     	addl	%esp, (%rax)
+		...
+     2b8: a7                           	cmpsl	%es:(%rdi), (%rsi)
+     2b9: 00 00                        	addb	%al, (%rax)
+     2bb: 00 10                        	addb	%dl, (%rax)
+     2bd: 00 04 00                     	addb	%al, (%rax,%rax)
+     2c0: 28 03                        	subb	%al, (%rbx)
+     2c2: 60                           	<unknown>
+		...
+     2cf: 00                           	<unknown>
+
+Disassembly of section .strtab:
+
+0000000000000000 .strtab:
+       0: 00 2f                        	addb	%ch, (%rdi)
+       2: 74 6d                        	je	109 <SYS_CLOSE+0x6b>
+       4: 70 2f                        	jo	47 <SYS_CLOSE+0x2f>
+       6: 68 65 6c 6c 6f               	pushq	$1869376613
+       b: 31 2d 63 37 62 66            	xorl	%ebp, 1717712739(%rip)
+      11: 37                           	<unknown>
+      12: 37                           	<unknown>
+      13: 2e 6f                        	outsl	%cs:(%rsi), %dx
+      15: 00 42 55                     	addb	%al, 85(%rdx)
+      18: 46 46                        	<unknown>
+      1a: 45 52                        	pushq	%r10
+      1c: 5f                           	popq	%rdi
+      1d: 44 41                        	<unknown>
+      1f: 54                           	pushq	%rsp
+      20: 41 00 42 55                  	addb	%al, 85(%r10)
+      24: 46 46                        	<unknown>
+      26: 45 52                        	pushq	%r10
+      28: 5f                           	popq	%rdi
+      29: 53                           	pushq	%rbx
+      2a: 49 5a                        	popq	%r10
+      2c: 45 00 45 4f                  	addb	%r8b, 79(%r13)
+      30: 46 00 4f 5f                  	addb	%r9b, 95(%rdi)
+      34: 43 52                        	pushq	%r10
+      36: 45 41                        	<unknown>
+      38: 54                           	pushq	%rsp
+      39: 5f                           	popq	%rdi
+      3a: 57                           	pushq	%rdi
+      3b: 52                           	pushq	%rdx
+      3c: 4f 4e                        	<unknown>
+      3e: 4c 59                        	popq	%rcx
+      40: 5f                           	popq	%rdi
+      41: 54                           	pushq	%rsp
+      42: 52                           	pushq	%rdx
+      43: 55                           	pushq	%rbp
+      44: 4e 43                        	<unknown>
+      46: 00 4f 5f                     	addb	%cl, 95(%rdi)
+      49: 52                           	pushq	%rdx
+      4a: 44 4f                        	<unknown>
+      4c: 4e 4c                        	<unknown>
+      4e: 59                           	popq	%rcx
+      4f: 00 53 54                     	addb	%dl, 84(%rbx)
+      52: 44 45                        	<unknown>
+      54: 52                           	pushq	%rdx
+      55: 52                           	pushq	%rdx
+      56: 00 53 54                     	addb	%dl, 84(%rbx)
+      59: 44 49                        	<unknown>
+      5b: 4e 00 53 54                  	addb	%r10b, 84(%rbx)
+      5f: 44 4f                        	<unknown>
+      61: 55                           	pushq	%rbp
+      62: 54                           	pushq	%rsp
+      63: 00 53 59                     	addb	%dl, 89(%rbx)
+      66: 53                           	pushq	%rbx
+      67: 43 41                        	<unknown>
+      69: 4c 4c                        	<unknown>
+      6b: 00 53 59                     	addb	%dl, 89(%rbx)
+      6e: 53                           	pushq	%rbx
+      6f: 5f                           	popq	%rdi
+      70: 43 4c                        	<unknown>
+      72: 4f 53                        	pushq	%r11
+      74: 45 00 53 59                  	addb	%r10b, 89(%r11)
+      78: 53                           	pushq	%rbx
+      79: 5f                           	popq	%rdi
+      7a: 45 58                        	popq	%r8
+      7c: 49 54                        	pushq	%r12
+      7e: 00 53 59                     	addb	%dl, 89(%rbx)
+      81: 53                           	pushq	%rbx
+      82: 5f                           	popq	%rdi
+      83: 4f 50                        	pushq	%r8
+      85: 45 4e                        	<unknown>
+      87: 00 53 59                     	addb	%dl, 89(%rbx)
+      8a: 53                           	pushq	%rbx
+      8b: 5f                           	popq	%rdi
+      8c: 52                           	pushq	%rdx
+      8d: 45 41                        	<unknown>
+      8f: 44 00 53 59                  	addb	%r10b, 89(%rbx)
+      93: 53                           	pushq	%rbx
+      94: 5f                           	popq	%rdi
+      95: 57                           	pushq	%rdi
+      96: 52                           	pushq	%rdx
+      97: 49 54                        	pushq	%r12
+      99: 45 00 66 6f                  	addb	%r12b, 111(%r14)
+      9d: 72 5f                        	jb	95 <SYSCALL+0x7e>
+      9f: 63 6f 6e                     	movslq	110(%rdi), %ebp
+      a2: 64 00 66 6f                  	addb	%ah, %fs:111(%rsi)
+      a6: 72 5f                        	jb	95 <SYSCALL+0x87>
+      a8: 65 6e                        	outsb	%gs:(%rsi), %dx
+      aa: 64 00 68 65                  	addb	%ch, %fs:101(%rax)
+      ae: 6c                           	insb	%dx, %es:(%rdi)
+      af: 6c                           	insb	%dx, %es:(%rdi)
+      b0: 6f                           	outsl	(%rsi), %dx
+      b1: 6d                           	insl	%dx, %es:(%rdi)
+      b2: 73 67                        	jae	103 <SYSCALL+0x9b>
+      b4: 00 68 65                     	addb	%ch, 101(%rax)
+      b7: 6c                           	insb	%dx, %es:(%rdi)
+      b8: 6c                           	insb	%dx, %es:(%rdi)
+      b9: 6f                           	outsl	(%rsi), %dx
+      ba: 6d                           	insl	%dx, %es:(%rdi)
+      bb: 73 67                        	jae	103 <SYSCALL+0xa4>
+      bd: 32 00                        	xorb	(%rax), %al
+      bf: 6d                           	insl	%dx, %es:(%rdi)
+      c0: 61                           	<unknown>
+      c1: 69 6e 00 77 72 69 74         	imull	$1953067639, (%rsi), %ebp
+      c8: 65 5f                        	popq	%rdi
+      ca: 68 65 6c 6c 6f               	pushq	$1869376613
+      cf: 5f                           	popq	%rdi
+      d0: 74 6f                        	je	111 <SYSCALL+0xc1>
+      d2: 5f                           	popq	%rdi
+      d3: 73 74                        	jae	116 <SYSCALL+0xc9>
+      d5: 64 6f                        	outsl	%fs:(%rsi), %dx
+      d7: 75 74                        	jne	116 <SYSCALL+0xcd>
+      d9: 00 5f 5f                     	addb	%bl, 95(%rdi)
+      dc: 62                           	<unknown>
+      dd: 73 73                        	jae	115 <SYSCALL+0xd2>
+      df: 5f                           	popq	%rdi
+      e0: 73 74                        	jae	116 <SYSCALL+0xd6>
+      e2: 61                           	<unknown>
+      e3: 72 74                        	jb	116 <SYSCALL+0xd9>
+      e5: 00 5f 65                     	addb	%bl, 101(%rdi)
+      e8: 64 61                        	<unknown>
+      ea: 74 61                        	je	97 <SYSCALL+0xcd>
+      ec: 00                           	<unknown>
+
+Disassembly of section .shstrtab:
+
+0000000000000000 .shstrtab:
+       0: 00 2e                        	addb	%ch, (%rsi)
+       2: 73 79                        	jae	121 <SYS_CLOSE+0x77>
+       4: 6d                           	insl	%dx, %es:(%rdi)
+       5: 74 61                        	je	97 <SYS_CLOSE+0x62>
+       7: 62 00 2e 73                  	<unknown>
+       b: 74 72                        	je	114 <SYS_CLOSE+0x79>
+       d: 74 61                        	je	97 <SYS_CLOSE+0x6a>
+       f: 62 00 2e 73                  	<unknown>
+      13: 68 73 74 72 74               	pushq	$1953657971
+      18: 61                           	<unknown>
+      19: 62 00 2e 74                  	<unknown>
+      1d: 65 78 74                     	js	116 <SYSCALL+0x14>
+      20: 00 2e                        	addb	%ch, (%rsi)
+      22: 72 6f                        	jb	111 <SYSCALL+0x13>
+      24: 64 61                        	<unknown>
+      26: 74 61                        	je	97 <SYSCALL+0x9>
+      28: 00 2e                        	addb	%ch, (%rsi)
+      2a: 64 61                        	<unknown>
+      2c: 74 61                        	je	97 <SYSCALL+0xf>
+      2e: 00 2e                        	addb	%ch, (%rsi)
+      30: 62                           	<unknown>
+      31: 73 73                        	jae	115 <SYSCALL+0x26>
+      33: 00                           	<unknown>
