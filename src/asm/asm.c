@@ -547,8 +547,7 @@ static void appendprog(Buf* buf, const char* prog) {
 
 typedef struct ELF64 {
   Buf    buf;        // Main buffer (ELF header + program headers + data segments)
-  size_t phoffsv[8]; // program header offsets into `buf`
-  size_t phnum;      // number of program headers at phoffs.
+  u16    phnum;      // number of program headers (in buf + sizeof(ELH header))
   Buf    shbuf;      // section headers
   Buf    strtab;     // string table
   Buf    shstrtab;   // section header string table
@@ -582,6 +581,10 @@ static void ELF64Init(ELF64* e, Memory nullable mem) {
   BufInit(&e->symtab, mem, sizeof(Elf64_Sym) * 4);
   memset(e->symtab.ptr, 0, sizeof(Elf64_Sym)); // allocate the "null" symbol
   e->symtab.len += sizeof(Elf64_Sym);
+}
+
+inline static Memory* ELF64Memory(ELF64* e) {
+  return e->buf.mem;
 }
 
 inline static Elf64_Ehdr* ELF64GetEH(ELF64* e) {
@@ -626,36 +629,39 @@ static Elf64_Sym* ELF64AddSym(ELF64* e, const char* name, u16 shndx, u8 bind, u8
 }
 
 // ELF64AddPH adds a program header.
-// returned pointer only valid until next call that mutates e->buf
-static Elf64_Phdr* ELF64AddPH(ELF64* e) {
-  assert(e->phnum < 8);
-  size_t offs = e->buf.len;
-  e->phoffsv[e->phnum] = offs;
+// Returns program header index which can be used with ELF64GetPH to access the struct.
+static u16 ELF64AddPH(ELF64* e) {
+  u16 phidx = e->phnum;
   e->phnum++;
-  return (Elf64_Phdr*)BufAllocz(&e->buf, sizeof(Elf64_Phdr));
+  BufAllocz(&e->buf, sizeof(Elf64_Phdr));
+  return phidx;
 }
 
-inline static Elf64_Phdr* ELF64GetPH(ELF64* e, size_t index) {
-  assert(index < e->phnum);
-  return (Elf64_Phdr*)&e->buf.ptr[e->phoffsv[index]];
+inline static Elf64_Phdr* ELF64GetPH(ELF64* e, u16 phidx) {
+  assert(phidx < e->phnum);
+  return (Elf64_Phdr*)&e->buf.ptr[sizeof(Elf64_Ehdr) + ((size_t)phidx * sizeof(Elf64_Phdr))];
 }
 
-// static Elf64_Shdr* addSectionHeader(ELF64* e, const char* name) {
-//   auto sh = (Elf64_Shdr*)BufAllocz(&e->shbuf, sizeof(Elf64_Shdr));
-//   sh->sh_name = strtabAdd(&e->shstrtab, name, strlen(name));
-//   return sh;
-// }
 
-// ELF64StartSegment starts a new segment. A segment is a section header with a body.
-// returned pointer only valid until next call to ELF64StartSegment
-static Elf64_Shdr* ELF64StartSegment(ELF64* e, const char* name, u64 sh_addralign) {
+// ELF64AddSection adds a new section header.
+// Affects e->shbuf, e->shstrtab
+static Elf64_Shdr* ELF64AddSection(ELF64* e, const char* name) {
+  auto sh = (Elf64_Shdr*)BufAllocz(&e->shbuf, sizeof(Elf64_Shdr));
+  sh->sh_name = strtabAdd(&e->shstrtab, name, strlen(name));
+  return sh;
+}
+
+// ELF64StartSection starts a new section which is assumed to have data.
+// If you want a section that doesn't point to data, use ELF64AddSection.
+// returned pointer only valid until next call to ELF64StartSection.
+// Affects e->shbuf, e->shstrtab, e->buf
+static Elf64_Shdr* ELF64StartSection(ELF64* e, const char* name, u64 sh_addralign) {
   auto align = align2(e->buf.len, sh_addralign);
   if (align != e->buf.len) {
     // add padding to force alignment
     BufAllocz(&e->buf, align - e->buf.len);
   }
-  auto sh = (Elf64_Shdr*)BufAllocz(&e->shbuf, sizeof(Elf64_Shdr));
-  sh->sh_name = strtabAdd(&e->shstrtab, name, strlen(name));
+  auto sh = ELF64AddSection(e, name);
   sh->sh_offset = e->buf.len; // section's data file offset
   sh->sh_addralign = sh_addralign;
   return sh;
@@ -739,10 +745,10 @@ static void ELF64Finalize(ELF64* e, u8 encoding, u16 e_machine, u64 entryaddr) {
   //
 
   size_t shnum = e->shbuf.len / sizeof(Elf64_Shdr); // number of section headers
-  u32 strtab_sec_index = shnum + 1;
+  //u32 strtab_sec_index = shnum + 1;
 
   // .symtab section
-  auto sh = ELF64StartSegment(e, ".symtab", /* sh_addralign */ 8);
+  auto sh = ELF64StartSection(e, ".symtab", /* sh_addralign */ 8);
   sh->sh_type = ELF_SHT_SYMTAB;
   sh->sh_size = e->symtab.len;
   sh->sh_link = shnum + 1; // section index of .strtab
@@ -762,13 +768,13 @@ static void ELF64Finalize(ELF64* e, u8 encoding, u16 e_machine, u64 entryaddr) {
   BufAppend(&e->buf, e->symtab.ptr, e->symtab.len);
 
   // .strtab section
-  sh = ELF64StartSegment(e, ".strtab", /* sh_addralign */ 1);
+  sh = ELF64StartSection(e, ".strtab", /* sh_addralign */ 1);
   sh->sh_type = ELF_SHT_STRTAB;
   sh->sh_size = e->strtab.len;
   BufAppend(&e->buf, e->strtab.ptr, e->strtab.len);
 
   // .shstrtab section
-  sh = ELF64StartSegment(e, ".shstrtab", /* sh_addralign */ 1);
+  sh = ELF64StartSection(e, ".shstrtab", /* sh_addralign */ 1);
   sh->sh_type = ELF_SHT_STRTAB;
   sh->sh_size = e->shstrtab.len;
   BufAppend(&e->buf, e->shstrtab.ptr, e->shstrtab.len);
@@ -801,36 +807,89 @@ static void regUnresolved(RefArray* a, const void* id, u64 textoffs) {
 }
 
 
-static void gen64() {
-  ELF64 _e = {}; auto e = &_e;
-  ELF64Init(e, NULL);
-  auto mem = e->buf.mem;
+/*
+Notes on section order
 
-  // add a "LOAD" program header
-  u64 vma = 0x400000;
-  { // ph not valid past next mutating call on e->buf, thus the scope.
-    auto ph = ELF64AddPH(e);
-    ph->p_type  = ELF_PT_LOAD;
-    ph->p_flags = ELF_PF_R|ELF_PF_X;
-    ph->p_vaddr = ph->p_paddr = vma;
-    ph->p_align = 0x200000; // 2^21
-  }
+.text and .rodata are colocated as they share the same program header (both read-only.)
+The question is: which subsegment comes first? .rodata or .text?
 
-  // start .text segment
-  auto sh = ELF64StartSegment(e, ".text", /*sh_addralign*/ 4);
+Clang always places .text first, then .rodata. My guess is that Clang does this so that in the
+case you need a lot of zeroed read-only memory, you can set p_memsz to a larger value than
+p_filesz and the ELF loader will allocate zeroed memory AT THE END of the segment, which would
+be at the end of .rodata. If we placed .text at the end, then the additional zeroed memory
+would be at the end of .text, not .rodata.
+
+Now, .rodata and .text are just concepts. In practice the .rodata bytes and .text bytes
+are all in the same segment and thus could be mixed at will. BUT. Mixing is a very bad idea
+because the data in .text is loaded as instructions and I think it's safe to assume that
+CPUs and OSes makes assumptions about .text being dense i.e. for reasons of prefetch, cache,
+etc.
+
+We could have multiple rodata sections. In the case we need a bunch of read-only zero data,
+we can place that in a "second .rodata" section after .text.
+
+The main upside of placing .rodata ahead of .text is that we can use a simpler implementation
+of the assembler where we don't have to track & backpatch VMAs of data in the text section.
+
+Example: print("Hello") has a call plus a piece of constant read-only data (a string.)
+The generated code might look something like this:
+
+  .text
+  00400078  ...
+  00400090  MOV GetElementPointer(data1) -> rCX  // what is the address of data1?
+  0040009c  ...
+  .rodata
+  00400100  data1: "Hello"  // address is now known. packpatch code above
+
+If we instead place .rodata first, the address of data will be known as we generate the code:
+
+  .rodata
+  00400078  data1: "Hello"
+  .text
+  00400090  ...
+  004000a8  MOV GetElementPointer(data1) -> rCX  // address is 00400078
+  004000b4  ...
+
+*/
+
+
+// returns the VMA of the text section (segment entry address)
+static u64 gen64ROExeSegment(ELF64* e, u64 vma, u16 phidx) {
+  auto mem = ELF64Memory(e);
+
+  // start .rodata section
+  auto sh = ELF64StartSection(e, ".rodata", /*sh_addralign*/ 8);
+  //u64 rodataoffs = sh->sh_offset;
+  u64 rodatavma = vma + sh->sh_offset;
+  // vma += e->buf.len; // offset VMA with header size
+  sh->sh_addr  = rodatavma;
+  sh->sh_type  = ELF_SHT_PROGBITS;
+  sh->sh_flags = ELF_SHF_ALLOC;
+
+  u64 symvma = rodatavma;
+  PtrMap resolved; PtrMapInit(&resolved, 32, mem);
+
+  auto msg1 = "Hello world\n";
+  u64 msg1vma = symvma;
+  PtrMapSet(&resolved, msg1, (void*)symvma);
+  size_t datasize = strlen(msg1) + 1;
+  BufAppend(&e->buf, msg1, datasize);
+  // add local symbol
+  auto sym = ELF64AddSym(e, "msg1", /*shndx=.text*/1, ELF_STB_LOCAL, ELF_STT_OBJECT);
+  sym->st_value = symvma;
+  symvma += datasize; // TODO: alignment for data that needs it
+
+  // set rodata section size
+  sh->sh_size = e->buf.len - sh->sh_offset;
+
+
+  // start .text section
+  sh = ELF64StartSection(e, ".text", /*sh_addralign*/ 8);
   u64 textvma = vma + sh->sh_offset;   // VMA of TEXT segment and program entry point
   sh->sh_addr  = textvma;
   sh->sh_type  = ELF_SHT_PROGBITS;
   sh->sh_flags = ELF_SHF_ALLOC | ELF_SHF_EXECINSTR;
   dlog("[gen64] .text start at VMA %08llx", textvma);
-
-  // "unresolved" holds a list of references to unresolved VMAs in e->buf
-  RefArray unresolved;
-  RefArrayInit(&unresolved, mem, 16);
-  // "datalist" is a list of data to generate. Instead of appending to rodata as we codegen,
-  // add IR values with constant data to this list instead to maximize cache efficiency.
-  Array datalist; void* datalist_storage[32];
-  ArrayInitWithStorage(&datalist, datalist_storage, countof(datalist_storage));
 
   // add local section symbol for .text to symtab
   auto secsym = ELF64AddSym(e, "", /*shndx=.text*/1, ELF_STB_LOCAL, ELF_STT_SECTION);
@@ -842,15 +901,16 @@ static void gen64() {
   // .text
   auto buf = &e->buf;
   BUFGROW
+
+  // "unresolved" holds a list of references to unresolved VMAs (offsets in e->buf)
+  RefArray unresolved; RefArrayInit(&unresolved, mem, 16);
+
   // TODO: AddLabel(vma + e->buf.len, (const void*)id);
   // TODO: AddLabelExport(vma + e->buf.len, (const void*)id, "_start"); // adds to symtab
   // syscall.write(STDOUT, &msg, len(msg))
   emit_mov64_imm32(buf, R_AX, SYSCALL_WRITE);
   emit_mov64_imm32(buf, R_DI, STDOUT);             // syscall.write arg0: fd
-  emit_mov64_imm64(buf, R_SI, 0x0000000000000000); // syscall.write arg1: ptr
-    auto msg1 = "Hello world\n";                   // TODO: IRValue
-    ArrayPush(&datalist, msg1, mem);               // TODO: IRValue
-    regUnresolved(&unresolved, msg1, buf->len - 8);
+  emit_mov64_imm64(buf, R_SI, msg1vma);            // syscall.write arg1: ptr
   emit_mov64_imm32(buf, R_DX, strlen(msg1));       // syscall.write arg2: size
   emit_syscall(buf);
   // syscall.exit(42)
@@ -860,34 +920,7 @@ static void gen64() {
   // end codegen
 
   // set text section size
-  sh->sh_size = buf->len - sh->sh_offset;
-
-  // start .rodata segment
-  sh = ELF64StartSegment(e, ".rodata", /*sh_addralign*/ 4);
-  u64 rodatavma = vma + sh->sh_offset;
-  // vma += e->buf.len; // offset VMA with header size
-  sh->sh_addr  = rodatavma;
-  sh->sh_type  = ELF_SHT_PROGBITS;
-  sh->sh_flags = ELF_SHF_ALLOC;
-
-  PtrMap resolved; PtrMapInit(&resolved, 32, mem);
-  u64 symvam = rodatavma;
-  ArrayForEach(&datalist, const char, str) {
-    dlog("[rodata] assign vma %08llx to \"%s\"", symvam, str);
-    PtrMapSet(&resolved, str, (void*)symvam);
-    size_t datasize = strlen(str) + 1;
-    BufAppend(buf, str, datasize);
-
-    // add local symbol
-    auto sym = ELF64AddSym(e, "msg1", /*shndx=.text*/1, ELF_STB_LOCAL, ELF_STT_OBJECT);
-    sym->st_value = symvam;
-
-    symvam += datasize; // TODO: alignment for data that needs it
-  }
-  ArrayFree(&datalist, mem);
-
-  // set rodata section size
-  sh->sh_size = buf->len - sh->sh_offset;
+  sh->sh_size = e->buf.len - sh->sh_offset;
 
   // patch unresolved addresses in .text
   dlog("unresolved:");
@@ -904,10 +937,33 @@ static void gen64() {
   dlog("resolved:");
   PtrMapIter(&resolved, dumpResolved, NULL);
 
-  // patch our main LOAD program header (spans text and rodata)
-  auto ph = ELF64GetPH(e, 0);
-  ph->p_offset = 0;            // Segment start offset in file
-  ph->p_filesz = e->buf.len;   // Segment size in file
+  return textvma;
+}
+
+
+static void gen64() {
+  ELF64 _e = {}; auto e = &_e;
+  ELF64Init(e, NULL);
+
+  // virtual memory address base
+  const u64 vma = 0x400000;
+
+  // add a "LOAD" program header; describing a segment
+  auto rxseg = ELF64AddPH(e);
+  // Note: no more program headers can be added once we start writing data to e->buf.
+
+  // generate read-only executable segment
+  auto textvma = gen64ROExeSegment(e, vma, rxseg);
+
+  // patch our main read-only executable program header
+  auto ph = ELF64GetPH(e, rxseg);
+  u64 vmaoffs  = sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr); // TODO FIXME hard coded
+  ph->p_type   = ELF_PT_LOAD;
+  ph->p_flags  = ELF_PF_R|ELF_PF_X;
+  ph->p_vaddr  = ph->p_paddr = vma + vmaoffs;
+  ph->p_align  = 0x200000; // 2^21
+  ph->p_offset = vmaoffs;            // Segment start offset in file
+  ph->p_filesz = e->buf.len - vmaoffs;   // Segment size in file
   ph->p_memsz  = ph->p_filesz; // Segment size in memory (can be larger than p_filesz)
 
   // finalize ELF file
@@ -917,7 +973,7 @@ static void gen64() {
   // RefArrayFree(&unresolved);
 
   // write to file
-  if (!os_writefile("./thingy2", buf->ptr, buf->len)) {
+  if (!os_writefile("./thingy2.elf", e->buf.ptr, e->buf.len)) {
     perror("os_writefile");
   }
 }
@@ -933,12 +989,12 @@ void AsmELF() {
 
   // // inspect
   // ELFFile _f; auto f = &_f;
-  // ELFFileInit(f, "./thingy", buf.ptr, buf.len);
+  // ELFFileInit(f, "./thingy.elf", buf.ptr, buf.len);
   // if (ELFFileValidate(f, stderr)) {
   //   ELFFilePrint(f, stdout);
   // }
 
-  { const char* filename = "./thingy2";
+  { const char* filename = "./thingy2.elf";
     dlog("----------------------------------------------------------------\n%s", filename);
     size_t len = 0;
     u8* ptr = os_readfile(filename, &len, NULL);
@@ -1098,7 +1154,7 @@ void AsmELF() {
 // len = align2(len, 8);
 // memcpy(buf + len, &sections, sizeof(sections)); len += sizeof(sections);
 
-// auto file = "./thingy";
+// auto file = "./thingy.elf";
 // if (!os_writefile(file, buf, len)) {
 //   perror("os_writefile");
 // }
