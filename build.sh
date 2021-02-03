@@ -1,6 +1,8 @@
 #!/bin/bash -e
 cd "$(dirname "$0")"
 
+BUILDDEPS=$PWD/builddeps
+
 OPT_HELP=false
 OPT_CONFIG=false
 OPT_G=false
@@ -13,40 +15,17 @@ USAGE_EXIT_CODE=0
 # parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  -h|-help|--help)
-    OPT_HELP=true
-    shift
-    ;;
-  -config|--config)
-    OPT_CONFIG=true
-    shift
-    ;;
-  -clean|--clean)
-    OPT_CLEAN=true
-    shift
-    ;;
-  -a|-analyze|--analyze)
-    OPT_ANALYZE=true
-    shift
-    ;;
-  -t|-test|--test)
-    OPT_TEST=true
-    shift
-    ;;
-  -q|-quiet|--quiet)
-    OPT_QUIET=true
-    shift
-    ;;
-  -g)
-    OPT_G=true
-    shift
-    ;;
+  -h|-help|--help)        OPT_HELP=true; shift ;;
+  -config|--config)       OPT_CONFIG=true; shift ;;
+  -clean|--clean)         OPT_CLEAN=true; shift ;;
+  -a|-analyze|--analyze)  OPT_ANALYZE=true; shift ;;
+  -t|-test|--test)        OPT_TEST=true; shift ;;
+  -q|-quiet|--quiet)      OPT_QUIET=true; shift ;;
+  -g)                     OPT_G=true; shift ;;
   *)
     echo "$0: Unknown option $1" >&2
-    OPT_HELP=true
     USAGE_EXIT_CODE=1
-    shift
-    ;;
+    OPT_HELP=true; shift ;;
   esac
 done
 if $OPT_HELP; then
@@ -62,7 +41,13 @@ if $OPT_HELP; then
   exit $USAGE_EXIT_CODE
 fi
 
-function fn_ninja {
+# _checksum [<file>]
+# Prints the sha1 sum of file's content or stdin if <file> is not given
+_checksum() {
+  sha1sum "$@" | cut -f 1 -d ' '
+}
+
+_ninja() {
   if $OPT_QUIET; then
     ninja "$@" >/dev/null
   else
@@ -70,15 +55,15 @@ function fn_ninja {
   fi
 }
 
-# fn_find_llvm attempts to find the path to llvm binaries, first considering PATH.
-function fn_find_llvm {
-  LLVM_PATH=$(which llvm-cov)
+# _find_llvm attempts to find the path to llvm binaries, first considering PATH.
+_find_llvm() {
+  LLVM_PATH=$(command -v llvm-cov)
   if [[ "$LLVM_PATH" != "" ]]; then
     echo $(dirname "$LLVM_PATH")
     return 0
   fi
   test_paths=()
-  if (which clang >/dev/null); then
+  if (command -v clang >/dev/null); then
     CLANG_PATH=$(clang -print-search-dirs | grep programs: | awk '{print $2}' | sed 's/^=//')
     if [[ "$CLANG_PATH" != "" ]]; then
       test_paths+=( "$CLANG_PATH" )
@@ -108,36 +93,78 @@ function fn_find_llvm {
   return 1
 }
 
-if $OPT_CLEAN; then
+DOWNLOAD="$BUILDDEPS"/download
+
+# _fetch url sha1sum [outfile]
+# Download outfile from url. If outfile is not given DOWNLOAD/(basename url) is used.
+# If outfile exists then only download if the checksum does not match.
+_fetch() {
+  local url="$1" ; shift
+  local checksum="$1" ; shift
+  local outfile="$2"
+  [ -n "$outfile" ] || outfile="$DOWNLOAD/$(basename "$url")"
+  while [ ! -e "$outfile" ] || [ "$(_checksum "$outfile")" != "$checksum" ]; do
+    if [ -n "$did_download" ]; then
+      echo "Checksum for $outfile failed" >&2
+      echo "  Actual:   $(_checksum "$outfile")" >&2
+      echo "  Expected: $checksum" >&2
+      return 1
+    fi
+    rm -rf "$outfile"
+    echo "fetch $url"
+    mkdir -p "$(dirname "$outfile")"
+    curl -L --progress-bar -o "$outfile" "$url"
+    did_download=y
+  done
+}
+
+_install_infer() {
+  local VERSION=1.0.0
+  rm -rf "$BUILDDEPS"/infer "$BUILDDEPS"/.infer
+  mkdir -p "$BUILDDEPS"
+  echo "installing infer"
+  local filename
+  case $(uname -s)-$(uname -m) in
+    Darwin-x86_64) filename="infer-osx-v$VERSION.tar.xz" ;;
+    Linux-x86_64)  filename="infer-linux64-v$VERSION.tar.xz" ;;
+    *) echo "unsupported platform and/or arch: $(uname -s)-$(uname -m)" >&2; return 1 ;;
+  esac
+  _fetch "https://github.com/facebook/infer/releases/download/v$VERSION/$filename" \
+         a3ac72241bb9c53e78152ceb7681a08fd5d8298c
+  echo "extracting $filename"
+  XZ_OPT='-T0' tar -C "$BUILDDEPS" -xJf "$DOWNLOAD/$filename"
+  mv "$BUILDDEPS"/infer* "$BUILDDEPS"/infer
+}
+
+_clean() {
   rm -rf build
-fi
+}
 
-if $OPT_CONFIG || [ config.sh -nt build.ninja ] || [ build.in.ninja -nt build.ninja ]; then
-  ./config.sh
-fi
+_config() {
+  if $OPT_CONFIG || [ config.sh -nt build.ninja ] || [ build.in.ninja -nt build.ninja ]; then
+    ./config.sh
+  fi
+}
 
-if $OPT_ANALYZE; then
-  if ! (which infer >/dev/null); then
-    echo "'infer' not found in PATH. See https://fbinfer.com/ on how to install" >&2
-    exit 1
-  fi
-  fn_ninja debug
-  fn_ninja -t compdb compile_obj > build/debug-compilation-database.json
-  if $OPT_QUIET; then
-    infer capture --no-progress-bar --compilation-database build/debug-compilation-database.json
-    infer analyze --no-progress-bar
-  else
-    infer capture --compilation-database build/debug-compilation-database.json
-    infer analyze
-  fi
-elif $OPT_TEST; then
+_analyze() {
+  local infer="$BUILDDEPS"/infer/bin/infer
+  [ -x "$infer" ] || _install_infer
+  _ninja debug
+  _ninja -t compdb compile_obj > build/debug-compilation-database.json
+  local infer_args=()
+  $OPT_QUIET && infer_args+=( --no-progress-bar )
+  "$infer" capture "${infer_args[@]}" --compilation-database build/debug-compilation-database.json
+  "$infer" analyze "${infer_args[@]}"
+}
+
+_test() {
   # https://clang.llvm.org/docs/SourceBasedCodeCoverage.html
-  LLVM_PATH=$(fn_find_llvm)
+  local LLVM_PATH=$(_find_llvm)
   echo "PATH $PATH"
-  fn_ninja test  # build test product
+  _ninja test  # build test product
 
   # run built-in unit tests
-  LLVM_PROFILE_FILE=build/unit-tests.profraw W_TEST_MODE=exclusive build/wp.test
+  local LLVM_PROFILE_FILE=build/unit-tests.profraw W_TEST_MODE=exclusive build/wp.test
   # LLVM_PROFILE_FILE=build/ast1.profraw build/wp.test example/factorial.w >/dev/null
 
   # index coverage data
@@ -145,7 +172,7 @@ elif $OPT_TEST; then
   rm build/*.profraw
 
   # print report
-  cov_shared_args=( \
+  local cov_shared_args=( \
     -ignore-filename-regex='dlmalloc\.[hc]' \
     -ignore-filename-regex='sds\.[hc]' \
     -ignore-filename-regex='.+_test\.[hc]' \
@@ -173,11 +200,18 @@ elif $OPT_TEST; then
     echo "The report will update live as this script is re-run."
     echo "  serve-http -p 8186 '$PWD/build/cov'"
   fi
+}
 
+$OPT_CLEAN && _clean
+_config
+if $OPT_ANALYZE; then
+  _analyze
+elif $OPT_TEST; then
+  _test
 elif $OPT_G; then
-  fn_ninja debug
+  _ninja debug
 else
-  fn_ninja release
+  _ninja release
 fi
 
 

@@ -9,4 +9,5 @@
 /_local
 /build
 /build.ninja
+/builddeps
 * copy
