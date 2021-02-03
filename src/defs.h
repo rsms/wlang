@@ -81,7 +81,7 @@ typedef double                 f64;
   // so that we can simply do: "#if DEBUG"
   #undef DEBUG
   #define DEBUG 1
-#elif
+#else
   #define DEBUG 0
 #endif
 
