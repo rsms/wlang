@@ -16,63 +16,63 @@
 // #define W_SYM_RUN_GENERATOR
 
 
-//-- BEGIN gen_constants() at src/sym.c:348
+//-- BEGIN gen_constants() at src/sym.c:349
 
-const Sym sym_as = "\0\0\0\0\0\0\0\x8D\x20\x25\x5E\x02\x00\x02\x00\x0A""as" + 16;
-const Sym sym_break = "\0\0\0\0\0\0\0\x78\x81\x64\xC9\x05\x00\x05\x00\x12""break" + 16;
-const Sym sym_case = "\0\0\0\0\0\0\0\xB1\x38\x25\x9B\x04\x00\x04\x00\x1A""case" + 16;
-const Sym sym_continue = "\0\0\0\0\0\0\0\x44\x7E\x72\xB1\x08\x00\x08\x00\x22""continue" + 16;
-const Sym sym_default = "\0\0\0\0\0\0\0\xDE\x5B\x3B\x93\x07\x00\x07\x00\x2A""default" + 16;
-const Sym sym_defer = "\0\0\0\0\0\0\0\x3B\xFB\x01\x1A\x05\x00\x05\x00\x32""defer" + 16;
-const Sym sym_else = "\0\0\0\0\0\0\0\xF0\x5B\xBF\xBD\x04\x00\x04\x00\x3A""else" + 16;
-const Sym sym_enum = "\0\0\0\0\0\0\0\x00\xB0\x6C\x81\x04\x00\x04\x00\x42""enum" + 16;
-const Sym sym_for = "\0\0\0\0\0\0\0\x90\x83\xF3\xAC\x03\x00\x03\x00\x4A""for" + 16;
-const Sym sym_fun = "\0\0\0\0\0\0\0\x5E\x78\xDB\xA8\x03\x00\x03\x00\x52""fun" + 16;
-const Sym sym_if = "\0\0\0\0\0\0\0\x06\x6E\x38\x39\x02\x00\x02\x00\x5A""if" + 16;
-const Sym sym_import = "\0\0\0\0\0\0\0\xD4\x90\x2A\x11\x06\x00\x06\x00\x62""import" + 16;
-const Sym sym_in = "\0\0\0\0\0\0\0\x9E\x7A\x38\x41\x02\x00\x02\x00\x6A""in" + 16;
-const Sym sym_interface = "\0\0\0\0\0\0\0\x30\x51\xEA\x84\x09\x00\x09\x00\x72""interface" + 16;
-const Sym sym_is = "\0\0\0\0\0\0\0\x15\x8F\x38\x4E\x02\x00\x02\x00\x7A""is" + 16;
-const Sym sym_mutable = "\0\0\0\0\0\0\0\xA9\x33\x03\x3B\x07\x00\x07\x00\x82""mutable" + 16;
-const Sym sym_nil = "\0\0\0\0\0\0\0\xEC\xF8\xA3\x0D\x03\x00\x03\x00\x8A""nil" + 16;
-const Sym sym_return = "\0\0\0\0\0\0\0\xBF\x37\xEE\x85\x06\x00\x06\x00\x92""return" + 16;
-const Sym sym_select = "\0\0\0\0\0\0\0\x2D\x66\xC2\x11\x06\x00\x06\x00\x9A""select" + 16;
-const Sym sym_struct = "\0\0\0\0\0\0\0\x20\xBE\xC2\x92\x06\x00\x06\x00\xA2""struct" + 16;
-const Sym sym_switch = "\0\0\0\0\0\0\0\x71\x5F\xE0\x93\x06\x00\x06\x00\xAA""switch" + 16;
-const Sym sym_symbol = "\0\0\0\0\0\0\0\xD1\x51\xFB\xF3\x06\x00\x06\x00\xB2""symbol" + 16;
-const Sym sym_type = "\0\0\0\0\0\0\0\x4D\xF1\x27\x51\x04\x00\x04\x00\xBA""type" + 16;
-const Sym sym_while = "\0\0\0\0\0\0\0\xCE\x28\xC6\x0D\x05\x00\x05\x00\xC2""while" + 16;
-const Sym sym_bool = "\0\0\0\0\0\0\0\x3D\x95\x94\xC8\x04\x00\x04\x00\x02""bool" + 16;
-const Sym sym_int8 = "\0\0\0\0\0\0\0\x92\xFA\x91\x64\x04\x00\x04\x00\x02""int8" + 16;
-const Sym sym_uint8 = "\0\0\0\0\0\0\0\xDB\xF2\x9D\x19\x05\x00\x05\x00\x02""uint8" + 16;
-const Sym sym_int16 = "\0\0\0\0\0\0\0\xD1\x72\xE3\x07\x05\x00\x05\x00\x02""int16" + 16;
-const Sym sym_uint16 = "\0\0\0\0\0\0\0\xF2\xBE\x8E\xAE\x06\x00\x06\x00\x02""uint16" + 16;
-const Sym sym_int32 = "\0\0\0\0\0\0\0\xBF\xE2\xDE\xFB\x05\x00\x05\x00\x02""int32" + 16;
-const Sym sym_uint32 = "\0\0\0\0\0\0\0\xEC\x0B\x94\x32\x06\x00\x06\x00\x02""uint32" + 16;
-const Sym sym_int64 = "\0\0\0\0\0\0\0\x64\x23\xD2\x03\x05\x00\x05\x00\x02""int64" + 16;
-const Sym sym_uint64 = "\0\0\0\0\0\0\0\x13\x08\xA0\xAE\x06\x00\x06\x00\x02""uint64" + 16;
-const Sym sym_float32 = "\0\0\0\0\0\0\0\x10\x74\x9F\xE8\x07\x00\x07\x00\x02""float32" + 16;
-const Sym sym_float64 = "\0\0\0\0\0\0\0\x47\x0E\x98\x7C\x07\x00\x07\x00\x02""float64" + 16;
-const Sym sym_int = "\0\0\0\0\0\0\0\x5E\x7E\xE9\x95\x03\x00\x03\x00\x02""int" + 16;
-const Sym sym_uint = "\0\0\0\0\0\0\0\xA1\x36\x98\xCB\x04\x00\x04\x00\x02""uint" + 16;
-const Sym sym_str = "\0\0\0\0\0\0\0\x90\xD1\x4B\xC2\x03\x00\x03\x00\x02""str" + 16;
-const Sym sym__ = "\0\0\0\0\0\0\0\x6E\x19\x0C\xDA\x01\x00\x01\x00\x02""_" + 16;
-const Sym sym_true = "\0\0\0\0\0\0\0\xE5\x11\xB2\x4D\x04\x00\x04\x00\x02""true" + 16;
-const Sym sym_false = "\0\0\0\0\0\0\0\x58\x99\x06\x0B\x05\x00\x05\x00\x02""false" + 16;
-const Sym sym_b = "\0\0\0\0\0\0\0\xE5\x2D\x0C\xE7\x01\x00\x01\x00\x02""b" + 16;
-const Sym sym_1 = "\0\0\0\0\0\0\0\x1C\xA7\x0C\x34\x01\x00\x01\x00\x02""1" + 16;
-const Sym sym_2 = "\0\0\0\0\0\0\0\xD5\xAB\x0C\x37\x01\x00\x01\x00\x02""2" + 16;
-const Sym sym_3 = "\0\0\0\0\0\0\0\x42\xAA\x0C\x36\x01\x00\x01\x00\x02""3" + 16;
-const Sym sym_4 = "\0\0\0\0\0\0\0\x63\xA2\x0C\x31\x01\x00\x01\x00\x02""4" + 16;
-const Sym sym_5 = "\0\0\0\0\0\0\0\xD0\xA0\x0C\x30\x01\x00\x01\x00\x02""5" + 16;
-const Sym sym_6 = "\0\0\0\0\0\0\0\x89\xA5\x0C\x33\x01\x00\x01\x00\x02""6" + 16;
-const Sym sym_7 = "\0\0\0\0\0\0\0\xF6\xA3\x0C\x32\x01\x00\x01\x00\x02""7" + 16;
-const Sym sym_8 = "\0\0\0\0\0\0\0\x47\xB5\x0C\x3D\x01\x00\x01\x00\x02""8" + 16;
-const Sym sym_f = "\0\0\0\0\0\0\0\x99\x27\x0C\xE3\x01\x00\x01\x00\x02""f" + 16;
-const Sym sym_F = "\0\0\0\0\0\0\0\x39\xF5\x0B\xC3\x01\x00\x01\x00\x02""F" + 16;
-const Sym sym_i = "\0\0\0\0\0\0\0\xC4\x35\x0C\xEC\x01\x00\x01\x00\x02""i" + 16;
-const Sym sym_u = "\0\0\0\0\0\0\0\x10\x3C\x0C\xF0\x01\x00\x01\x00\x02""u" + 16;
-const Sym sym_s = "\0\0\0\0\0\0\0\x82\x45\x0C\xF6\x01\x00\x01\x00\x02""s" + 16;
+const Sym sym_as = &"\0\0\0\0\0\0\0\x8D\x20\x25\x5E\x02\x00\x02\x00\x0A""as"[16];
+const Sym sym_break = &"\0\0\0\0\0\0\0\x78\x81\x64\xC9\x05\x00\x05\x00\x12""break"[16];
+const Sym sym_case = &"\0\0\0\0\0\0\0\xB1\x38\x25\x9B\x04\x00\x04\x00\x1A""case"[16];
+const Sym sym_continue = &"\0\0\0\0\0\0\0\x44\x7E\x72\xB1\x08\x00\x08\x00\x22""continue"[16];
+const Sym sym_default = &"\0\0\0\0\0\0\0\xDE\x5B\x3B\x93\x07\x00\x07\x00\x2A""default"[16];
+const Sym sym_defer = &"\0\0\0\0\0\0\0\x3B\xFB\x01\x1A\x05\x00\x05\x00\x32""defer"[16];
+const Sym sym_else = &"\0\0\0\0\0\0\0\xF0\x5B\xBF\xBD\x04\x00\x04\x00\x3A""else"[16];
+const Sym sym_enum = &"\0\0\0\0\0\0\0\x00\xB0\x6C\x81\x04\x00\x04\x00\x42""enum"[16];
+const Sym sym_for = &"\0\0\0\0\0\0\0\x90\x83\xF3\xAC\x03\x00\x03\x00\x4A""for"[16];
+const Sym sym_fun = &"\0\0\0\0\0\0\0\x5E\x78\xDB\xA8\x03\x00\x03\x00\x52""fun"[16];
+const Sym sym_if = &"\0\0\0\0\0\0\0\x06\x6E\x38\x39\x02\x00\x02\x00\x5A""if"[16];
+const Sym sym_import = &"\0\0\0\0\0\0\0\xD4\x90\x2A\x11\x06\x00\x06\x00\x62""import"[16];
+const Sym sym_in = &"\0\0\0\0\0\0\0\x9E\x7A\x38\x41\x02\x00\x02\x00\x6A""in"[16];
+const Sym sym_interface = &"\0\0\0\0\0\0\0\x30\x51\xEA\x84\x09\x00\x09\x00\x72""interface"[16];
+const Sym sym_is = &"\0\0\0\0\0\0\0\x15\x8F\x38\x4E\x02\x00\x02\x00\x7A""is"[16];
+const Sym sym_mutable = &"\0\0\0\0\0\0\0\xA9\x33\x03\x3B\x07\x00\x07\x00\x82""mutable"[16];
+const Sym sym_nil = &"\0\0\0\0\0\0\0\xEC\xF8\xA3\x0D\x03\x00\x03\x00\x8A""nil"[16];
+const Sym sym_return = &"\0\0\0\0\0\0\0\xBF\x37\xEE\x85\x06\x00\x06\x00\x92""return"[16];
+const Sym sym_select = &"\0\0\0\0\0\0\0\x2D\x66\xC2\x11\x06\x00\x06\x00\x9A""select"[16];
+const Sym sym_struct = &"\0\0\0\0\0\0\0\x20\xBE\xC2\x92\x06\x00\x06\x00\xA2""struct"[16];
+const Sym sym_switch = &"\0\0\0\0\0\0\0\x71\x5F\xE0\x93\x06\x00\x06\x00\xAA""switch"[16];
+const Sym sym_symbol = &"\0\0\0\0\0\0\0\xD1\x51\xFB\xF3\x06\x00\x06\x00\xB2""symbol"[16];
+const Sym sym_type = &"\0\0\0\0\0\0\0\x4D\xF1\x27\x51\x04\x00\x04\x00\xBA""type"[16];
+const Sym sym_while = &"\0\0\0\0\0\0\0\xCE\x28\xC6\x0D\x05\x00\x05\x00\xC2""while"[16];
+const Sym sym_bool = &"\0\0\0\0\0\0\0\x3D\x95\x94\xC8\x04\x00\x04\x00\x02""bool"[16];
+const Sym sym_int8 = &"\0\0\0\0\0\0\0\x92\xFA\x91\x64\x04\x00\x04\x00\x02""int8"[16];
+const Sym sym_uint8 = &"\0\0\0\0\0\0\0\xDB\xF2\x9D\x19\x05\x00\x05\x00\x02""uint8"[16];
+const Sym sym_int16 = &"\0\0\0\0\0\0\0\xD1\x72\xE3\x07\x05\x00\x05\x00\x02""int16"[16];
+const Sym sym_uint16 = &"\0\0\0\0\0\0\0\xF2\xBE\x8E\xAE\x06\x00\x06\x00\x02""uint16"[16];
+const Sym sym_int32 = &"\0\0\0\0\0\0\0\xBF\xE2\xDE\xFB\x05\x00\x05\x00\x02""int32"[16];
+const Sym sym_uint32 = &"\0\0\0\0\0\0\0\xEC\x0B\x94\x32\x06\x00\x06\x00\x02""uint32"[16];
+const Sym sym_int64 = &"\0\0\0\0\0\0\0\x64\x23\xD2\x03\x05\x00\x05\x00\x02""int64"[16];
+const Sym sym_uint64 = &"\0\0\0\0\0\0\0\x13\x08\xA0\xAE\x06\x00\x06\x00\x02""uint64"[16];
+const Sym sym_float32 = &"\0\0\0\0\0\0\0\x10\x74\x9F\xE8\x07\x00\x07\x00\x02""float32"[16];
+const Sym sym_float64 = &"\0\0\0\0\0\0\0\x47\x0E\x98\x7C\x07\x00\x07\x00\x02""float64"[16];
+const Sym sym_int = &"\0\0\0\0\0\0\0\x5E\x7E\xE9\x95\x03\x00\x03\x00\x02""int"[16];
+const Sym sym_uint = &"\0\0\0\0\0\0\0\xA1\x36\x98\xCB\x04\x00\x04\x00\x02""uint"[16];
+const Sym sym_str = &"\0\0\0\0\0\0\0\x90\xD1\x4B\xC2\x03\x00\x03\x00\x02""str"[16];
+const Sym sym__ = &"\0\0\0\0\0\0\0\x6E\x19\x0C\xDA\x01\x00\x01\x00\x02""_"[16];
+const Sym sym_true = &"\0\0\0\0\0\0\0\xE5\x11\xB2\x4D\x04\x00\x04\x00\x02""true"[16];
+const Sym sym_false = &"\0\0\0\0\0\0\0\x58\x99\x06\x0B\x05\x00\x05\x00\x02""false"[16];
+const Sym sym_b = &"\0\0\0\0\0\0\0\xE5\x2D\x0C\xE7\x01\x00\x01\x00\x02""b"[16];
+const Sym sym_1 = &"\0\0\0\0\0\0\0\x1C\xA7\x0C\x34\x01\x00\x01\x00\x02""1"[16];
+const Sym sym_2 = &"\0\0\0\0\0\0\0\xD5\xAB\x0C\x37\x01\x00\x01\x00\x02""2"[16];
+const Sym sym_3 = &"\0\0\0\0\0\0\0\x42\xAA\x0C\x36\x01\x00\x01\x00\x02""3"[16];
+const Sym sym_4 = &"\0\0\0\0\0\0\0\x63\xA2\x0C\x31\x01\x00\x01\x00\x02""4"[16];
+const Sym sym_5 = &"\0\0\0\0\0\0\0\xD0\xA0\x0C\x30\x01\x00\x01\x00\x02""5"[16];
+const Sym sym_6 = &"\0\0\0\0\0\0\0\x89\xA5\x0C\x33\x01\x00\x01\x00\x02""6"[16];
+const Sym sym_7 = &"\0\0\0\0\0\0\0\xF6\xA3\x0C\x32\x01\x00\x01\x00\x02""7"[16];
+const Sym sym_8 = &"\0\0\0\0\0\0\0\x47\xB5\x0C\x3D\x01\x00\x01\x00\x02""8"[16];
+const Sym sym_f = &"\0\0\0\0\0\0\0\x99\x27\x0C\xE3\x01\x00\x01\x00\x02""f"[16];
+const Sym sym_F = &"\0\0\0\0\0\0\0\x39\xF5\x0B\xC3\x01\x00\x01\x00\x02""F"[16];
+const Sym sym_i = &"\0\0\0\0\0\0\0\xC4\x35\x0C\xEC\x01\x00\x01\x00\x02""i"[16];
+const Sym sym_u = &"\0\0\0\0\0\0\0\x10\x3C\x0C\xF0\x01\x00\x01\x00\x02""u"[16];
+const Sym sym_s = &"\0\0\0\0\0\0\0\x82\x45\x0C\xF6\x01\x00\x01\x00\x02""s"[16];
 
 static const Node _Type_bool = {NBasicType,{0,0,0},NULL,{.t={sym_b,.basic={TypeCode_bool,sym_bool}}}};
 Node* Type_bool = (Node*)&_Type_bool;
@@ -160,7 +160,7 @@ static const char* const debugSymCheck =
   "int64 uint64 float32 float64 int uint str true:bool=1 false:bool=0 _ ";
 #endif
 
-//-- END gen_constants() at src/sym.c:535
+//-- END gen_constants() at src/sym.c:536
 
 
 
@@ -172,7 +172,7 @@ static const Node _Const_nil = {NNil,{0,0,0},(Node*)&_Type_nil,{.val={CType_nil,
 Node* Const_nil = (Node*)&_Const_nil;
 
 // ideal
-const Sym sym_ideal = "\0\0\0\0\0\0\0\x64\x23\xD2\x03\x05\x00\x05\x00\x02""ideal" + 16;
+const Sym sym_ideal = &"\0\0\0\0\0\0\0\x64\x23\xD2\x03\x05\x00\x05\x00\x02""ideal"[16];
 static const Node _Type_ideal = {NBasicType,{0,0,0},NULL,{
   .t={"\0",.basic={TypeCode_ideal,sym_ideal}}
 }};
@@ -382,7 +382,7 @@ __attribute__((constructor)) static void gen_constants() {
     auto hash = (u8*)&hdr->hash;                                        \
     auto len = (u8*)&hdr->sh.len;                                       \
     printf(                                                             \
-      "const Sym sym_" #name " = \""                                    \
+      "const Sym sym_" #name " = &\""                                   \
       /* padding = align2(sizeof(SymHeader), 8) - sizeof(SymHeader) */  \
       "\\0\\0\\0\\0\\0\\0\\0"                                           \
       "\\x%02X\\x%02X\\x%02X\\x%02X" /* SymHeader.hash */               \
@@ -390,7 +390,7 @@ __attribute__((constructor)) static void gen_constants() {
       "\\x%02X\\x%02X"               /* sdshdr16.alloc */               \
       "\\x%02X"                      /* sdshdr16.flags = SDS_TYPE_16 */ \
       "\"\"" str                     /* "" is here to terminate \x03 */ \
-      "\" + %d;\n",                                                     \
+      "\"[%d];\n",                                                      \
       hash[0], hash[1], hash[2], hash[3],                               \
       len[0],  len[1],                                                  \
       len[0],  len[1],                                                  \
@@ -414,14 +414,14 @@ __attribute__((constructor)) static void gen_constants() {
     auto hash = (u8*)&hdr->hash;                                        \
     auto len = (u8*)&hdr->sh.len;                                       \
     printf(                                                             \
-      "const Sym sym_" #name " = \""                                    \
+      "const Sym sym_" #name " = &\""                                   \
       "\\0\\0\\0\\0\\0\\0\\0"                                           \
       "\\x%02X\\x%02X\\x%02X\\x%02X" /* SymHeader.hash */               \
       "\\x%02X\\x%02X"               /* sdshdr16.len */                 \
       "\\x%02X\\x%02X"               /* sdshdr16.alloc */               \
       "\\x%02X"                      /* sdshdr16.flags = SDS_TYPE_16 */ \
       "\"\"" #name                   /* "" is here to terminate \x03 */ \
-      "\" + %d;\n",                                                     \
+      "\"[%d];\n",                                                      \
       hash[0], hash[1], hash[2], hash[3],                               \
       len[0],  len[1],                                                  \
       len[0],  len[1],                                                  \
@@ -439,14 +439,14 @@ __attribute__((constructor)) static void gen_constants() {
     auto hash = (u8*)&hdr->hash;                                        \
     auto len = (u8*)&hdr->sh.len;                                       \
     printf(                                                             \
-      "const Sym sym_%c = \""                                           \
+      "const Sym sym_%c = &\""                                          \
       "\\0\\0\\0\\0\\0\\0\\0"                                           \
       "\\x%02X\\x%02X\\x%02X\\x%02X" /* SymHeader.hash */               \
       "\\x%02X\\x%02X"               /* sdshdr16.len */                 \
       "\\x%02X\\x%02X"               /* sdshdr16.alloc */               \
       "\\x%02X"                      /* sdshdr16.flags = SDS_TYPE_16 */ \
       "\"\"%c"                       /* "" is here to terminate \x03 */ \
-      "\" + %d;\n",                                                     \
+      "\"[%d];\n",                                                      \
       TypeCodeEncoding[TypeCode_##name],                                \
       hash[0], hash[1], hash[2], hash[3],                               \
       len[0],  len[1],                                                  \
