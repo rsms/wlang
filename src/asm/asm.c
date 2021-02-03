@@ -852,6 +852,20 @@ If we instead place .rodata first, the address of data will be known as we gener
 
 */
 
+/*
+
+## Code organization
+
+assembler puts code into a box
+~~~~~~~~~      ~~~~        ~~~
+
+assembler
+  creates a new box (ELF)
+  calls gen_code to make code in box
+  seals box
+
+*/
+
 
 // returns the VMA of the text section (segment entry address)
 static u64 gen64ROExeSegment(ELF64* e, u64 vma, u16 phidx) {
@@ -892,10 +906,10 @@ static u64 gen64ROExeSegment(ELF64* e, u64 vma, u16 phidx) {
   dlog("[gen64] .text start at VMA %08llx", textvma);
 
   // add local section symbol for .text to symtab
-  auto secsym = ELF64AddSym(e, "", /*shndx=.text*/1, ELF_STB_LOCAL, ELF_STT_SECTION);
+  auto secsym = ELF64AddSym(e, "", /*shndx=.text*/2, ELF_STB_LOCAL, ELF_STT_SECTION);
   secsym->st_value = textvma;
   // add exported "_start" symbol to symtab
-  auto startsym = ELF64AddSym(e, "_start", /*shndx=.text*/1, ELF_STB_GLOBAL, ELF_STT_FUNC);
+  auto startsym = ELF64AddSym(e, "_start", /*shndx=.text*/2, ELF_STB_GLOBAL, ELF_STT_FUNC);
   startsym->st_value = textvma;
 
   // .text
