@@ -10,13 +10,13 @@ Notes:
 
 - Implemented in C11.
 - Uses dlmalloc instead of libc malloc, making it portable to wasm etc.
-- `./dev.sh -analyze`        — run incremental code analyzer
-- `./dev.sh -lldb <srcfile>` — build and run product in debugger, watching source files for changes
-- `./dev.sh <srcfile>`       — build and run product, watching source files for changes
-- `./build.sh`               — build release product and exit
-- `./build.sh -g`            — build debug product and exit
-- `./build.sh -analyze`      — analyze entire project using ([Infer](https://fbinfer.com/))
-- `./build.sh -test`         — build & run all tests and generate code coverage reports.
+- `./dev.sh [<srcfile>]`       — build and run product (incremental)
+- `./dev.sh -lldb [<srcfile>]` — build and run product in debugger (incremental)
+- `./dev.sh -analyze`          — run incremental code analyzer on uncommited changes (incremental)
+- `./build.sh`                 — build release product and exit
+- `./build.sh -g`              — build debug product and exit
+- `./build.sh -analyze`        — analyze entire project using ([Infer](https://fbinfer.com/))
+- `./build.sh -test`           — build & run all tests and generate code coverage reports.
 - Debug products are built with Clang address sanitizer by default.
   To disable asan/msan, edit the `build.in.ninja` file.
 
