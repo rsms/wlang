@@ -56,7 +56,7 @@ void parsefile(Str filename, Scope* pkgscope) {
 
   // resolve symbols and types
   if (parser.unresolved == 0) {
-    printf("(no unresolved names; not running sym resolver)\n");
+    dlog("(no unresolved names; not running sym resolver)");
   } else {
     printf("————————————————————————————————————————————————————————————————\n");
     printf("RESOLVE NAMES\n");
