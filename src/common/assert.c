@@ -1,6 +1,6 @@
 #include <execinfo.h>
 
-#include "defs.h"
+#include "assert.h"
 #include "os.h"
 #include "tstyle.h"
 

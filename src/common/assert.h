@@ -1,4 +1,5 @@
 #pragma once
+#include "defs.h"
 #include <assert.h>
 //
 // assertion testing
