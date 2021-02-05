@@ -146,14 +146,22 @@ _config() {
   fi
 }
 
+_gen_debug_compdb() {
+  ninja -t compdb compile_obj > build/compilation-database.json
+  python3 misc/filter-compdb.py build/compilation-database.json build/obj/dev/ > \
+    build/debug-compilation-database.json
+}
+
 _analyze() {
   local infer="$BUILDDEPS"/infer/bin/infer
   [ -x "$infer" ] || _install_infer
   _ninja debug
-  _ninja -t compdb compile_obj > build/debug-compilation-database.json
+  _gen_debug_compdb
+  rm -rf build/infer  # clashes with dev.sh -a
   local infer_args=()
   $OPT_QUIET && infer_args+=( --no-progress-bar )
   "$infer" capture "${infer_args[@]}" --compilation-database build/debug-compilation-database.json
+  $OPT_QUIET || echo "analyzing"
   "$infer" analyze "${infer_args[@]}"
 }
 
@@ -164,7 +172,9 @@ _test() {
   _ninja test  # build test product
 
   # run built-in unit tests
-  local LLVM_PROFILE_FILE=build/unit-tests.profraw W_TEST_MODE=exclusive build/wp.test
+  LLVM_PROFILE_FILE=build/unit-tests.profraw \
+  W_TEST_MODE=exclusive \
+    ./build/wp.test
   # LLVM_PROFILE_FILE=build/ast1.profraw build/wp.test example/factorial.w >/dev/null
 
   # index coverage data

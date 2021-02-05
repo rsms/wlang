@@ -1,41 +1,23 @@
 #!/bin/bash -e
 cd "$(dirname "$0")"
 
+BUILDDEPS=$PWD/builddeps
+
 OPT_HELP=false
 OPT_TIME=false
 OPT_LLDB=false
 OPT_ANALYZE=false
+FWD_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  -h|-help|--help)
-    OPT_HELP=true
-    shift
-    ;;
-  --)
-    shift
-    break
-    ;;
-  -time|--time)
-    OPT_TIME=true
-    shift
-    ;;
-  -lldb|--lldb)
-    OPT_LLDB=true
-    shift
-    ;;
-  -a|-analyze|--analyze)
-    OPT_ANALYZE=true
-    shift
-    ;;
-  -*)
-    echo "$0: Unknown option $1" >&2
-    OPT_HELP=true
-    shift
-    ;;
-  *)
-    break
-    ;;
+  -h|-help|--help)       OPT_HELP=true; shift ;;
+  -time|--time)          OPT_TIME=true; shift ;;
+  -lldb|--lldb)          OPT_LLDB=true; shift ;;
+  -a|-analyze|--analyze) OPT_ANALYZE=true; shift ;;
+  --)                    break; shift;;
+  -*)                    echo "$0: Unknown option $1" >&2; exit 1 ;;
+  *)                     FWD_ARGS+=( "$1" ); shift ;;
   esac
 done
 if $OPT_HELP; then
@@ -51,6 +33,10 @@ if $OPT_HELP; then
   exit 1
 fi
 
+FWD_ARGS+=( "$@" )
+if [ ${#FWD_ARGS[@]} -eq 0 ]; then
+  FWD_ARGS+=( example/factorial.w )
+fi
 
 if ! (which fswatch >/dev/null); then
   echo "Missing fswatch. See http://emcrisostomo.github.io/fswatch/" >&2
@@ -113,13 +99,9 @@ function dev_run {
 
 function dev_start {
   if $OPT_TIME; then
-    if ./build.sh; then
-      dev_run "$@"
-    fi
+    ./build.sh && dev_run "$@"
   else
-    if ./build.sh -g; then
-      dev_run "$@"
-    fi
+    ./build.sh -g && dev_run "$@"
   fi
 }
 
@@ -154,8 +136,7 @@ function dev_analyze_fswatch {
       --exclude='.*' --include='\.(c|h)$' \
       --recursive \
       src \
-    | while read -d "" filename
-    do
+    | while read -d "" filename; do
       # echo "file changed: ${filename}"
       echo $filename >> build/analyze_changed_files.txt
     done
@@ -185,20 +166,34 @@ trap dev_cleanup EXIT
 trap exit SIGINT  # make sure we can ctrl-c in the while loop
 
 
+_gen_debug_compdb() {
+  ninja -t compdb compile_obj > build/compilation-database.json
+  python3 misc/filter-compdb.py build/compilation-database.json build/obj/dev/ > \
+    build/debug-compilation-database.json
+}
+
 if $OPT_ANALYZE; then
   ninja debug
   echo "Running analyzer, starting with an analysis of all uncommitted files."
   echo "Run 'infer explore' in a separate shell to explore issues."
 
+  infer="$BUILDDEPS"/infer/bin/infer
+
+  if [ ! -x "$infer" ]; then
+    echo "Infer not installed. Run ./build.sh -a" >&2
+    exit 1
+  fi
+
   rm -f build/analyze_changed_files.txt
   echo -n "" > build/analyze_changed_files.txt
+  rm -rf build/infer # clashes with build.sh -a
 
   dev_analyze_start
-
-  ninja -t compdb compile_obj > build/debug-compilation-database.json
+  _gen_debug_compdb
   git status --porcelain | sed 's/^...//' > build/git-dirty-files.txt
-  infer capture --no-progress-bar --compilation-database build/debug-compilation-database.json
-  infer analyze --changed-files-index build/git-dirty-files.txt
+  "$infer" capture --no-progress-bar --compilation-database build/debug-compilation-database.json
+  echo "Initial analysis of \"git dirty\" sources..."
+  "$infer" analyze --changed-files-index build/git-dirty-files.txt
   echo "Analyzer watching for file changes..."
 
   set +e
@@ -220,13 +215,13 @@ if $OPT_ANALYZE; then
       sleep 0.5
     done
     ninja debug >/dev/null && \
-    ninja -t compdb compile_obj > build/debug-compilation-database.json
+    _gen_debug_compdb
     git status --porcelain | sed 's/^...//' > build/git-dirty-files.txt
-    infer capture --changed-files-index build/analyze_changed_files2.txt \
-                  --no-progress-bar \
-                  --compilation-database build/debug-compilation-database.json && \
-    infer analyze --progress-bar-style plain \
-                  --changed-files-index build/analyze_changed_files2.txt
+    "$infer" capture --changed-files-index build/analyze_changed_files2.txt \
+                     --no-progress-bar \
+                     --compilation-database build/debug-compilation-database.json && \
+    "$infer" analyze --progress-bar-style plain \
+                     --changed-files-index build/analyze_changed_files2.txt
   done
   set -e
 else
@@ -237,7 +232,7 @@ else
       IS_FIRST_RUN=false
       echo "Tip: Run './dev.sh -analyze' in a second shell for incremental code analysis."
     fi
-    dev_start "$@"
+    dev_start "${FWD_ARGS[@]}"
     if $OPT_LLDB; then
       echo "Watching files for changes..."
     fi
