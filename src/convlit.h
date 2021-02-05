@@ -1,8 +1,12 @@
 #pragma once
+#include "common/defs.h"
+#include "build/build.h"
 
 // convlit converts an expression to type t.
 // If n is already of type t, n is simply returned.
 // CCtx is used for error reporting.
+
+typedef struct Node Node;
 
 // For explicit conversions, which allows a greater range of conversions.
 static Node* ConvlitExplicit(CCtx* cc, Node* n, Node* t);

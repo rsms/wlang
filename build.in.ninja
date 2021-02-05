@@ -50,8 +50,8 @@ rule gen_parselet_map
 
 CONFIG_REPLACE_BUILDS
 
-build src/ir/op.c: gen_ops src/ir/arch_base.lisp src/types.h src/token.h
-build $builddir/gen_parselet_map.marker: gen_parselet_map src/parse.c
+build src/ir/op.c: gen_ops src/ir/arch_base.lisp src/types.h src/parse/token.h
+build $builddir/gen_parselet_map.marker: gen_parselet_map src/parse/parse.c
 
 build release: phony | $builddir/gen_parselet_map.marker $builddir/wp
 build debug:   phony | $builddir/gen_parselet_map.marker $builddir/wp.g

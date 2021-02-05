@@ -1,11 +1,11 @@
-#include "../wp.h"
 #include "ir.h"
+#include "../common/test.h"
 
 #define RBKEY      u64
 #define RBKEY_NULL 0
 #define RBVALUE    void*
 #define RBUSERDATA Memory
-#include "../rbtree.c.h"
+#include "../common/rbtree.c.h"
 
 // TODO: Consider a HAMT structure instead of a red-black tree as it would be more compact
 // in memory and faster for 64-bit int keys that are sequential (essentially a sparse array.)

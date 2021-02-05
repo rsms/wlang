@@ -1,4 +1,7 @@
 #pragma once
+#include "../common/defs.h"
+#include "../types.h"
+#include "../parse/token.h"
 
 // Op___
 typedef enum IROp {

@@ -1,6 +1,7 @@
-#include "wp.h"
+#include "convlit.h"
 #include "typeid.h"
 #include "ir/op.h"
+#include "parse/ast.h"
 
 // #define DEBUG_MODULE "convlit"
 

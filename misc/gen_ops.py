@@ -16,6 +16,12 @@ import re, sys, os, os.path
 from functools import reduce
 import pprint
 
+SRCFILE_ARCH_BASE = "src/ir/arch_base.lisp"
+SRCFILE_IR_OP_C   = "src/ir/op.c"
+SRCFILE_IR_OP_H   = "src/ir/op.h"
+SRCFILE_TOKEN_H   = "src/parse/token.h"
+SRCFILE_TYPES_H   = "src/types.h"
+
 pp = pprint.PrettyPrinter(indent=2)
 def rep(any): return pp.pformat(any)
 
@@ -209,9 +215,9 @@ class Arch:
 
 
 def main():
-  typeCodes = loadTypeCodes("src/types.h")
-  astOps = loadASTOpTokens("src/token.h")
-  baseArch = parse_arch_file("src/ir/arch_base.lisp")
+  typeCodes = loadTypeCodes(SRCFILE_TYPES_H)
+  astOps = loadASTOpTokens(SRCFILE_TOKEN_H)
+  baseArch = parse_arch_file(SRCFILE_ARCH_BASE)
   baseArch.isGeneric = True
   if DEBUG:
     print("baseArch:", {
@@ -318,7 +324,7 @@ def gen_IROpInfo(archs :[Arch], typeCodes :[str]):
   lines.append(endline)
   if DEBUG:
     print("\n".join(lines))
-  replaceInSourceFile("src/ir/op.c", startline, "\n"+endline, "\n".join(lines))
+  replaceInSourceFile(SRCFILE_IR_OP_C, startline, "\n"+endline, "\n".join(lines))
 
 
 def gen_IROpDescr():
@@ -339,7 +345,7 @@ def gen_IROpDescr():
   lines.append(endline)
   if DEBUG:
     print("\n".join(lines))
-  replaceInSourceFile("src/ir/op.h", startline, "\n"+endline, "\n".join(lines))
+  replaceInSourceFile(SRCFILE_IR_OP_H, startline, "\n"+endline, "\n".join(lines))
 
 
 def gen_IRAux():
@@ -355,7 +361,7 @@ def gen_IRAux():
   lines.append(endline)
   if DEBUG:
     print("\n".join(lines))
-  replaceInSourceFile("src/ir/op.h", startline, "\n"+endline, "\n".join(lines))
+  replaceInSourceFile(SRCFILE_IR_OP_H, startline, "\n"+endline, "\n".join(lines))
 
 
 def gen_IROpFlag():
@@ -378,7 +384,7 @@ def gen_IROpFlag():
   lines.append(endline)
   if DEBUG:
     print("\n".join(lines))
-  replaceInSourceFile("src/ir/op.h", startline, "\n"+endline, "\n".join(lines))
+  replaceInSourceFile(SRCFILE_IR_OP_H, startline, "\n"+endline, "\n".join(lines))
 
 
 def gen_IROpConvTable(baseArch :Arch, typeCodes :[str]):
@@ -467,7 +473,7 @@ def gen_IROpConvTable(baseArch :Arch, typeCodes :[str]):
   lines.append(endline)
   if DEBUG:
     print("\n".join(lines))
-  replaceInSourceFile("src/ir/op.c", startline, "\n"+endline, "\n".join(lines))
+  replaceInSourceFile(SRCFILE_IR_OP_C, startline, "\n"+endline, "\n".join(lines))
 
 
 def gen_IROpSwitches(baseArch :Arch, typeCodes :[str], astOps):
@@ -560,7 +566,7 @@ def gen_IROpSwitches(baseArch :Arch, typeCodes :[str], astOps):
   if DEBUG:
     print("\n  ".join(lines))
 
-  replaceInSourceFile("src/ir/op.c", startline, endline, "\n  ".join(lines))
+  replaceInSourceFile(SRCFILE_IR_OP_C, startline, endline, "\n  ".join(lines))
 
 
 
@@ -594,7 +600,7 @@ def gen_IROpConstMap(baseArch :Arch, typeCodes :[str]):
   lines.append(endline)
   if DEBUG:
     print("\n".join(lines))
-  replaceInSourceFile("src/ir/op.c", startline, "\n"+endline, "\n".join(lines))
+  replaceInSourceFile(SRCFILE_IR_OP_C, startline, "\n"+endline, "\n".join(lines))
 
 
 def gen_IROpNames(archs :[Arch]):
@@ -614,7 +620,7 @@ def gen_IROpNames(archs :[Arch]):
   lines.append(endline)
   if DEBUG:
     print("\n".join(lines))
-  replaceInSourceFile("src/ir/op.c", startline, endline, "\n".join(lines))
+  replaceInSourceFile(SRCFILE_IR_OP_C, startline, endline, "\n".join(lines))
   # IROpNamesMaxLen:
   lines = [
     '// IROpNamesMaxLen = longest name in IROpNames',
@@ -622,7 +628,7 @@ def gen_IROpNames(archs :[Arch]):
     '#define IROpNamesMaxLen %d' % longestName,
     '//!EndGenerated',
   ]
-  replaceInSourceFile("src/ir/op.h", lines[0], lines[len(lines)-1], "\n".join(lines))
+  replaceInSourceFile(SRCFILE_IR_OP_H, lines[0], lines[len(lines)-1], "\n".join(lines))
 
 
 def gen_IR_OPS(archs :[Arch]):
@@ -649,7 +655,7 @@ def gen_IR_OPS(archs :[Arch]):
   lines.append(endline)
   if DEBUG:
     print("\n".join(lines))
-  replaceInSourceFile("src/ir/op.h", startline, endline, "\n".join(lines))
+  replaceInSourceFile(SRCFILE_IR_OP_H, startline, endline, "\n".join(lines))
 
 
 def replaceInSourceFile(filename, findstart, findend, body):

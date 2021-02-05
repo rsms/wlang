@@ -1,5 +1,6 @@
 #pragma once
-#include "token.h"
+#include "common/str.h"
+#include "parse/token.h"
 #include "types.h"
 
 // Sym is a type of sds string, compatible with sds functions, with an additional header
@@ -44,7 +45,7 @@ inline static Tok symLangTok(Sym s) {
 #define HASHMAP_NAME     SymMap
 #define HASHMAP_KEY      Sym
 #define HASHMAP_VALUE    void*
-#include "hashmap.h"
+#include "common/hashmap.h"
 #undef HASHMAP_NAME
 #undef HASHMAP_KEY
 #undef HASHMAP_VALUE

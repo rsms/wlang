@@ -1,5 +1,10 @@
 #pragma once
-#include "../memory.h"
+#include "../common/defs.h"
+#include "../common/memory.h"
+#include "../common/array.h"
+#include "../build/source.h"
+#include "../parse/ast.h"
+#include "../sym.h"
 #include "op.h"
 
 

@@ -1,6 +1,7 @@
-#include "wp.h"
-#include "types.h"
 #include "typeid.h"
+#include "types.h"
+#include "common/test.h"
+#include "parse/ast.h"
 
 // See docs/typeid.md
 

@@ -10,7 +10,7 @@ def err(msg):
 srcdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(srcdir)
 
-sourcefilename = "src/parse.c"
+sourcefilename = "src/parse/parse.c"
 
 with open(sourcefilename, "r") as f:
   source = f.read()

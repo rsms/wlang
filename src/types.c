@@ -1,4 +1,3 @@
-#include "wp.h"
 #include "types.h"
 
 // Lookup table TypeCode => string encoding char

@@ -1,5 +1,9 @@
 #pragma once
-// requires: types, ast
+#include "common/defs.h"
+#include "types.h"
+#include "sym.h"
+
+typedef struct Node Node;
 
 // GetTypeID retrieves the TypeID for the type node n.
 // This function may mutate n by computing and storing id to n.t.id.

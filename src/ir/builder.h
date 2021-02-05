@@ -1,7 +1,8 @@
 #pragma once
 #include "ir.h"
-#include "../array.h"
-#include "../ptrmap.h"
+#include "../common/array.h"
+#include "../common/ptrmap.h"
+#include "../build/build.h"
 
 
 typedef enum IRBuilderFlags {
