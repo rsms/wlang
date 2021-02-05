@@ -66,7 +66,7 @@ static void sealBlock(IRBuilder* u, IRBlock* b) {
 
 // startBlock sets the current block we're generating code in
 static void startBlock(IRBuilder* u, IRBlock* b) {
-  assert(u->b == NULL); // err: starting block without ending block
+  assert(u->b == NULL); // err: forgot to call endBlock
   u->b = b;
   dlog("startBlock %p", b);
 }
@@ -95,10 +95,7 @@ static IRBlock* endBlock(IRBuilder* u) {
     u->vars = SymMapNew(8, u->mem);  // new block-local vars
   }
 
-  #if DEBUG
   u->b = NULL;  // crash if we try to use b before a new block is started
-  #endif
-
   return b;
 }
 
